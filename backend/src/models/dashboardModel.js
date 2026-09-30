@@ -9,13 +9,17 @@ class resumoDashboard {
     }
 };
 
+
 class escalasSemana{
-    constructor(id_escala, data_escala, horario, descricao, observacoes){
+    constructor(id_escala, data_escala, id_funcao, funcao, horario, 
+                total_voluntarios, pendentes){
         this.id_escala = id_escala;
         this.data_escala = data_escala;
+        this.id_funcao = id_funcao;
+        this.funcao = funcao;
+        this.total_voluntarios = total_voluntarios;
+        this.pendentes = pendentes
         this.horario = horario;
-        this.descricao = descricao;
-        this.observacoes = observacoes
     }
 };
 
@@ -83,12 +87,14 @@ const dashboardModel = {
 
     escalasSemana : async () =>{
         const result = await pool.query(
-            'select * from vw_escalas_semana_atual'
+            'select * from vw_escalas_semana'
         );
         const row = result.rows[0]
         if (!row) return null
         return result.rows.map(row =>
-            new escalasSemana(row.id_escala, row.data_escala, row.horario, row.descricao, row.observacoes)
+            new escalasSemana(row.id_escala, row.data_escala, row.id_funcao, row.funcao, 
+                              row.total_voluntarios, row.pendentes, row.horario
+            )
         )
 
     }

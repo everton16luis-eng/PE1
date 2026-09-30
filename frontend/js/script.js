@@ -167,6 +167,7 @@ function sideBar(){
             </div>
             <nav>
                 <a class="active" href="/dashboard"><span class="material-icons">dashboard</span>Dashboard</a>
+                <a class="" href="/eventos"><span class="material-icons">circle</span> Eventos
                 <a class="" href="/participantes"><span class="material-icons">groups</span>Participantes</a>
                 <a class="" href="/voluntarios"><span class="material-icons">volunteer_activism</span>Voluntários</a>
                 <a class="" href="/escalas"><span class="material-icons">calendar_month</span>Escalas</a>
@@ -180,7 +181,335 @@ function sideBar(){
     `
 }
 
+function headerInterno(nome, descricao){
+    return `
+        <header class="topbar" id="topbar">
+            <div>
+                <h1>${nome}</h1>
+                <p>${descricao}</p>
+            </div>
+            <div class="profile">
+                <div class="profile"><span class="material-icons notifications">
+                        notifications
+                    </span>
+                    <div class="avatar">A</div>
+                    <div>
+                        <strong>Administrador</strong>
+                        <small>
+                            <a href="/login">
+                                <p><a class="a" href="http://localhost:3000/login">Perfil</a></p>
+                            </a>
+                        </small>
+                    </div>
+            </div>
+        </header>
+    `
+}
 
 
-sideBar();
-carregarDashboard();    
+function criarEvento(){
+    const header = headerInterno("Criar evento.", "Crie e gerencie os eventos da igreja.")
+
+    const main = document.getElementById('main')
+    main.innerHTML = `
+    ${header}
+    <section class="panel volunteer-form">
+            <div class="panel-header">
+                <div>
+                    <h2>Informações do Evento</h2>
+                    <p class="panel-description">
+                        Preencha as informações para organizar o evento.
+                    </p>
+                </div>
+            </div>
+            <form id="formEscala">
+                <!-- =========================
+                     DATA E HORÁRIO
+                ========================== -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span class="material-icons">event</span>                    
+                        <div>
+                            <h3>Nome do Evento</h3>
+                            <p>Defina o nome do evento.</p>
+                        </div>
+                    </div>
+                    <div class="section-title">
+                        <span class="material-icons">
+                            event
+                        </span>
+                        
+                        <div>
+                            <h3>Data e Horário</h3>
+                            <p>Defina quando o evento acontecera.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="data">
+                                Data
+                            </label>
+                            <input
+                                type="date"
+                                id="data"
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="horarioInicio">
+                                Horário de início
+                            </label>
+                            <input
+                                type="time"
+                                id="horarioInicio"
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="horarioFim">
+                                Horário de término
+                            </label>
+                            <input
+                                type="time"
+                                id="horarioFim"
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="culto">
+                                Tipo de culto / evento
+                            </label>
+                            <select id="culto" required>
+                                <option value="">
+                                    Selecione
+                                </option>
+                                <option value="culto">
+                                    Culto
+                                </option>
+                                <option value="culto-jovens">
+                                    Culto de Jovens
+                                </option>
+                                <option value="culto-infantil">
+                                    Culto Infantil
+                                </option>
+                                <option value="evento">
+                                    Evento
+                                </option>
+                                <option value="reuniao">
+                                    Reunião
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <!-- =========================
+                     FUNÇÃO
+                ========================== -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span class="material-icons">
+                            engineering
+                        </span>
+                        <div>
+                            <h3>Função</h3>
+                            <p>
+                                Escolha a função que será realizada.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="funcao">
+                                Função
+                            </label>
+                            <select id="funcao" required>
+                                <option value="">
+                                    Selecione uma função
+                                </option>
+                                <option value="recepcao">
+                                    Recepção
+                                </option>
+                                <option value="louvor">
+                                    Louvor
+                                </option>
+                                <option value="midia">
+                                    Mídia
+                                </option>
+                                <option value="kids">
+                                    Kids
+                                </option>
+                                <option value="estacionamento">
+                                    Estacionamento
+                                </option>
+                                <option value="mesa-de-som">
+                                    Mesa de Som
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="quantidade">
+                                Quantidade de voluntários
+                            </label>
+                            <input
+                                type="number"
+                                id="quantidade"
+                                min="1"
+                                max="50"
+                                value="1"
+                                required
+                            >
+                        </div>
+                    </div>
+                </div>
+                <!-- =========================
+                     VOLUNTÁRIOS
+                ========================== -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span class="material-icons">
+                            groups
+                        </span>
+                        <div>
+                            <h3>Voluntários</h3>
+                            <p>
+                                Selecione os voluntários que participarão.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="Maria Silva"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                Maria Silva
+                            </span>
+                        </label>
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="João Santos"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                João Santos
+                            </span>
+                        </label>
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="Ana Oliveira"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                Ana Oliveira
+                            </span>
+                        </label>
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="Carlos Souza"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                Carlos Souza
+                            </span>
+                        </label>
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="Juliana Costa"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                Juliana Costa
+                            </span>
+                        </label>
+                        <label class="checkbox-card">
+                            <input
+                                type="checkbox"
+                                name="voluntarios"
+                                value="Pedro Alves"
+                            >
+                            <span class="material-icons">
+                                person
+                            </span>
+                            <span>
+                                Pedro Alves
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <!-- =========================
+                     OBSERVAÇÕES
+                ========================== -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span class="material-icons">
+                            notes
+                        </span>
+                        <div>
+                            <h3>Observações</h3>
+                            <p>
+                                Adicione informações importantes.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="observacoes">
+                            Observações
+                        </label>
+                        <textarea
+                            id="observacoes"
+                            rows="5"
+                            placeholder="Digite observações sobre esta escala..."
+                        ></textarea>
+                    </div>
+
+                </div>
+                <!-- =========================
+                     BOTÕES
+                ========================== -->
+                <div class="form-actions">
+                    <a
+                        href="/escalas"
+                        class="btn-cancel"
+                    >
+                        Cancelar
+                    </a>
+                    <button
+                        type="submit"
+                        class="primary"
+                    >
+                        <span class="material-icons">
+                            save
+                        </span>
+                        Salvar Escala
+                    </button>
+                </div>
+            </form>
+        </section>  
+    `
+}
+
+criarEvento()
+
+sideBar()
+// carregarDashboard();    
