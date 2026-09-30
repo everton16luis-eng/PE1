@@ -1104,7 +1104,7 @@ tr:last-child td {
     gap: 8px;
     margin-top: 18px;
     padding-top: 15px;
-    border-top: 1px solid var(--border)
+    /* border-top: 1px solid var(--border) */
 }
 
 .calendar {
@@ -1681,6 +1681,14 @@ tr:last-child td {
 
     gap: 20px;
 }
+.form-grid-tree {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 20px;
+}
 
 
 /* Campo ocupando toda a largura */
@@ -1697,7 +1705,6 @@ tr:last-child td {
 .form-group {
     display: flex;
     flex-direction: column;
-
     gap: 8px;
 }
 
@@ -1877,6 +1884,19 @@ tr:last-child td {
 
 }
 
+.form-actions-left {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: flex-start;
+
+    gap: 15px;
+
+    padding-top: 20px;
+}
+
 
 .btn-cancel {
 
@@ -1939,6 +1959,28 @@ tr:last-child td {
         19px;
 
 }
+
+.form-actions-left .primary {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    padding:
+        12px 22px;
+
+}
+
+
+.form-actions-left .primary .material-icons {
+
+    font-size:
+        19px;
+
+}
+
 
 
 /* =========================================

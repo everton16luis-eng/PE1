@@ -207,47 +207,52 @@ function headerInterno(nome, descricao){
 }
 
 
-function criarEvento(){
-    const header = headerInterno("Criar evento.", "Crie e gerencie os eventos da igreja.")
+async function criarEvento(){
+    try {
+        const funcoes = await fetch(`${API_URL}/funcoes`);
+        if (!funcoes.ok) {
+            throw new Error('Erro ao consultar a API');
+        }
 
+        const dados = await funcoes.json();
+        console.log(dados)
+    } catch (error) {
+        // console.log(erro.message)
+        
+    }
+    const header = headerInterno("Criar evento", "Crie e gerencie os eventos da igreja.");
     const main = document.getElementById('main')
     main.innerHTML = `
     ${header}
     <section class="panel volunteer-form">
-            <div class="panel-header">
-                <div>
-                    <h2>Informações do Evento</h2>
-                    <p class="panel-description">
-                        Preencha as informações para organizar o evento.
-                    </p>
-                </div>
-            </div>
+
             <form id="formEscala">
                 <!-- =========================
                      DATA E HORÁRIO
                 ========================== -->
                 <div class="form-section">
                     <div class="section-title">
-                        <span class="material-icons">event</span>                    
-                        <div>
-                            <h3>Nome do Evento</h3>
-                            <p>Defina o nome do evento.</p>
-                        </div>
-                    </div>
-                    <div class="section-title">
                         <span class="material-icons">
                             event
                         </span>
                         
                         <div>
-                            <h3>Data e Horário</h3>
-                            <p>Defina quando o evento acontecera.</p>
+                            <h3>Dados do Evento</h3>
+                            <p>Preencha os campos com os dados do evento</p>
                         </div>
                     </div>
                     <div class="form-grid">
+                       <div class="form-group">
+                        <label for="nome-evento">Nome do Evento.</label>
+                        <input
+                            type="text"
+                            id="nome-evento"
+                            required
+                        >
+                        </div>
                         <div class="form-group">
                             <label for="data">
-                                Data
+                                Data.
                             </label>
                             <input
                                 type="date"
@@ -257,7 +262,7 @@ function criarEvento(){
                         </div>
                         <div class="form-group">
                             <label for="horarioInicio">
-                                Horário de início
+                                Horário de início.
                             </label>
                             <input
                                 type="time"
@@ -267,7 +272,7 @@ function criarEvento(){
                         </div>
                         <div class="form-group">
                             <label for="horarioFim">
-                                Horário de término
+                                Horário prevista para o término.
                             </label>
                             <input
                                 type="time"
@@ -311,9 +316,9 @@ function criarEvento(){
                             engineering
                         </span>
                         <div>
-                            <h3>Função</h3>
+                            <h3>Funções</h3>
                             <p>
-                                Escolha a função que será realizada.
+                               Defina as funções necessarias no evento.
                             </p>
                         </div>
                     </div>
@@ -345,7 +350,9 @@ function criarEvento(){
                                     Mesa de Som
                                 </option>
                             </select>
+                            
                         </div>
+                        
                         <div class="form-group">
                             <label for="quantidade">
                                 Quantidade de voluntários
@@ -359,6 +366,21 @@ function criarEvento(){
                                 required
                             >
                         </div>
+                        <div class="form-actions-left">
+                            <button
+                                type="submit"
+                                class="primary"
+                            >
+                            <span class="material-icons">add</span>
+                            Adicionar função
+                            </button>                        
+                        </div>
+                        <div></div>
+                        <div>
+                        <span>Lista de Funções do Evento</span>
+                        <div></div>
+                        <div><span>Teste</span></div>
+                    </div>
                     </div>
                 </div>
                 <!-- =========================
@@ -372,7 +394,7 @@ function criarEvento(){
                         <div>
                             <h3>Voluntários</h3>
                             <p>
-                                Selecione os voluntários que participarão.
+                                Selecione os voluntários que estão aptos a colaborar no evento.
                             </p>
                         </div>
                     </div>
