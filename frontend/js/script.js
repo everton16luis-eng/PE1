@@ -7,7 +7,7 @@ async function carregarDashboard() {
         const cards = await fetch(`${API_URL}/dashboardPessoas`);
         //busca no banco as escalas da semana
         // const escalasSemana  = await fetch(`${API_URL}/dashboardEscalasSemana`)
-    
+
 
         if (!cards.ok) {
             throw new Error('Erro ao consultar a API');
@@ -17,7 +17,7 @@ async function carregarDashboard() {
         console.log(dados)
         // const escalas = await escalasSemana.json()
 
-            
+
 
         // Envia os dados para cada parte do site
         atualizarCards(dados);
@@ -29,6 +29,37 @@ async function carregarDashboard() {
         console.error('Erro ao carregar dashboard:', erro);
     }
 }
+
+async function dadosEventos() {
+    try {
+        const funcoes = await fetch(`${API_URL}/funcoes`);
+        if (!funcoes.ok) {
+            throw new Error('Erro ao consultar a API');
+        }
+        const dados = await funcoes.json();
+        return dados
+    } catch (error) {
+        console.log(erro.message)
+
+    }
+
+}
+
+async function dadosVolutanrios() {
+    try {
+        const voluntarios = await fetch(`${API_URL}/voluntariosDisponiveis`);
+        if (!voluntarios.ok) {
+            throw new Error('Erro ao consultar a API');
+        }
+        const dados = await voluntarios.json();
+        return dados
+    } catch (error) {
+        console.log(erro.message)
+
+    }
+
+}
+
 
 
 function renderizarConfirmacoes(confirmacoes) {
@@ -72,7 +103,7 @@ function atualizarCards(dados) {
 
     document.getElementById('total_visitantes').textContent =
         dados.total_visitantes ?? 0;
-        console.log(dados.total_visitantes)
+    console.log(dados.total_visitantes)
 
     document.getElementById('total_membros').textContent =
         dados.total_membros ?? 0;
@@ -87,25 +118,25 @@ function atualizarCards(dados) {
 function renderizarEscalas(escalas) {
 
     const tabela = document.getElementById('lista-escalas');
-    
+
 
     tabela.innerHTML = '';
 
     escalas.forEach(item => {
 
-       const dataFormatada = new Date(item.data_escala)
+        const dataFormatada = new Date(item.data_escala)
             .toLocaleDateString('pt-BR');
 
         const horario = item.horario.substring(0, 5);
 
-        tabela.innerHTML += 
-        // `
-        //         <td>${dataFormatada}</td>
-        //         <td>${horario}</td>
-        //         <td>${item.descricao}</td>
-        //         <td>${item.observacoe}</td>
-        // `
-        `
+        tabela.innerHTML +=
+            // `
+            //         <td>${dataFormatada}</td>
+            //         <td>${horario}</td>
+            //         <td>${item.descricao}</td>
+            //         <td>${item.observacoe}</td>
+            // `
+            `
         <tr>
                 <td>18/08/2026</td>
                 <td>Recepção</td>  
@@ -113,7 +144,7 @@ function renderizarEscalas(escalas) {
                 <td><b class="ok">4 confirmados</b></td>
               </tr>
         `
-        ;
+            ;
     });
 }
 
@@ -154,10 +185,10 @@ function renderizarEventos(eventos) {
 }
 
 
-function sideBar(){
+function sideBar() {
     const sideBar = document.getElementById('sidebar');
-    sideBar.innerHTML = 
-    `
+    sideBar.innerHTML =
+        `
         <div class="brand">
             <div class="brand-icon">✝</div>
                 <div class="brand">
@@ -181,7 +212,7 @@ function sideBar(){
     `
 }
 
-function headerInterno(nome, descricao){
+function headerInterno(nome, descricao) {
     return `
         <header class="topbar" id="topbar">
             <div>
@@ -207,329 +238,297 @@ function headerInterno(nome, descricao){
 }
 
 
-async function criarEvento(){
-    try {
-        const funcoes = await fetch(`${API_URL}/funcoes`);
-        if (!funcoes.ok) {
-            throw new Error('Erro ao consultar a API');
-        }
+async function criarEvento() {
+    const dados = await dadosEventos();
+    const voluntarios = await dadosVolutanrios();
 
-        const dados = await funcoes.json();
-        console.log(dados)
-    } catch (error) {
-        // console.log(erro.message)
-        
-    }
     const header = headerInterno("Criar evento", "Crie e gerencie os eventos da igreja.");
     const main = document.getElementById('main')
     main.innerHTML = `
     ${header}
     <section class="panel volunteer-form">
+        <form id="formEscala">
+            <!-- =========================
+                        DATA E HORÁRIO
+                    ========================== -->
+            <div class="form-section">
+                <div class="section-title">
+                    <span class="material-icons">
+                        event
+                    </span>
 
-            <form id="formEscala">
-                <!-- =========================
-                     DATA E HORÁRIO
-                ========================== -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <span class="material-icons">
-                            event
-                        </span>
-                        
-                        <div>
-                            <h3>Dados do Evento</h3>
-                            <p>Preencha os campos com os dados do evento</p>
-                        </div>
-                    </div>
-                    <div class="form-grid">
-                       <div class="form-group">
-                        <label for="nome-evento">Nome do Evento.</label>
-                        <input
-                            type="text"
-                            id="nome-evento"
-                            required
-                        >
-                        </div>
-                        <div class="form-group">
-                            <label for="data">
-                                Data.
-                            </label>
-                            <input
-                                type="date"
-                                id="data"
-                                required
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label for="horarioInicio">
-                                Horário de início.
-                            </label>
-                            <input
-                                type="time"
-                                id="horarioInicio"
-                                required
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label for="horarioFim">
-                                Horário prevista para o término.
-                            </label>
-                            <input
-                                type="time"
-                                id="horarioFim"
-                                required
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label for="culto">
-                                Tipo de culto / evento
-                            </label>
-                            <select id="culto" required>
-                                <option value="">
-                                    Selecione
-                                </option>
-                                <option value="culto">
-                                    Culto
-                                </option>
-                                <option value="culto-jovens">
-                                    Culto de Jovens
-                                </option>
-                                <option value="culto-infantil">
-                                    Culto Infantil
-                                </option>
-                                <option value="evento">
-                                    Evento
-                                </option>
-                                <option value="reuniao">
-                                    Reunião
-                                </option>
-                            </select>
-                        </div>
+                    <div>
+                        <h3>Dados do Evento</h3>
+                        <p>Preencha os campos com os dados do evento</p>
                     </div>
                 </div>
-                <!-- =========================
-                     FUNÇÃO
-                ========================== -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <span class="material-icons">
-                            engineering
-                        </span>
-                        <div>
-                            <h3>Funções</h3>
-                            <p>
-                               Defina as funções necessarias no evento.
-                            </p>
-                        </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="nome-evento">Nome do Evento.</label>
+                        <input type="text" id="nome-evento" required>
                     </div>
-                    <div class="form-grid">
+                    <div class="form-group">
+                        <label for="data">
+                            Data.
+                        </label>
+                        <input type="date" id="data" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="horarioInicio">
+                            Horário de início.
+                        </label>
+                        <input type="time" id="horarioInicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="horarioFim">
+                            Horário previsto para o término.
+                        </label>
+                        <input type="time" id="horarioFim" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="culto">
+                            Tipo de culto / evento
+                        </label>
+                        <select id="culto" required>
+                            <option value="">
+                                Selecione
+                            </option>
+                            <option value="culto">
+                                Culto
+                            </option>
+                            <option value="culto-jovens">
+                                Culto de Jovens
+                            </option>
+                            <option value="culto-infantil">
+                                Culto Infantil
+                            </option>
+                            <option value="evento">
+                                Evento
+                            </option>
+                            <option value="reuniao">
+                                Reunião
+                            </option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <!-- =========================
+                        FUNÇÃO
+                    ========================== -->
+            <div class="form-section">
+                <div class="section-title">
+                    <span class="material-icons">
+                        engineering
+                    </span>
+                    <div>
+                        <h3>Funções</h3>
+                        <p>
+                            Defina as funções necessarias no evento.
+                        </p>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div>
                         <div class="form-group">
                             <label for="funcao">
                                 Função
                             </label>
                             <select id="funcao" required>
-                                <option value="">
-                                    Selecione uma função
-                                </option>
-                                <option value="recepcao">
-                                    Recepção
-                                </option>
-                                <option value="louvor">
-                                    Louvor
-                                </option>
-                                <option value="midia">
-                                    Mídia
-                                </option>
-                                <option value="kids">
-                                    Kids
-                                </option>
-                                <option value="estacionamento">
-                                    Estacionamento
-                                </option>
-                                <option value="mesa-de-som">
-                                    Mesa de Som
-                                </option>
                             </select>
-                            
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="quantidade">
-                                Quantidade de voluntários
-                            </label>
-                            <input
-                                type="number"
-                                id="quantidade"
-                                min="1"
-                                max="50"
-                                value="1"
-                                required
-                            >
+                        <div class="form-group" id="qtd_voluntarios">
+                            <label>Número de voluntários</label>
+                            <input type="number" id="quantidade" min="1" max="50" value="1" required></input>
                         </div>
                         <div class="form-actions-left">
-                            <button
-                                type="submit"
-                                class="primary"
-                            >
-                            <span class="material-icons">add</span>
-                            Adicionar função
-                            </button>                        
+                            <button type="button" id="salvaFuncao" class="primary">
+                                <span class="material-icons">add</span>
+                                Adicionar função
+                            </button>
                         </div>
-                        <div></div>
-                        <div>
-                        <span>Lista de Funções do Evento</span>
-                        <div></div>
-                        <div><span>Teste</span></div>
                     </div>
+                    <div>
+                        <div class="section-title">
+                            <div>
+                                <h3>Funções selecionadas</h3>
+                                <p>
+                                    Lista de funções selecionadas para o evento
+                                </p>
+                            </div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Função</th>
+                                    <th>Voluntarios</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-funcoes">
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <!-- =========================
-                     VOLUNTÁRIOS
-                ========================== -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <span class="material-icons">
-                            groups
-                        </span>
-                        <div>
-                            <h3>Voluntários</h3>
-                            <p>
-                                Selecione os voluntários que estão aptos a colaborar no evento.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="checkbox-grid">
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="Maria Silva"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                Maria Silva
-                            </span>
-                        </label>
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="João Santos"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                João Santos
-                            </span>
-                        </label>
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="Ana Oliveira"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                Ana Oliveira
-                            </span>
-                        </label>
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="Carlos Souza"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                Carlos Souza
-                            </span>
-                        </label>
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="Juliana Costa"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                Juliana Costa
-                            </span>
-                        </label>
-                        <label class="checkbox-card">
-                            <input
-                                type="checkbox"
-                                name="voluntarios"
-                                value="Pedro Alves"
-                            >
-                            <span class="material-icons">
-                                person
-                            </span>
-                            <span>
-                                Pedro Alves
-                            </span>
-                        </label>
+            </div>
+            <!-- =========================
+                        VOLUNTÁRIOS
+            ========================== -->
+            <div class="form-section">
+                <div class="section-title">
+                    <span class="material-icons">
+                        groups
+                    </span>
+                    <div>
+                        <h3>Voluntários</h3>
+                        <p>
+                            Designe as funções aos voluntários que estão aptos a colaborar no evento.
+                        </p>
                     </div>
                 </div>
-                <!-- =========================
-                     OBSERVAÇÕES
-                ========================== -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <span class="material-icons">
-                            notes
-                        </span>
-                        <div>
-                            <h3>Observações</h3>
-                            <p>
-                                Adicione informações importantes.
-                            </p>
-                        </div>
+                <div class="checkbox-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Voluntário</th>
+                                <th>Disónibilidade</th>
+                                <th>Função</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-voluntarios">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- =========================
+                        OBSERVAÇÕES
+                    ========================== -->
+            <div class="form-section">
+                <div class="section-title">
+                    <span class="material-icons">
+                        notes
+                    </span>
+                    <div>
+                        <h3>Observações</h3>
+                        <p>
+                            Adicione informações importantes.
+                        </p>
                     </div>
-                    <div class="form-group">
-                        <label for="observacoes">
-                            Observações
-                        </label>
-                        <textarea
-                            id="observacoes"
-                            rows="5"
-                            placeholder="Digite observações sobre esta escala..."
-                        ></textarea>
-                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="observacoes">
+                        Observações
+                    </label>
+                    <textarea id="observacoes" rows="5" placeholder="Digite observações sobre esta escala..."></textarea>
+                </div>
 
-                </div>
-                <!-- =========================
-                     BOTÕES
-                ========================== -->
-                <div class="form-actions">
-                    <a
-                        href="/escalas"
-                        class="btn-cancel"
-                    >
-                        Cancelar
-                    </a>
-                    <button
-                        type="submit"
-                        class="primary"
-                    >
-                        <span class="material-icons">
-                            save
-                        </span>
-                        Salvar Escala
-                    </button>
-                </div>
-            </form>
-        </section>  
+            </div>
+            <!-- =========================
+                        BOTÕES
+                    ========================== -->
+            <div class="form-actions">
+                <a href="/escalas" class="btn-cancel">
+                    Cancelar
+                </a>
+                <button type="submit" class="primary">
+                    <span class="material-icons">
+                        save
+                    </span>
+                    Salvar Escala
+                </button>
+            </div>
+        </form>
+</section>
     `
+    const listaFuncoes = document.getElementById('funcao')
+    listaFuncoes.innerHTML = '<option value="">Selecione uma função</option>';
+    const listaVoluntarios = document.getElementById('lista-voluntarios')
+    dados.forEach(item => {
+        listaFuncoes.innerHTML += `
+        <option value="${item.nome}">
+            ${item.nome}
+        </option>
+        `
+    });
+    voluntarios.forEach(item => {
+        listaVoluntarios.innerHTML += `
+            <tr>
+                    <td>${item.nome}</td>
+                    <td>
+                        <b class="ok">Disponivel</b>
+                    </td>
+                    <td>
+                    <select id="funcao-disponivel" required>                        
+                    </select>
+
+                    </td>
+            </tr>
+
+        `
+    });
+    
+
+
+
+    const funcoes = []
+    function salvaFuncao() {
+        const id = document.getElementById('funcao').value;
+        const nV = document.getElementById('quantidade')
+        const lista = document.getElementById('lista-funcoes')
+        const funcaoDisp = document.getElementById('funcao-disponivel')
+
+        const quantidade = Number(nV.value);
+
+        if (id === "") {
+            alert('Por favor, selecione uma função primeiro');
+            return;
+        } else if (
+            nV.value === "" ||
+            quantidade < Number(nV.min) ||
+            quantidade > Number(nV.max)
+        ) {
+            alert(`Quantidade de voluntários não permitida\nMínimo: ${nV.min} e Máximo: ${nV.max}`);
+            return;
+        }
+
+        const existente = funcoes.find(item => item.nome == id);
+
+        if (existente) {
+            if (Number(existente.numero_voluntarios) === quantidade) {
+                alert('Função já cadastrada com essa quantidade');
+                return;
+            }
+
+            existente.numero_voluntarios = quantidade;
+        } else {
+            funcoes.push({
+                nome: id,
+                numero_voluntarios: quantidade
+            });
+        }
+        lista.innerHTML = '';
+        funcaoDisp.innerHTML = '';
+
+        funcoes.forEach(item => {
+            lista.innerHTML += `
+                <tr>
+                    <td>${item.nome}</td>
+                    <td>${item.numero_voluntarios}</td>
+                </tr>
+                `
+            funcaoDisp.innerHTML += `
+                <option value="${item.nome}">
+                            ${item.nome}
+                </option>        
+            `
+            
+        ;
+        });
+    }
+
+
+    document.getElementById('salvaFuncao')
+        .addEventListener('click', salvaFuncao);
 }
+
 
 criarEvento()
 

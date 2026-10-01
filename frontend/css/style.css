@@ -1717,6 +1717,7 @@ tr:last-child td {
 }
 
 
+
 .form-group input,
 .form-group select,
 .form-group textarea {
@@ -1743,6 +1744,21 @@ tr:last-child td {
 
     background: #ffffff;
 
+    color: #333;
+}
+td select{
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #dddddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition:
+        border-color 0.2s,
+        box-shadow 0.2s;
+    background: #ffffff;
     color: #333;
 }
 
@@ -1779,7 +1795,7 @@ tr:last-child td {
     display: grid;
 
     grid-template-columns:
-        repeat(3, minmax(0, 1fr));
+        repeat(1, minmax(0, 1fr));
 
     gap: 15px;
 }
@@ -1890,7 +1906,7 @@ tr:last-child td {
 
     align-items: center;
 
-    justify-content: flex-start;
+    justify-content: flex-end;
 
     gap: 15px;
 
