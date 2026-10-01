@@ -476,6 +476,7 @@ th {
 
 td {
     padding: 13px 8px;
+    
     border-bottom: 1px solid #f0f2f6;
 }
 
@@ -582,7 +583,7 @@ tr:last-child td {
     border-radius: 50%;
     background: conic-gradient(
         #25ad6b 0 68%,
-        #f5a027 68% 90%,
+        #f5a027 68% 90%,   
         #e9504f 90% 100%
     );
     display: grid;
@@ -1746,7 +1747,7 @@ tr:last-child td {
 
     color: #333;
 }
-td select{
+td .voluntario{
     width: 100%;
     padding: 12px 14px;
     border: 1px solid #dddddd;
@@ -1761,7 +1762,6 @@ td select{
     background: #ffffff;
     color: #333;
 }
-
 
 .form-group textarea {
     resize: vertical;

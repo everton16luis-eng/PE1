@@ -9,13 +9,12 @@ class funcoes{
     }
 }
 class voluntariosDisponiveis{
-    constructor(id_voluntario, id_membro, nome, id_departamento, data_inicio_voluntariado, data_batismo){
-        this.id_voluntario = id_voluntario;
+    constructor(id_membro, nome_completo, ativo, apt_voluntario, voluntario){
         this.id_membro = id_membro;
-        this.nome = nome;
-        this.id_departamento = id_departamento;
-        this.data_inicio_voluntariado = data_inicio_voluntariado;
-        this.data_batismo = data_batismo
+        this.nome_completo = nome_completo;
+        this.ativo = ativo
+        this.apto = apt_voluntario;
+        this.voluntario = voluntario
     }
 }
 
@@ -39,7 +38,7 @@ const eventoModel = {
         const row = result.rows[0]
         if(!row) return null
         return result.rows.map(row =>
-            new voluntariosDisponiveis(row.id_voluntario, row.id_membro, row.nome, row.id_departamento, row.data_inicio_voluntariado, row.data_batismo
+            new voluntariosDisponiveis(row.id_membro, row.nome_completo, row.ativo, row.apto, row.voluntario
             )
         );
     }

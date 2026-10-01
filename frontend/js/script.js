@@ -265,7 +265,7 @@ async function criarEvento() {
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="nome-evento">Nome do Evento.</label>
-                        <input type="text" id="nome-evento" required>
+                        <input type="text" id="nomeEvento" required>
                     </div>
                     <div class="form-group">
                         <label for="data">
@@ -289,7 +289,7 @@ async function criarEvento() {
                         <label for="culto">
                             Tipo de culto / evento
                         </label>
-                        <select id="culto" required>
+                        <select id="tipoEvento" required>
                             <option value="">
                                 Selecione
                             </option>
@@ -328,7 +328,6 @@ async function criarEvento() {
                     </div>
                 </div>
                 <div class="form-grid">
-                    <div>
                         <div class="form-group">
                             <label for="funcao">
                                 Função
@@ -340,32 +339,14 @@ async function criarEvento() {
                             <label>Número de voluntários</label>
                             <input type="number" id="quantidade" min="1" max="50" value="1" required></input>
                         </div>
+                        <div></div>
                         <div class="form-actions-left">
                             <button type="button" id="salvaFuncao" class="primary">
                                 <span class="material-icons">add</span>
                                 Adicionar função
                             </button>
                         </div>
-                    </div>
                     <div>
-                        <div class="section-title">
-                            <div>
-                                <h3>Funções selecionadas</h3>
-                                <p>
-                                    Lista de funções selecionadas para o evento
-                                </p>
-                            </div>
-                        </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Função</th>
-                                    <th>Voluntarios</th>
-                                </tr>
-                            </thead>
-                            <tbody id="lista-funcoes">
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -380,23 +361,21 @@ async function criarEvento() {
                     <div>
                         <h3>Voluntários</h3>
                         <p>
-                            Designe as funções aos voluntários que estão aptos a colaborar no evento.
+                            Designe as os voluntarioss que estão aptos a colaborar no evento.
                         </p>
                     </div>
                 </div>
-                <div class="checkbox-grid">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Voluntário</th>
-                                <th>Disónibilidade</th>
-                                <th>Função</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lista-voluntarios">
-                        </tbody>
-                    </table>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Função</th>
+                            <th>Voluntarios Necessarios</th>
+                            <th>Selecione os Voluntários</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-funcoes">
+                    </tbody>
+                </table>
             </div>
             <!-- =========================
                         OBSERVAÇÕES
@@ -428,11 +407,11 @@ async function criarEvento() {
                 <a href="/escalas" class="btn-cancel">
                     Cancelar
                 </a>
-                <button type="submit" class="primary">
+                <button type="button" id="criarEvento" class="primary">
                     <span class="material-icons">
                         save
                     </span>
-                    Salvar Escala
+                    Criar Evento
                 </button>
             </div>
         </form>
@@ -440,7 +419,7 @@ async function criarEvento() {
     `
     const listaFuncoes = document.getElementById('funcao')
     listaFuncoes.innerHTML = '<option value="">Selecione uma função</option>';
-    const listaVoluntarios = document.getElementById('lista-voluntarios')
+    const listaVoluntarios = document.querySelectorAll('voluntarios')
     dados.forEach(item => {
         listaFuncoes.innerHTML += `
         <option value="${item.nome}">
@@ -448,85 +427,182 @@ async function criarEvento() {
         </option>
         `
     });
-    voluntarios.forEach(item => {
-        listaVoluntarios.innerHTML += `
-            <tr>
-                    <td>${item.nome}</td>
-                    <td>
-                        <b class="ok">Disponivel</b>
-                    </td>
-                    <td>
-                    <select id="funcao-disponivel" required>                        
-                    </select>
-
-                    </td>
-            </tr>
-
-        `
-    });
-    
-
-
 
     const funcoes = []
-    function salvaFuncao() {
-        const id = document.getElementById('funcao').value;
-        const nV = document.getElementById('quantidade')
-        const lista = document.getElementById('lista-funcoes')
-        const funcaoDisp = document.getElementById('funcao-disponivel')
+    function capturaFuncao() {
+    const campoFuncao = document.getElementById('funcao');
+    const campoQuantidade = document.getElementById('quantidade');
+    const lista = document.getElementById('lista-funcoes');
 
-        const quantidade = Number(nV.value);
+    const nomeFuncao = campoFuncao.value;
+    const quantidade = Number(campoQuantidade.value);
+    const minimo = Number(campoQuantidade.min);
+    const maximo = Number(campoQuantidade.max);
 
-        if (id === "") {
-            alert('Por favor, selecione uma função primeiro');
-            return;
-        } else if (
-            nV.value === "" ||
-            quantidade < Number(nV.min) ||
-            quantidade > Number(nV.max)
-        ) {
-            alert(`Quantidade de voluntários não permitida\nMínimo: ${nV.min} e Máximo: ${nV.max}`);
-            return;
-        }
+    // 1. Valida a função e a quantidade informadas.
+    if (nomeFuncao === '') {
+        alert('Por favor, selecione uma função primeiro');
+        return;
+    }
 
-        const existente = funcoes.find(item => item.nome == id);
+    if (
+        campoQuantidade.value === '' ||
+        !Number.isInteger(quantidade) ||
+        quantidade < minimo ||
+        quantidade > maximo
+    ) {
+        alert(
+            `Quantidade de voluntários não permitida\n` +
+            `Mínimo: ${minimo} e Máximo: ${maximo}`
+        );
+        return;
+    }
 
-        if (existente) {
-            if (Number(existente.numero_voluntarios) === quantidade) {
-                alert('Função já cadastrada com essa quantidade');
-                return;
-            }
+    const existente = funcoes.find(item => item.nome === nomeFuncao);
 
-            existente.numero_voluntarios = quantidade;
-        } else {
-            funcoes.push({
-                nome: id,
-                numero_voluntarios: quantidade
-            });
-        }
-        lista.innerHTML = '';
-        funcaoDisp.innerHTML = '';
+    if (
+        existente &&
+        Number(existente.numero_voluntarios) === quantidade
+    ) {
+        alert('Função já cadastrada com essa quantidade');
+        return;
+    }
 
-        funcoes.forEach(item => {
-            lista.innerHTML += `
-                <tr>
-                    <td>${item.nome}</td>
-                    <td>${item.numero_voluntarios}</td>
-                </tr>
-                `
-            funcaoDisp.innerHTML += `
-                <option value="${item.nome}">
-                            ${item.nome}
-                </option>        
-            `
-            
-        ;
+    // 2. Guarda as escolhas atuais antes de recriar a tabela.
+    // Cada função guarda seus voluntários na ordem dos selects.
+    const escolhasAnteriores = new Map();
+
+    lista.querySelectorAll('tr').forEach(linha => {
+        const selects = linha.querySelectorAll('.voluntario');
+
+        if (selects.length === 0) return;
+
+        escolhasAnteriores.set(
+            linha.dataset.funcao,
+            Array.from(selects, select => select.value)
+        );
+    });
+
+    // 3. Atualiza a função existente ou adiciona uma nova.
+    if (existente) {
+        existente.numero_voluntarios = quantidade;
+    } else {
+        funcoes.push({
+            nome: nomeFuncao,
+            numero_voluntarios: quantidade
         });
     }
 
+    // 4. Recria as linhas e os campos de seleção.
+    lista.innerHTML = '';
+
+    funcoes.forEach(item => {
+        const linha = document.createElement('tr');
+        linha.dataset.funcao = item.nome;
+
+        const colunaNome = document.createElement('td');
+        colunaNome.textContent = item.nome;
+
+        const colunaQuantidade = document.createElement('td');
+        colunaQuantidade.textContent = item.numero_voluntarios;
+
+        const colunaVoluntarios = document.createElement('td');
+        const escolhas = escolhasAnteriores.get(item.nome) || [];
+
+        for (let i = 0; i < Number(item.numero_voluntarios); i++) {
+            const div = document.createElement('div');
+            const select = document.createElement('select');
+
+            select.className = 'voluntario';
+            select.required = true;
+
+            // A opção vazia permite desmarcar o voluntário.
+            select.add(new Option('Selecione um voluntário', ''));
+
+            voluntarios.forEach(voluntario => {
+                // Usa o ID para diferenciar pessoas com o mesmo nome.
+                select.add(
+                    new Option(
+                        voluntario.nome_completo,
+                        String(voluntario.id_membro)
+                    )
+                );
+            });
+
+            // Recupera a escolha anterior, se ainda existir.
+            select.value = escolhas[i] || '';
+
+            div.appendChild(select);
+            colunaVoluntarios.appendChild(div);
+        }
+
+        linha.append(colunaNome, colunaQuantidade, colunaVoluntarios);
+        lista.appendChild(linha);
+    });
+
+    // 5. Oculta e bloqueia quem já foi escolhido em outro select.
+    const selectsVoluntarios = lista.querySelectorAll('.voluntario');
+
+    function atualizarOpcoes() {
+        const selecionados = new Set(
+            Array.from(selectsVoluntarios, select => select.value)
+                .filter(valor => valor !== '')
+        );
+
+        selectsVoluntarios.forEach(select => {
+            Array.from(select.options).forEach(option => {
+                const escolhidoEmOutro =
+                    option.value !== '' &&
+                    selecionados.has(option.value) &&
+                    option.value !== select.value;
+
+                option.hidden = escolhidoEmOutro;
+                option.disabled = escolhidoEmOutro;
+            });
+        });
+    }
+
+    // Ao trocar ou desmarcar alguém, atualiza todos os selects.
+    selectsVoluntarios.forEach(select => {
+        select.addEventListener('change', atualizarOpcoes);
+    });
+
+    atualizarOpcoes();
+
+    // 6. Atualiza os outros selects que exibem as funções disponíveis.
+    document.querySelectorAll('.funcaoDisp').forEach(select => {
+        const escolhaAnterior = select.value;
+
+        select.innerHTML = '';
+        select.add(new Option('Selecione uma função', ''));
+
+        funcoes.forEach(item => {
+            select.add(new Option(item.nome, item.nome));
+        });
+
+        select.value = escolhaAnterior;
+    });
+}
+
+    function criarEvento() {
+        const nomeEvento = document.getElementById('nomeEvento').value
+        const dataEvento = document.getElementById('data').value;
+        const horaInicio = document.getElementById('horarioInicio').value;
+        const horaFim = document.getElementById('horarioFim').value;
+        const tipoEvento = document.getElementById('tipoEvento').value;
+        console.log(`
+        Nome do Evento: ${nomeEvento}\n
+        Data do Evento: ${dataEvento}\n
+        Hora do Evento: ${horaInicio}\n
+        Hora do Fim do Evento: ${horaFim}\n
+        Tipo de Evento: ${tipoEvento}
+        `)
+    }
 
     document.getElementById('salvaFuncao')
-        .addEventListener('click', salvaFuncao);
+        .addEventListener('click', capturaFuncao);
+    document.getElementById('criarEvento')
+        .addEventListener('click', criarEvento);
 }
 
 
