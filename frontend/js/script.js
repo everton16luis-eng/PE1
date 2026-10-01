@@ -197,8 +197,8 @@ function sideBar() {
                 </div>
             </div>
             <nav>
-                <a class="active" href="/dashboard"><span class="material-icons">dashboard</span>Dashboard</a>
-                <a class="" href="/eventos"><span class="material-icons">circle</span> Eventos
+                <a class="" id="gerenciaDashboard" href="#"><span class="material-icons">dashboard</span>Dashboard</a>
+                <a class="" id="gerenciaEvento"href="#"><span class="material-icons">circle</span> Eventos</a>
                 <a class="" href="/participantes"><span class="material-icons">groups</span>Participantes</a>
                 <a class="" href="/voluntarios"><span class="material-icons">volunteer_activism</span>Voluntários</a>
                 <a class="" href="/escalas"><span class="material-icons">calendar_month</span>Escalas</a>
@@ -210,6 +210,8 @@ function sideBar() {
             </nav>
             <div class="sidebar-footer">Sistema de Gestão<br>da Igreja</div>
     `
+    document.getElementById('gerenciaEvento')
+        .addEventListener('click', gerenciaEvento); 
 }
 
 function headerInterno(nome, descricao) {
@@ -238,10 +240,10 @@ function headerInterno(nome, descricao) {
 }
 
 
-async function criarEvento() {
+async function gerenciaEvento() {
     const dados = await dadosEventos();
     const voluntarios = await dadosVolutanrios();
-
+    document.getElementById('gerenciaEvento').classList.add('active');
     const header = headerInterno("Criar evento", "Crie e gerencie os eventos da igreja.");
     const main = document.getElementById('main')
     main.innerHTML = `
@@ -604,9 +606,15 @@ async function criarEvento() {
     document.getElementById('criarEvento')
         .addEventListener('click', criarEvento);
 }
+function gerenciaDashboard(){
+    const header = headerInterno("Dashboard", "Algo aqui");
+    const main = document.getElementById('main')
 
-
-criarEvento()
-
+    main.innerHTML = `
+    ${header}`
+}
 sideBar()
+
+// criarEvento()
+
 // carregarDashboard();    
