@@ -10,3 +10,14 @@ exports.getAllFuncoes = async (req, res) =>{
     }
 }
 
+exports.getAllvoluntariosDisponiveis = async (req, res) =>{
+    try {
+        const voluntarios = await Eventos.selecionaVoluntariosAtivos()
+        res.json(voluntarios);
+    } catch (error) {
+        console.error('Erro ao carregar funcões')
+        res.status(500).json({erro : error.message})
+    }
+}
+
+
