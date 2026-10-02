@@ -610,9 +610,15 @@ function gerenciaDashboard(){
     const header = headerInterno("Dashboard", "Algo aqui");
     const main = document.getElementById('main')
 
+<<<<<<< HEAD
     main.innerHTML = `
     ${header}`
 }
+=======
+
+// criarEvento()
+
+>>>>>>> 87917de (Atualização do BD)
 sideBar()
 
 // criarEvento()
