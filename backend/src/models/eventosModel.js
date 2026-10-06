@@ -49,7 +49,7 @@ const eventoModel = {
 
     selecionaEventos: async () => {
         const result = await pool.query(
-            'select * from eventos'
+            'select * from eventos order by data_evento asc limit 4'
         );
         const row = result.rows[0]
         if (!row) return null
