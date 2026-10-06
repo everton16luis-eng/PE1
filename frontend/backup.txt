@@ -1,0 +1,183 @@
+        <main class="content" id="main">
+            
+                <section class="cards" id="cards">
+                    <article class="stat-card blue">
+                        <div class="stat-icon">
+
+                            <span class="material-symbols-outlined card-resume blue">
+                                display_group
+                            </span>
+
+                        </div>
+                        <div><span>Visitantes</span><strong id="total_visitantes"></strong><small>Total cadastrados</small>
+                        </div>
+                    </article>
+                    <article class="stat-card green">
+                        <div class="stat-icon">
+
+                            <span class="material-icons card-resume green">groups</span>
+
+                        </div>
+                        <div><span>Membros</span><strong id="total_membros"></strong><small>Total cadastrados</small></div>
+                    </article>
+                    <article class="stat-card purple">
+                        <div class="stat-icon">
+
+                            <span class="material-icons card-resume purple">volunteer_activism</span>
+
+                        </div>
+                        <div><span>Voluntários</span><strong id="total_voluntarios"></strong><small>Ativos</small></div>
+                    </article>
+                    <article class="stat-card orange">
+                        <div class="stat-icon"><span class="material-icons card-resume orange">calendar_month</span></div>
+                        <div><span>Escalas do mês</span><strong id="total_escalas"></strong><small>Funções escaladas</small>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="grid-main">
+                    <article class="panel schedule-panel">
+                        <div class="panel-header">
+                            <h2>Escalas da Semana</h2>
+                            <button>Ver todas</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Evento</th>
+                                    <th>Função</th>
+                                    <th>Horário</th>
+                                    <th>Voluntários</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>18/08/2026</td>
+                                    <td>Culto de Domingo</td>
+                                    <td>Recepção</td>
+                                    <td>08:00 - 12:00</td>
+                                    <td><b class="ok">4 confirmados</b></td>
+                                </tr>
+                                <tr>
+                                    <td>18/08/2026</td>
+                                    <td>Culto de Domingo</td>
+                                    <td>Louvor</td>
+                                    <td>08:00 - 12:00</td>
+                                    <td><b class="ok">5 confirmados</b></td>
+                                </tr>
+                                <tr>
+                                    <td>18/08/2026</td>
+                                    <td>Culto de Domingo</td>
+                                    <td>Kids</td>
+                                    <td>08:00 - 12:00</td>
+                                    <td><b class="ok">6 confirmados</b></td>
+                                </tr>
+                                <tr>
+                                    <td>25/08/2026</td>
+                                    <td>Culto de Domingo</td>
+                                    <td>Estacionamento</td>
+                                    <td>08:00 - 12:00</td>
+                                    <td><b class="pending">3 pendentes</b></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </article>
+
+                    <article class="panel confirmations">
+                        <div class="panel-header">
+                            <h2>Confirmações Pendentes</h2>
+                            <button>Ver todas</button>
+                        </div>
+                        <div class="person">
+                            <div class="mini-avatar">M</div>
+                            <div><strong>Maria Silva</strong><small>Louvor • 18/08/2026</small></div><span>Pendente</span>
+                        </div>
+                        <div class="person">
+                            <div class="mini-avatar">J</div>
+                            <div><strong>João Oliveira</strong><small>Recepção • 18/08/2026</small></div>
+                            <span>Pendente</span>
+                        </div>
+                        <div class="person">
+                            <div class="mini-avatar">A</div>
+                            <div><strong>Ana Paula</strong><small>Kids • 18/08/2026</small></div><span>Pendente</span>
+                        </div>
+                    </article>
+
+                    <article class="panel chart-panel">
+                        <div class="panel-header">
+                            <h2>Gráfico de Confirmações</h2>
+                            <button>Ver relatórios</button>
+                        </div>
+                        <div class="chart-content">
+                            <div class="donut">
+                                <div><strong>68%</strong><span>Confirmados</span></div>
+                            </div>
+                            <div class="legend">
+                                <p><i class="dot confirmed"></i> Confirmados <b>68%</b></p>
+                                <p><i class="dot waiting"></i> Pendentes <b>22%</b></p>
+                                <p><i class="dot absent"></i> Ausentes <b>10%</b></p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="panel events">
+                        <div class="panel-header">
+                            <h2>Próximos Eventos</h2>
+                        </div>
+                        <div class="event"><b>18/08</b><span>Culto Dominical</span><strong>08:00</strong></div>
+                        <div class="event"><b>21/08</b><span>Ensaio Louvor</span><strong>19:30</strong></div>
+                        <div class="event"><b>25/08</b><span>Culto Dominical</span><strong>08:00</strong></div>
+                    </article>
+                </section>
+
+                <section class="bottom-grid">
+                    <article class="panel">
+                        <div class="panel-header">
+                            <h2>Participantes</h2><button>+ Novo</button>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">M</div>
+                            <div><strong>Maria Silva</strong><small>Visitante • 14/08/2026</small></div>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">J</div>
+                            <div><strong>João Oliveira</strong><small>Membro desde 2024</small></div>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">A</div>
+                            <div><strong>Ana Paula Santos</strong><small>Membro desde 2023</small></div>
+                        </div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-header">
+                            <h2>Voluntários</h2><button>+ Novo</button>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">M</div>
+                            <div><strong>Maria Silva</strong><small>Recepção, Integra</small></div><em
+                                class="status">Ativo</em>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">J</div>
+                            <div><strong>João Oliveira</strong><small>Louvor, Mídia</small></div><em
+                                class="status">Ativo</em>
+                        </div>
+                        <div class="list-row">
+                            <div class="mini-avatar">A</div>
+                            <div><strong>Ana Paula Santos</strong><small>Kids</small></div><em class="status">Ativo</em>
+                        </div>
+                    </article>
+
+                    <article class="panel report-card">
+                        <div class="panel-header">
+                            <h2>Relatórios</h2>
+                        </div>
+                        <a href="#">♙ <span>Relatório de Participantes</span> ›</a>
+                        <a href="#">♡ <span>Relatório de Voluntários</span> ›</a>
+                        <a href="#">▣ <span>Relatório de Escalas</span> ›</a>
+                        <a href="#">▥ <span>Relatório Financeiro</span> ›</a>
+                    </article>
+                </section>
+        </main>
