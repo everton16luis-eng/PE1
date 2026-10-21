@@ -9,7 +9,7 @@ PostgreSQL, esquema `public`, codificação UTF-8. O esquema base veio do dump `
 ```mermaid
 erDiagram
     membros ||--o| voluntarios : "pode ser"
-    membros ||--o| usuarios : "login do portal (id_membro)"
+    membros ||--o| usuarios : "login (id_membro, obrigatório)"
     membros ||--o{ turmas : "presenças"
     membros ||--o| criancas : "cadastro infantil (id_membro)"
     voluntarios }o--|| departamentos : "pertence"
@@ -34,8 +34,8 @@ erDiagram
 
 | Tabela | Descrição | Colunas importantes |
 |---|---|---|
-| `membros` | Membros da igreja (inclui crianças cadastradas como membros) | `nome_completo`, `data_nascimento`, `telefone`, `email`, `endereco`, `estado_civil`, `data_entrada_igreja`, `informacoes_batismo`, `ativo`, `apto_voluntario`, `voluntario`, `participa_celula`, `observacoes` |
-| `visitantes` | Visitantes — **todo cadastro novo começa aqui** | `nome`, `telefone`, `email`, `data_nascimento`, `estado_civil`, `endereco`, `data_visita`, `observacoes`, `id_membro` (preenchido quando o administrador o promove a membro; único), `promovido_em` |
+| `membros` | **Cadastro universal de pessoas.** Toda pessoa do sistema tem um registro aqui (visitantes, membros, crianças, voluntários, quem tem login) | `nome_completo`, `data_nascimento`, `telefone`, `email`, `endereco`, `estado_civil`, **`classificacao`** (`visitante`/`membro`), `data_primeira_visita`, `data_entrada_igreja`, `informacoes_batismo`, `ativo`, `apto_voluntario`, `voluntario`, `participa_celula`, `observacoes` |
+| `visitantes` | Histórico de visitas (até a base universal, era o cadastro de visitantes). Não recebe mais cadastros novos | `nome`, `data_visita`, `id_membro` (a pessoa na base universal), `promovido_em` |
 
 ### Voluntariado e escalas
 
@@ -113,6 +113,7 @@ Ficam em `backend/database/` e são executadas por `executar.js` (sempre em UTF-
 | `npm run db:paginas` | `paginas.sql` | Colunas novas em `membros`, `voluntarios`, `funcoes`, `cadastroturmas`, `criancas`, `usuarios`; novos perfis; permissões padrão; `relatorios_gerados`; índices |
 | `npm run db:voluntario` | `voluntario.sql` | `usuarios.id_membro`, colunas de recusa em `escala_participantes`, `voluntario_ausencias` |
 | `npm run db:cadastro` | `cadastro.sql` | Campos pessoais em `visitantes` (`email`, `data_nascimento`, `estado_civil`, `endereco`) e a ligação `id_membro`/`promovido_em` usada quando o administrador promove o visitante a membro |
+| `npm run db:pessoas` | `pessoas.sql` | **Base universal**: `membros.classificacao` e `data_primeira_visita`; leva visitantes, a criança sem pessoa e os logins sem pessoa para a base (como visitantes) e liga cada um; `criancas.id_membro` e `usuarios.id_membro` passam a ser obrigatórios (uma ficha infantil por pessoa); visões de resumo contam pela classificação. Não apaga pessoas nem muda ids |
 
 Para rodar um `.sql` avulso:
 
@@ -140,5 +141,21 @@ Todos usam a senha de teste `Teste@123`. **Não rode os seeds em produção.**
 
 - `escalas` tem **duas** chaves estrangeiras para `eventos` (uma com `ON DELETE CASCADE` e outra sem). Para apagar um evento, apague antes as escalas dele.
 - `membros.voluntario` é uma marca antiga usada pela view `vw_voluntarios_disponiveis`; quem é voluntário de fato está na tabela `voluntarios`.
+
+## Base universal de pessoas
+
+A tabela `membros` é o cadastro único de pessoas. Os setores não guardam outra cópia da pessoa; só filtram essa base (critérios em `backend/src/models/pessoasModel.js`):
+
+| Setor | Critério | Complemento do setor |
+|---|---|---|
+| Participantes | todas as pessoas | — |
+| Crianças | `data_nascimento` depois de "hoje − 18 anos" (sem data, não entra) | `criancas` (turma, alergias, autorizações) + `crianca_responsavel` |
+| Voluntários | `ativo` **e** `apto_voluntario` | `voluntarios` (funções, dias, escalas; `ativo` = servindo/pausado) |
+| Usuários | login (`usuarios.id_membro`) com perfil de gestão | `usuarios` (e-mail, senha, perfil, permissões) |
+
+- Todo cadastro novo entra como **visitante**, ativo, não apto e sem login (`pessoasModel.criar`). Isso vale para o Cadastro, a "Nova criança" e o pedido de acesso pela tela de login.
+- Ter um cadastro **não** cria login; ter um login **exige** um cadastro.
+- `criancas.nome_completo` e `criancas.data_nascimento` ficaram como legado: o nome e a data oficiais são os da pessoa.
+- `responsaveis` continua separada: são contatos dos responsáveis, ainda não ligados à base de pessoas (ver pendências no histórico).
 - Datas sem horário (`date`) chegam ao navegador como `AAAA-MM-DDT03:00:00Z` (meia-noite de Brasília). O frontend usa `formatarDataSimples`, que lê só os 10 primeiros caracteres.
 - Funções antigas de teste ("Gari", "Garia", "Gariaaa") continuam no banco; podem ser inativadas na página Funções.

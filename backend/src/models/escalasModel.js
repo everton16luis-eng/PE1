@@ -83,11 +83,26 @@ const escalasModel = {
                  WHERE id_voluntario = v.id_voluntario AND $3::date BETWEEN data_inicio AND data_fim
                  LIMIT 1
              ) au ON TRUE
-             WHERE v.ativo AND vf.id_funcao = $1
+             WHERE v.ativo AND m.ativo AND m.apto_voluntario AND vf.id_funcao = $1
              ORDER BY disponivel DESC, ausente, m.nome_completo`,
             [idFuncao, diaSemana, data]
         );
         return result.rows;
+    },
+
+    // Ids (entre os informados) que NÃO podem ser escalados nesta função
+    voluntariosInelegiveis: async (idFuncao, ids) => {
+        const result = await pool.query(
+            `SELECT id FROM unnest($2::int[]) AS id
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM voluntarios v
+                 JOIN membros m ON m.id_membro = v.id_membro
+                 JOIN voluntario_funcoes vf ON vf.id_voluntario = v.id_voluntario AND vf.id_funcao = $1
+                 WHERE v.id_voluntario = id AND v.ativo AND m.ativo AND m.apto_voluntario
+             )`,
+            [idFuncao, ids]
+        );
+        return result.rows.map(r => r.id);
     },
 
     criar: async (e) => {

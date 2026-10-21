@@ -26,6 +26,8 @@ exports.novaCrianca = async (req, res) => {
         const b = req.body;
         const r = b.responsavel || {};
         const dados = {
+            // Pessoa já cadastrada (completar a ficha) ou nova pessoa (nome + nascimento)
+            id_membro: Number.isInteger(Number(b.id_membro)) && Number(b.id_membro) > 0 ? Number(b.id_membro) : null,
             nome: texto(b.nome),
             data_nascimento: DATA.test(b.data_nascimento || '') ? b.data_nascimento : null,
             sexo: ['feminino', 'masculino'].includes(b.sexo) ? b.sexo : null,
@@ -44,7 +46,16 @@ exports.novaCrianca = async (req, res) => {
             }
         };
 
-        if (!dados.nome || !dados.data_nascimento) return res.status(400).json({ erro: 'Informe nome e data de nascimento.' });
+        if (b.id_membro != null && b.id_membro !== '' && !dados.id_membro) return res.status(400).json({ erro: 'Pessoa inválida.' });
+        if (!dados.id_membro) {
+            if (!dados.nome || !dados.data_nascimento) return res.status(400).json({ erro: 'Informe nome e data de nascimento.' });
+            const hoje = new Date();
+            const limite = new Date(hoje.getFullYear() - 18, hoje.getMonth(), hoje.getDate()).toLocaleDateString('sv-SE');
+            if (dados.data_nascimento > hoje.toLocaleDateString('sv-SE')) return res.status(400).json({ erro: 'A data de nascimento não pode ser no futuro.' });
+            if (dados.data_nascimento <= limite) {
+                return res.status(400).json({ erro: 'Crianças são pessoas com menos de 18 anos. Para adultos, use o Cadastro em Participantes.' });
+            }
+        }
         if (!dados.sexo) return res.status(400).json({ erro: 'Selecione o sexo.' });
         if (!dados.responsavel.nome || !dados.responsavel.parentesco || !dados.responsavel.telefone) {
             return res.status(400).json({ erro: 'Informe nome, parentesco e telefone do responsável.' });
@@ -52,7 +63,9 @@ exports.novaCrianca = async (req, res) => {
         if (!dados.id_turma) return res.status(400).json({ erro: 'Selecione a turma.' });
         if (!dados.autorizacao_responsavel) return res.status(400).json({ erro: 'É necessário confirmar a autorização do responsável.' });
 
-        res.status(201).json(await Criancas.criar(dados));
+        const crianca = await Criancas.criar(dados);
+        if (crianca.erro) return res.status(crianca.status).json({ erro: crianca.erro });
+        res.status(201).json(crianca);
     } catch (error) {
         console.error('Erro ao cadastrar criança', error);
         if (error.code === '23503') return res.status(400).json({ erro: 'A turma selecionada não existe.' });

@@ -2604,6 +2604,47 @@ small.motivo {
 
 /* Minha área: próximos eventos da igreja */
 
+/* Participantes: perfil do login e linhas sem ação */
+.badge.acesso {
+    color: #3975c6;
+    background: #e8f1ff;
+}
+
+.sem-acao {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+/* Modal "Vincular conta a uma pessoa" */
+.opcoes-vinculo {
+    display: grid;
+    gap: 10px;
+}
+
+.vinculo-existente {
+    margin-top: 14px;
+}
+
+.vinculo-lista {
+    max-height: 260px;
+    margin-top: 10px;
+    overflow-y: auto;
+}
+
+.vinculo-opcao {
+    cursor: pointer;
+    min-height: 44px;
+}
+
+.vinculo-opcao:has(input:checked) {
+    background: #f7ece4;
+}
+
+.vinculo-opcao .info {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .panel + .painel-agenda {
     margin-top: 17px;
 }

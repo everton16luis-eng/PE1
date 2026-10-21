@@ -28,7 +28,7 @@ Cada área tem três arquivos com o mesmo nome base:
 |---|---|---|---|
 | Rota | `backend/src/routes/` | Endereço, método HTTP e permissão exigida | `router.get('/voluntarios/:id', gestao, controller.getFicha)` |
 | Controller | `backend/src/controllers/` | Ler e **validar** a entrada, chamar o model, montar a resposta e os códigos HTTP | `voluntariosController.getFicha` |
-| Model | `backend/src/models/` | SQL (sempre com parâmetros `$1, $2…`), transações | `voluntariosModel.buscarFicha` |
+| Model | `backend/src/models/` | SQL (sempre com parâmetros `$1, $2…`), transações. `pessoasModel` concentra a base universal de pessoas: o único jeito de criar uma pessoa e os critérios de cada setor (menor de 18, voluntário elegível) | `voluntariosModel.buscarFicha`, `pessoasModel.criar` |
 
 Apoio em `backend/src/config/`:
 

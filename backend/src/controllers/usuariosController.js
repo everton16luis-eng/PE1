@@ -1,4 +1,5 @@
 const Usuarios = require('../models/usuariosModel');
+const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha } = require('../config/seguranca');
 
@@ -11,7 +12,6 @@ const MENSAGEM_PORTAL = 'Contas do portal do voluntário são gerenciadas na fic
 // Lê e valida o corpo do formulário de usuário
 function dadosDoFormulario(body, senhaObrigatoria) {
     const dados = {
-        nome: String(body.nome || '').trim(),
         email: String(body.email || '').trim().toLowerCase(),
         telefone: String(body.telefone || '').trim() || null,
         perfil: String(body.perfil || '').toUpperCase(),
@@ -21,7 +21,7 @@ function dadosDoFormulario(body, senhaObrigatoria) {
     };
     const senha = String(body.senha || '');
 
-    if (!dados.nome || !/^\S+@\S+\.\S+$/.test(dados.email)) return { erro: 'Informe nome e um e-mail válido.' };
+    if (!/^\S+@\S+\.\S+$/.test(dados.email)) return { erro: 'Informe um e-mail válido.' };
     if (dados.perfil === 'VOLUNTARIO') return { erro: MENSAGEM_PORTAL };
     if (!PERFIS.includes(dados.perfil)) return { erro: 'Selecione um perfil de acesso válido.' };
     if ((senhaObrigatoria || senha) && senha.length < 6) return { erro: 'A senha deve ter pelo menos 6 caracteres.' };
@@ -53,8 +53,9 @@ function bloqueioDePrivilegio(usuarioLogado, dados, alvoAtual = null) {
 
 exports.getUsuarios = async (req, res) => {
     try {
-        const [usuarios, resumo] = await Promise.all([Usuarios.listar(), Usuarios.resumo()]);
-        res.json({ usuarios, resumo });
+        // pessoas = cadastros sem login (a quem um novo acesso pode ser dado)
+        const [usuarios, resumo, pessoas] = await Promise.all([Usuarios.listar(), Usuarios.resumo(), Pessoas.semLogin()]);
+        res.json({ usuarios, resumo, pessoas });
     } catch (error) {
         console.error('Erro ao carregar usuários', error);
         responderErro(res, error);
@@ -69,7 +70,18 @@ exports.novoUsuario = async (req, res) => {
         const bloqueio = bloqueioDePrivilegio(req.usuario, dados);
         if (bloqueio) return res.status(403).json({ erro: bloqueio });
 
-        res.status(201).json(await Usuarios.criar(dados));
+        // O acesso é dado a uma pessoa que já está no cadastro universal
+        const idMembro = Number(req.body.id_membro);
+        if (!Number.isInteger(idMembro) || idMembro <= 0) {
+            return res.status(400).json({ erro: 'Escolha a pessoa (do Cadastro) que vai receber o acesso.' });
+        }
+        const pessoa = await Pessoas.buscar(idMembro);
+        if (!pessoa) return res.status(404).json({ erro: 'Pessoa não encontrada no cadastro.' });
+        if (pessoa.tem_login) return res.status(409).json({ erro: 'Esta pessoa já tem um login.' });
+
+        res.status(201).json(await Usuarios.criar({
+            ...dados, nome: pessoa.nome, id_membro: idMembro, telefone: dados.telefone || pessoa.telefone
+        }));
     } catch (error) {
         console.error('Erro ao cadastrar usuário', error);
         if (error.code === '23505') return res.status(409).json({ erro: 'Já existe um usuário com esse e-mail.' });

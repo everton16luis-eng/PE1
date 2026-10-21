@@ -100,19 +100,28 @@ async function gerenciaUsuarios() {
     });
 }
 
-function formularioUsuario(usuario = null) {
+async function formularioUsuario(usuario = null) {
     registrarRota(usuario ? 'usuarios/editar' : 'usuarios/novo', [usuario]);
     const main = document.getElementById('main');
     const editar = Boolean(usuario);
+    // Novo acesso é dado a uma pessoa do cadastro universal que ainda não tem login
+    const pessoas = editar ? [] : (await buscarDados('usuarios', { pessoas: [] })).pessoas || [];
 
     const section = document.createElement('section');
     section.className = 'panel volunteer-form';
     section.innerHTML = `
         <form id="formUsuario" novalidate>
             <div class="form-section">
-                <div class="section-title"><span class="material-icons">person</span><div><h3>Dados do usuário</h3><p>Informações básicas para identificação</p></div></div>
+                <div class="section-title"><span class="material-icons">person</span><div><h3>Pessoa</h3><p>${editar ? 'O nome vem do cadastro da pessoa (altere em Participantes).' : 'Escolha quem vai receber o acesso. Ela precisa estar no Cadastro (Participantes).'}</p></div></div>
                 <div class="form-grid">
-                    <div class="form-group"><label for="uNome">Nome completo</label><input type="text" id="uNome" placeholder="Digite o nome completo" required></div>
+                    ${editar
+                        ? '<div class="form-group"><label for="uNome">Nome</label><input type="text" id="uNome" readonly></div>'
+                        : `<div class="form-group full">
+                               <label for="uPessoaBusca">Pessoa</label>
+                               <input type="search" id="uPessoaBusca" placeholder="Digite parte do nome..." aria-label="Buscar pessoa no cadastro">
+                               <select id="uPessoa" required size="5" aria-label="Pessoa que vai receber o acesso"></select>
+                               <small>Só aparecem pessoas sem login. Ter um cadastro não dá acesso: o acesso é criado aqui.</small>
+                           </div>`}
                     <div class="form-group"><label for="uEmail">E-mail</label><input type="email" id="uEmail" placeholder="usuario@igreja.com" required><small>Usado para entrar no sistema (o telefone também serve).</small></div>
                     <div class="form-group"><label for="uTelefone">Telefone</label><input type="tel" id="uTelefone" placeholder="(00) 00000-0000"></div>
                     <div class="form-group">
@@ -187,6 +196,23 @@ function formularioUsuario(usuario = null) {
         if (!souAdmin && editandoASiMesmo) $('uPerfil').disabled = true;
     }
 
+    // Busca e escolha da pessoa (até 50 por vez); preenche e-mail e telefone do cadastro
+    function desenharPessoas() {
+        const termo = normalizarTexto($('uPessoaBusca').value);
+        const encontradas = pessoas.filter(p => !termo || normalizarTexto(p.nome).includes(termo)).slice(0, 50);
+        $('uPessoa').innerHTML = encontradas.map(p => `<option value="${p.id_membro}">${escapar(p.nome)}${p.email ? ' — ' + escapar(p.email) : ''}</option>`).join('')
+            || '<option value="" disabled>Ninguém sem login com esse nome</option>';
+    }
+    if (!editar) {
+        desenharPessoas();
+        $('uPessoaBusca').addEventListener('input', desenharPessoas);
+        $('uPessoa').addEventListener('change', () => {
+            const pessoa = pessoas.find(p => String(p.id_membro) === $('uPessoa').value);
+            if (pessoa?.email && !$('uEmail').value) $('uEmail').value = pessoa.email;
+            if (pessoa?.telefone && !$('uTelefone').value) $('uTelefone').value = pessoa.telefone;
+        });
+    }
+
     if (editar) {
         $('uNome').value = usuario.nome;
         $('uEmail').value = usuario.email;
@@ -206,9 +232,10 @@ function formularioUsuario(usuario = null) {
         if ((!editar || senha) && senha.length < 6) return mensagemFormulario(form, 'A senha deve ter pelo menos 6 caracteres.');
         if (senha !== $('uConfirmar').value) return mensagemFormulario(form, 'As senhas não são iguais.');
         if (!$('uPerfil').value) return mensagemFormulario(form, 'Selecione o perfil de acesso.');
+        if (!editar && !$('uPessoa').value) return mensagemFormulario(form, 'Escolha a pessoa que vai receber o acesso.');
 
         const dados = {
-            nome: $('uNome').value,
+            id_membro: editar ? undefined : Number($('uPessoa').value),
             email: $('uEmail').value,
             telefone: $('uTelefone').value,
             senha,
@@ -222,7 +249,7 @@ function formularioUsuario(usuario = null) {
             const salvo = await enviarDados(editar ? `usuarios/${usuario.id_usuario}` : 'usuarios', editar ? 'PUT' : 'POST', dados);
             // Se editou o próprio cadastro, atualiza nome/permissões na tela
             if (salvo.id_usuario === usuarioAtual?.id_usuario) {
-                usuarioAtual = salvo;
+                usuarioAtual = { ...usuarioAtual, ...salvo };
                 document.getElementById('sidebar').replaceWith(sideBar());
             }
             alert(editar ? 'Usuário atualizado com sucesso!' : 'Usuário cadastrado com sucesso!');

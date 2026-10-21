@@ -12,6 +12,9 @@ const idValido = valor => Number.isInteger(Number(valor)) && Number(valor) > 0;
 exports.getParticipantes = async (req, res) => {
     try {
         const [resumo, participantes] = await Promise.all([Participantes.resumo(), Participantes.listar()]);
+        // O perfil de acesso de cada pessoa só para quem gerencia usuários
+        const veLogins = req.usuario.perfil === 'ADMINISTRADOR' || Boolean(req.usuario.permissoes?.usuarios);
+        if (!veLogins) participantes.forEach(p => { p.perfil = null; p.id_usuario = null; });
         res.json({ resumo, participantes });
     } catch (error) {
         console.error('Erro ao carregar participantes', error);
@@ -46,27 +49,29 @@ exports.novoParticipante = async (req, res) => {
             ? `${rua}${texto(b.numero) ? ', ' + texto(b.numero) : ''}${texto(b.bairro) ? ' - ' + texto(b.bairro) : ''}`
             : null;
 
-        const visitante = await Participantes.criarVisitante({
+        // Uma pessoa na base universal (aparece em Participantes e, se for
+        // menor de 18 anos, em Crianças); sem login e sem voluntariado
+        const pessoa = await Participantes.criarPessoa({
             nome,
             telefone: texto(b.telefone),
             email,
             data_nascimento: dataNascimento,
             estado_civil: ESTADOS_CIVIS.includes(b.estado_civil) ? b.estado_civil : null,
             endereco,
-            data_visita: dataVisita,
+            data_primeira_visita: dataVisita,
             observacoes: texto(b.observacoes)
         });
-        res.status(201).json({ ...visitante, tipo: 'visitante' });
+        res.status(201).json({ ...pessoa, id: pessoa.id_membro, tipo: 'visitante' });
     } catch (error) {
         console.error('Erro ao cadastrar participante', error);
         responderErro(res, error);
     }
 }
 
-// Administrador: promove um visitante a membro
+// Administrador: promove um visitante a membro (a pessoa é a mesma; muda a classificação)
 exports.promoverAMembro = async (req, res) => {
     try {
-        if (!idValido(req.params.id)) return res.status(400).json({ erro: 'Visitante inválido.' });
+        if (!idValido(req.params.id)) return res.status(400).json({ erro: 'Pessoa inválida.' });
         const b = req.body;
         const dataEntrada = b.data_entrada_igreja ? data(b.data_entrada_igreja) : new Date().toISOString().slice(0, 10);
         const dataBatismo = data(b.data_batismo);
@@ -78,8 +83,8 @@ exports.promoverAMembro = async (req, res) => {
             informacoes_batismo: dataBatismo ? `Batizado(a) nas águas em ${dataBatismo.split('-').reverse().join('/')}` : null,
             participa_celula: typeof b.participa_celula === 'boolean' ? b.participa_celula : null
         });
-        if (!resultado) return res.status(404).json({ erro: 'Visitante não encontrado.' });
-        if (resultado.jaPromovido) return res.status(409).json({ erro: 'Este visitante já foi promovido a membro.' });
+        if (!resultado) return res.status(404).json({ erro: 'Pessoa não encontrada.' });
+        if (resultado.jaMembro) return res.status(409).json({ erro: 'Esta pessoa já é membro.' });
         res.status(201).json({ ...resultado.membro, tipo: 'membro' });
     } catch (error) {
         console.error('Erro ao promover visitante', error);
@@ -97,9 +102,12 @@ exports.atualizarMembro = async (req, res) => {
         if (ativo === null && apto === null) return res.status(400).json({ erro: 'Informe o que deseja alterar.' });
 
         const membro = await Participantes.buscarMembro(Number(req.params.id));
-        if (!membro) return res.status(404).json({ erro: 'Membro não encontrado.' });
+        if (!membro) return res.status(404).json({ erro: 'Pessoa não encontrada.' });
 
         // Regras de consistência com o voluntariado
+        if (apto === true && membro.classificacao !== 'membro') {
+            return res.status(400).json({ erro: 'Só membros podem ser marcados como aptos ao voluntariado. Torne a pessoa membro primeiro.' });
+        }
         const ficaAtivo = ativo ?? membro.ativo;
         if (apto === true && !ficaAtivo) {
             return res.status(400).json({ erro: 'Só membros ativos podem ser marcados como aptos ao voluntariado.' });

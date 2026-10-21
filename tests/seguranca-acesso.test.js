@@ -240,15 +240,18 @@ describe('Escalada de privilégio', () => {
             corpo: { nome: 'Nome Novo', email: alvo.email, perfil: 'GESTOR', permissoes: { relatorios: true } }
         });
         assert.equal(r.status, 200, r.texto);
-        assert.equal(r.corpo.nome, 'Nome Novo');
+        // O nome é o do cadastro da pessoa: editar o acesso não altera dados pessoais
+        assert.equal(r.corpo.nome, 'Teste GESTOR');
     });
 
-    test('administrador continua podendo criar administrador', async () => {
-        const r = await api('/api/usuarios', {
-            metodo: 'POST', token: admin.token,
-            corpo: { nome: 'Outro Admin', email: `admin2.${Date.now()}@exemplo.test`, senha: 'Senha@123', perfil: 'ADMINISTRADOR' }
-        });
+    test('administrador continua podendo criar administrador (para uma pessoa do cadastro)', async () => {
+        const pessoa = (await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { nome: 'Outro Admin' } })).corpo;
+        const corpo = { email: `admin2.${Date.now()}@exemplo.test`, senha: 'Senha@123', perfil: 'ADMINISTRADOR' };
+        assert.equal((await api('/api/usuarios', { metodo: 'POST', token: admin.token, corpo })).status, 400, 'sem pessoa não cria login');
+        const r = await api('/api/usuarios', { metodo: 'POST', token: admin.token, corpo: { ...corpo, id_membro: pessoa.id } });
         assert.equal(r.status, 201);
+        assert.equal(r.corpo.nome, 'Outro Admin');
+        assert.equal((await api('/api/usuarios', { metodo: 'POST', token: admin.token, corpo: { ...corpo, email: `x${corpo.email}`, id_membro: pessoa.id } })).status, 409, 'uma pessoa, um login');
     });
 });
 

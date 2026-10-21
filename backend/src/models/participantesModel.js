@@ -1,83 +1,79 @@
 const pool = require('../config/db');
+const Pessoas = require('./pessoasModel');
 
+const { CRITERIOS } = Pessoas;
+
+// Participantes = TODAS as pessoas da base universal (tabela membros),
+// sejam visitantes, membros, crianças, voluntários ou quem tem login.
 const participantesModel = {
 
-    // Totais da página (visitantes já promovidos contam só como membros)
     resumo: async () => {
         const result = await pool.query(
-            `SELECT (SELECT COUNT(*) FROM visitantes WHERE id_membro IS NULL)::int AS total_visitantes,
-                    (SELECT COUNT(*) FROM membros)::int AS total_membros,
-                    ((SELECT COUNT(*) FROM visitantes WHERE id_membro IS NULL) + (SELECT COUNT(*) FROM membros))::int AS total_pessoas,
-                    (SELECT COUNT(*) FROM visitantes
-                     WHERE id_membro IS NULL AND date_trunc('month', data_visita) = date_trunc('month', CURRENT_DATE))::int AS novos_visitantes_mes`
+            `SELECT COUNT(*) FILTER (WHERE classificacao = 'visitante')::int AS total_visitantes,
+                    COUNT(*) FILTER (WHERE classificacao = 'membro')::int AS total_membros,
+                    COUNT(*)::int AS total_pessoas,
+                    COUNT(*) FILTER (WHERE classificacao = 'visitante'
+                                       AND date_trunc('month', data_primeira_visita) = date_trunc('month', CURRENT_DATE))::int AS novos_visitantes_mes
+             FROM membros`
         );
         return result.rows[0];
     },
 
-    // Membros e visitantes em uma lista só, dos mais recentes para os mais antigos.
-    // "apto" = elegível ao voluntariado; "voluntario" = já serve (tabela voluntarios).
+    // Uma linha por pessoa, das mais recentes para as mais antigas.
+    // tipo = classificação (visitante/membro); data = entrada na igreja (membro)
+    // ou primeira visita (visitante); "apto" = elegível ao voluntariado;
+    // "voluntario" = serve hoje; "menor" = menos de 18 anos; "perfil" = login, se houver.
     listar: async () => {
         const result = await pool.query(
-            `SELECT 'membro' AS tipo, m.id_membro AS id, m.nome_completo AS nome, m.email, m.telefone,
-                    m.data_entrada_igreja AS data, m.ativo, NULL AS observacoes,
-                    m.apto_voluntario AS apto,
-                    EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro AND v.ativo) AS voluntario
+            `SELECT m.classificacao AS tipo, m.id_membro AS id, m.nome_completo AS nome, m.email, m.telefone,
+                    CASE WHEN m.classificacao = 'membro' THEN m.data_entrada_igreja ELSE m.data_primeira_visita END AS data,
+                    m.ativo, m.observacoes, m.apto_voluntario AS apto,
+                    EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro AND v.ativo) AS voluntario,
+                    ${CRITERIOS.menor} AS menor, ${CRITERIOS.idade} AS idade,
+                    u.perfil, u.id_usuario
              FROM membros m
-             UNION ALL
-             SELECT 'visitante', id_visitante, nome, email, telefone,
-                    data_visita, TRUE, observacoes, FALSE, FALSE
-             FROM visitantes
-             WHERE id_membro IS NULL
-             ORDER BY data DESC NULLS LAST, nome ASC`
+             LEFT JOIN usuarios u ON u.id_membro = m.id_membro
+             ORDER BY data DESC NULLS LAST, m.nome_completo ASC`
         );
         return result.rows;
     },
 
-    // Todo novo cadastro entra como visitante
-    criarVisitante: async ({ nome, telefone, email, data_nascimento, estado_civil, endereco, data_visita, observacoes }) => {
-        const result = await pool.query(
-            `INSERT INTO visitantes (nome, telefone, email, data_nascimento, estado_civil, endereco, data_visita, observacoes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             RETURNING *`,
-            [nome, telefone, email, data_nascimento, estado_civil, endereco, data_visita, observacoes]
-        );
-        return result.rows[0];
-    },
+    // Cadastro: sempre na base universal, como visitante
+    criarPessoa: (dados) => Pessoas.criar(dados),
 
-    // Promove um visitante a membro (o visitante fica como histórico, ligado ao membro).
-    // Devolve null se o visitante não existe; { jaPromovido } se já virou membro.
-    promoverAMembro: async (idVisitante, m) => {
+    // Promove um visitante a membro: a pessoa é a mesma, muda a classificação.
+    // Devolve null se a pessoa não existe; { jaMembro } se já é membro.
+    promoverAMembro: async (idPessoa, m) => {
         const cliente = await pool.connect();
         try {
             await cliente.query('BEGIN');
-            const visitante = (await cliente.query(
-                'SELECT * FROM visitantes WHERE id_visitante = $1 FOR UPDATE',
-                [idVisitante]
+            const pessoa = (await cliente.query(
+                'SELECT id_membro, classificacao FROM membros WHERE id_membro = $1 FOR UPDATE',
+                [idPessoa]
             )).rows[0];
-            if (!visitante) {
+            if (!pessoa) {
                 await cliente.query('ROLLBACK');
                 return null;
             }
-            if (visitante.id_membro) {
+            if (pessoa.classificacao === 'membro') {
                 await cliente.query('ROLLBACK');
-                return { jaPromovido: true };
+                return { jaMembro: true };
             }
 
-            // Membro novo nunca entra como apto ao voluntariado: isso é outra decisão
+            // Virar membro não torna apto ao voluntariado: isso é outra decisão
             const membro = (await cliente.query(
-                `INSERT INTO membros (nome_completo, data_nascimento, telefone, email, endereco, estado_civil,
-                                      data_entrada_igreja, informacoes_batismo, participa_celula, observacoes,
-                                      apto_voluntario, voluntario, ativo)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, FALSE, TRUE)
+                `UPDATE membros
+                 SET classificacao = 'membro', data_entrada_igreja = $2, informacoes_batismo = COALESCE($3, informacoes_batismo),
+                     participa_celula = COALESCE($4, participa_celula), apto_voluntario = FALSE
+                 WHERE id_membro = $1
                  RETURNING *`,
-                [visitante.nome, visitante.data_nascimento, visitante.telefone, visitante.email, visitante.endereco,
-                 visitante.estado_civil, m.data_entrada_igreja, m.informacoes_batismo, m.participa_celula,
-                 visitante.observacoes]
+                [idPessoa, m.data_entrada_igreja, m.informacoes_batismo, m.participa_celula]
             )).rows[0];
 
+            // Histórico da visita (quando existe) registra a promoção
             await cliente.query(
-                'UPDATE visitantes SET id_membro = $2, promovido_em = CURRENT_TIMESTAMP WHERE id_visitante = $1',
-                [idVisitante, membro.id_membro]
+                'UPDATE visitantes SET promovido_em = CURRENT_TIMESTAMP WHERE id_membro = $1 AND promovido_em IS NULL',
+                [idPessoa]
             );
             await cliente.query('COMMIT');
             return { membro };
@@ -91,7 +87,7 @@ const participantesModel = {
 
     buscarMembro: async (idMembro) => {
         const result = await pool.query(
-            `SELECT m.id_membro, m.nome_completo, m.ativo, m.apto_voluntario,
+            `SELECT m.id_membro, m.nome_completo, m.classificacao, m.ativo, m.apto_voluntario,
                     EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro AND v.ativo) AS voluntario_ativo
              FROM membros m WHERE m.id_membro = $1`,
             [idMembro]
@@ -99,14 +95,14 @@ const participantesModel = {
         return result.rows[0];
     },
 
-    // Altera status (ativo) e/ou elegibilidade ao voluntariado (apto) de um membro
+    // Altera status (ativo) e/ou elegibilidade ao voluntariado (apto) de uma pessoa
     atualizarClassificacao: async (idMembro, { ativo, apto_voluntario }) => {
         const result = await pool.query(
             `UPDATE membros
              SET ativo = COALESCE($2, ativo),
                  apto_voluntario = COALESCE($3, apto_voluntario)
              WHERE id_membro = $1
-             RETURNING id_membro, nome_completo, ativo, apto_voluntario`,
+             RETURNING id_membro, nome_completo, classificacao, ativo, apto_voluntario`,
             [idMembro, ativo, apto_voluntario]
         );
         return result.rows[0];

@@ -19,8 +19,9 @@ async function gerenciaVoluntarios() {
         <div class="toolbar">
             <input class="search" type="search" placeholder="Buscar voluntário..." aria-label="Buscar voluntário">
             <button type="button" class="filtro ativo" data-filtro="todos">Todos</button>
-            <button type="button" class="filtro" data-filtro="ativo">Ativos</button>
-            <button type="button" class="filtro" data-filtro="inativo">Inativos</button>
+            <button type="button" class="filtro" data-filtro="ativo">Servindo</button>
+            <button type="button" class="filtro" data-filtro="inativo">Pausados</button>
+            <button type="button" class="filtro" data-filtro="sem-ficha">Sem ficha</button>
         </div>
         <div class="table-responsive">
             <table class="tabela-cartoes">
@@ -28,13 +29,31 @@ async function gerenciaVoluntarios() {
                     <tr><th>Voluntário</th><th>Funções</th><th>Disponibilidade</th><th>Última escala</th><th>Status</th><th>Ação</th></tr>
                 </thead>
                 <tbody>
-                    ${dados.voluntarios.map(v => `
-                        <tr data-filtro="${v.ativo ? 'ativo' : 'inativo'}">
+                    ${dados.voluntarios.map(v => {
+                        // Pessoa ativa e apta; a ficha (funções, dias) pode ainda não existir
+                        const filtro = !v.tem_ficha ? 'sem-ficha' : v.ativo ? 'ativo' : 'inativo';
+                        const status = !v.tem_ficha
+                            ? '<span class="badge pending">Ficha a completar</span>'
+                            : v.ativo ? '<span class="badge ok">Servindo</span>' : '<span class="badge inactive">Pausado</span>';
+                        const acoes = !v.tem_ficha
+                            ? `<button type="button" class="action-btn com-texto" data-completar="${v.id_membro}">
+                                   <span class="material-icons">assignment_ind</span>Completar ficha</button>`
+                            : `<button type="button" class="action-btn" data-ficha="${v.id_voluntario}" title="Ver ficha" aria-label="Ver ficha de ${escapar(v.nome)}">
+                                   <span class="material-icons">badge</span>
+                               </button>
+                               <button type="button" class="action-btn" data-status="${v.id_voluntario}" data-ativo="${v.ativo}"
+                                       title="${v.ativo ? 'Pausar' : 'Retomar'}" aria-label="${v.ativo ? 'Pausar' : 'Retomar'} ${escapar(v.nome)}">
+                                   <span class="material-icons">${v.ativo ? 'pause_circle' : 'play_circle'}</span>
+                               </button>`;
+                        return `
+                        <tr data-filtro="${filtro}">
                             <td>
                                 <div class="person">
                                     <div class="mini-avatar">${escapar(v.nome.charAt(0).toUpperCase())}</div>
                                     <div class="info">
-                                        <a href="#" class="link-ficha" data-ficha="${v.id_voluntario}"><strong>${escapar(v.nome)}</strong></a>
+                                        ${v.tem_ficha
+                                            ? `<a href="#" class="link-ficha" data-ficha="${v.id_voluntario}"><strong>${escapar(v.nome)}</strong></a>`
+                                            : `<strong>${escapar(v.nome)}</strong>`}
                                         <small>${escapar(v.departamento || 'Sem departamento')}</small>
                                     </div>
                                 </div>
@@ -42,35 +61,28 @@ async function gerenciaVoluntarios() {
                             <td>${escapar(v.funcoes.map(f => f.nome).join(', ') || '—')}</td>
                             <td>${escapar(nomesDosDias(v.disponibilidade) || '—')}</td>
                             <td>${formatarDataSimples(v.ultima_escala) || '—'}</td>
-                            <td>${v.ativo ? '<span class="badge ok">Ativo</span>' : '<span class="badge inactive">Inativo</span>'}</td>
-                            <td>
-                                <button type="button" class="action-btn" data-ficha="${v.id_voluntario}" title="Ver ficha" aria-label="Ver ficha de ${escapar(v.nome)}">
-                                    <span class="material-icons">badge</span>
-                                </button>
-                                <button type="button" class="action-btn" data-status="${v.id_voluntario}" data-ativo="${v.ativo}"
-                                        title="${v.ativo ? 'Inativar' : 'Reativar'}" aria-label="${v.ativo ? 'Inativar' : 'Reativar'} ${escapar(v.nome)}">
-                                    <span class="material-icons">${v.ativo ? 'person_off' : 'person'}</span>
-                                </button>
-                            </td>
-                        </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhum voluntário cadastrado.</td></tr>'}
+                            <td>${status}</td>
+                            <td>${acoes}</td>
+                        </tr>`;
+                    }).join('') || '<tr><td colspan="6" class="vazio">Nenhuma pessoa ativa e apta ao voluntariado. O administrador marca "apto" em Participantes.</td></tr>'}
                 </tbody>
             </table>
         </div>
     `;
 
     main.replaceChildren(
-        headerInterno('Voluntários', 'Gerencie voluntários, funções e disponibilidade'),
+        headerInterno('Voluntários', 'Pessoas ativas e aptas ao voluntariado, com funções e disponibilidade'),
         cardsEstatisticas([
-            ['blue', 'volunteer_activism', r.total, 'Voluntários'],
-            ['green', 'check_circle', r.ativos, 'Ativos'],
-            ['purple', 'person_search', r.disponiveis, 'Membros aptos ainda não escalados'],
-            ['orange', 'person_off', r.inativos, 'Inativos']
+            ['blue', 'volunteer_activism', r.total, 'Ativos e aptos'],
+            ['green', 'check_circle', r.ativos, 'Servindo'],
+            ['purple', 'assignment_ind', r.sem_ficha, 'Ficha a completar'],
+            ['orange', 'pause_circle', r.inativos, 'Pausados']
         ]),
         lista
     );
 
     configurarFiltros(lista, (linha, filtro) => linha.dataset.filtro === filtro, { exigirInteracao: true });
-    lista.querySelector('#btnNovoVoluntario').addEventListener('click', novoVoluntario);
+    lista.querySelector('#btnNovoVoluntario').addEventListener('click', () => novoVoluntario());
 
     lista.addEventListener('click', async event => {
         const ficha = event.target.closest('[data-ficha]');
@@ -79,10 +91,15 @@ async function gerenciaVoluntarios() {
             fichaVoluntario(Number(ficha.dataset.ficha));
             return;
         }
+        const completar = event.target.closest('[data-completar]');
+        if (completar) {
+            novoVoluntario(Number(completar.dataset.completar));
+            return;
+        }
         const botao = event.target.closest('[data-status]');
         if (!botao) return;
         const ativar = botao.dataset.ativo !== 'true';
-        if (!confirm(ativar ? 'Reativar este voluntário?' : 'Inativar este voluntário? Ele deixa de aparecer nas novas escalas.')) return;
+        if (!confirm(ativar ? 'Retomar o serviço deste voluntário?' : 'Pausar este voluntário? Ele deixa de aparecer nas novas escalas (continua ativo e apto no cadastro).')) return;
         try {
             await enviarDados(`voluntarios/${botao.dataset.status}/status`, 'PATCH', { ativo: ativar });
             gerenciaVoluntarios();
@@ -92,8 +109,9 @@ async function gerenciaVoluntarios() {
     });
 }
 
-async function novoVoluntario() {
-    registrarRota('voluntarios/novo');
+// Ficha de voluntário para uma pessoa ativa e apta (idMembro = já escolhida na lista)
+async function novoVoluntario(idMembro = null) {
+    registrarRota('voluntarios/novo', idMembro ? [idMembro] : []);
     const [candidatos, funcoes] = await Promise.all([
         buscarDados('voluntarios/candidatos', { membros: [], departamentos: [] }),
         buscarDados('funcoes', [])
@@ -115,9 +133,9 @@ async function novoVoluntario() {
                         <label for="vParticipante">Participante</label>
                         <select id="vParticipante" required>
                             <option value="">Selecione um participante</option>
-                            ${candidatos.membros.map(m => `<option value="${m.id_membro}">${escapar(m.nome_completo)}${m.apto_voluntario ? ' (apto)' : ''}</option>`).join('')}
+                            ${candidatos.membros.map(m => `<option value="${m.id_membro}">${escapar(m.nome_completo)}</option>`).join('')}
                         </select>
-                        <small>Selecione um membro já cadastrado. Para alguém novo, cadastre primeiro em Participantes.</small>
+                        <small>Aparecem só pessoas ativas e aptas sem ficha. Para alguém novo: Cadastro em Participantes → tornar membro → marcar apto.</small>
                     </div>
                     <div class="form-group"><label for="vTelefone">Telefone</label><input type="tel" id="vTelefone" placeholder="(47) 99999-9999"></div>
                     <div class="form-group"><label for="vEmail">E-mail</label><input type="email" id="vEmail" placeholder="email@exemplo.com"></div>
@@ -193,6 +211,12 @@ async function novoVoluntario() {
         $('vTelefone').value = membro?.telefone || '';
         $('vEmail').value = membro?.email || '';
     });
+
+    // Vindo de "Completar ficha": a pessoa já vem escolhida
+    if (idMembro && candidatos.membros.some(m => m.id_membro === idMembro)) {
+        $('vParticipante').value = String(idMembro);
+        $('vParticipante').dispatchEvent(new Event('change'));
+    }
 
     $('cancelarVoluntario').addEventListener('click', () => abrirSubstituindo(gerenciaVoluntarios));
 

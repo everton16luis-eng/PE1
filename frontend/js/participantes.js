@@ -1,5 +1,5 @@
 // =========================================
-// PARTICIPANTES (membros e visitantes)
+// PARTICIPANTES (membros, visitantes e contas do sistema)
 // =========================================
 
 async function gerenciaParticipantes() {
@@ -27,6 +27,7 @@ async function gerenciaParticipantes() {
             <button type="button" class="filtro ativo" data-filtro="todos">Todos</button>
             <button type="button" class="filtro" data-filtro="visitante">Visitantes</button>
             <button type="button" class="filtro" data-filtro="membro">Membros</button>
+            <button type="button" class="filtro" data-filtro="menor" title="Menores de 18 anos">Menores</button>
         </div>
         <p class="mensagem-lista" role="status"></p>
         <div class="table-responsive">
@@ -44,15 +45,20 @@ async function gerenciaParticipantes() {
                         const voluntariado = p.tipo !== 'membro' ? ''
                             : p.voluntario ? ' <span class="badge ok">Voluntário</span>'
                             : p.apto ? ' <span class="badge pending">Apto ao voluntariado</span>' : '';
-                        const acoes = p.tipo === 'visitante'
+                        // Outras participações da mesma pessoa (criança, login de acesso)
+                        const menor = p.menor ? ` <span class="badge pending" title="Menos de 18 anos — aparece em Crianças">${p.idade < 1 ? 'Bebê' : `${p.idade} anos`}</span>` : '';
+                        const login = p.perfil ? ` <span class="badge acesso" title="Perfil de acesso ao sistema">Login: ${escapar(PERFIS[p.perfil] || p.perfil)}</span>` : '';
+                        const tipo = p.tipo === 'membro' ? 'Membro' : 'Visitante';
+                        // Visitante: tornar membro; membro: aptidão ao voluntariado; todos: ativo/inativo
+                        const ativar = `<button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
+                                   <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
+                        const acoes = (p.tipo === 'visitante'
                             ? `<button type="button" class="action-btn com-texto" data-promover="${p.id}" data-nome="${escapar(p.nome)}">
                                    <span class="material-icons">how_to_reg</span>Tornar membro</button>`
                             : `<button type="button" class="action-btn com-texto" data-apto="${p.id}" data-valor="${!p.apto}" ${p.ativo ? '' : 'disabled'}>
-                                   <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>
-                               <button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
-                                   <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
+                                   <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>`) + ativar;
                         return `
-                            <tr data-filtro="${p.tipo}">
+                            <tr data-filtro="${p.tipo}" data-menor="${p.menor}">
                                 <td>
                                     <div class="person">
                                         <div class="mini-avatar">${escapar(p.nome.charAt(0).toUpperCase())}</div>
@@ -63,7 +69,7 @@ async function gerenciaParticipantes() {
                                     </div>
                                 </td>
                                 <td>${escapar(p.telefone || '—')}</td>
-                                <td>${p.tipo === 'membro' ? 'Membro' : 'Visitante'}${voluntariado}</td>
+                                <td>${tipo}${voluntariado}${menor}${login}</td>
                                 <td>${formatarDataSimples(p.data) || '—'}</td>
                                 <td>${status}</td>
                                 ${podeClassificar ? `<td class="acoes-classificacao">${acoes}</td>` : ''}
@@ -85,7 +91,7 @@ async function gerenciaParticipantes() {
         lista
     );
 
-    configurarFiltros(lista, (linha, filtro) => linha.dataset.filtro === filtro, { exigirInteracao: true });
+    configurarFiltros(lista, (linha, filtro) => (filtro === 'menor' ? linha.dataset.menor === 'true' : linha.dataset.filtro === filtro), { exigirInteracao: true });
     lista.querySelector('#btnNovoParticipante').addEventListener('click', novoParticipante);
 
     const avisar = (texto, erro = false) => {
@@ -109,11 +115,11 @@ async function gerenciaParticipantes() {
         const botao = apto || ativo;
         const valor = botao.dataset.valor === 'true';
         const corpo = apto ? { apto_voluntario: valor } : { ativo: valor };
-        if (ativo && !valor && !confirm('Inativar este membro? Ele também deixa de ser apto ao voluntariado.')) return;
+        if (ativo && !valor && !confirm('Inativar esta pessoa? Ela também deixa de ser apta ao voluntariado (o cadastro continua existindo).')) return;
 
         botao.disabled = true;
         try {
-            await enviarDados(`participantes/membros/${botao.dataset.apto || botao.dataset.ativo}`, 'PATCH', corpo);
+            await enviarDados(`participantes/${botao.dataset.apto || botao.dataset.ativo}`, 'PATCH', corpo);
             gerenciaParticipantes();
         } catch (erro) {
             botao.disabled = false;
@@ -134,7 +140,7 @@ function promoverVisitante(idVisitante, nome) {
                     <select id="pmCelula"><option value="">Não informado</option><option value="sim">Sim</option><option value="nao">Não</option></select>
                 </div>
             </div>
-            <p class="subtitulo">Os dados do cadastro de visitante (contato, nascimento, endereço) são copiados para o membro.
+            <p class="subtitulo">É a mesma pessoa do cadastro: só muda a classificação (os dados pessoais continuam os mesmos).
                A elegibilidade ao voluntariado é definida depois, em "Marcar apto".</p>
             <div class="form-actions">
                 <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
@@ -149,7 +155,7 @@ function promoverVisitante(idVisitante, nome) {
         event.preventDefault();
         const celula = modal.querySelector('#pmCelula').value;
         try {
-            await enviarDados(`participantes/visitantes/${idVisitante}/membro`, 'POST', {
+            await enviarDados(`participantes/${idVisitante}/membro`, 'POST', {
                 data_entrada_igreja: modal.querySelector('#pmEntrada').value,
                 data_batismo: modal.querySelector('#pmBatismo').value,
                 participa_celula: celula === '' ? null : celula === 'sim'
@@ -201,10 +207,10 @@ async function novoParticipante() {
         <article class="panel">
             <div class="panel-header"><h2>Como funciona</h2></div>
             <div class="list">
-                <div class="list-row"><div class="mini-avatar">1</div><div class="info"><strong>Todo cadastro entra como visitante</strong><small>Preencha os dados da pessoa; ela aparece na lista como visitante.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">1</div><div class="info"><strong>Um cadastro por pessoa</strong><small>Entra como visitante e passa a valer em todo o sistema: Participantes e, se tiver menos de 18 anos, Crianças.</small></div></div>
                 <div class="list-row"><div class="mini-avatar">2</div><div class="info"><strong>Tornar membro</strong><small>Um administrador promove o visitante a membro na lista de participantes.</small></div></div>
-                <div class="list-row"><div class="mini-avatar">3</div><div class="info"><strong>Voluntariado</strong><small>O administrador marca o membro como apto; depois ele pode ser cadastrado em Voluntários.</small></div></div>
-                <div class="list-row"><div class="mini-avatar">4</div><div class="info"><strong>Acesso ao sistema</strong><small>Cadastrar uma pessoa não cria login nem permissões. Contas são criadas em Usuários.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">3</div><div class="info"><strong>Voluntariado</strong><small>O administrador marca o membro como apto; ativo e apto, ele aparece em Voluntários.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">4</div><div class="info"><strong>Acesso ao sistema</strong><small>Cadastrar uma pessoa não cria login nem permissões. O acesso é dado a uma pessoa já cadastrada, em Usuários.</small></div></div>
             </div>
         </article>
     `;

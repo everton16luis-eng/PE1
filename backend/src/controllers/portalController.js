@@ -24,10 +24,9 @@ async function meuVoluntario(req, res) {
 }
 
 // Minha área de qualquer login. A experiência vem da classificação real no banco:
-// - "voluntario": login ligado a um membro com cadastro de voluntário → ficha (escalas
+// - "voluntario": a pessoa do login tem ficha de voluntário → ficha (escalas
 //   em primeiro lugar) + próximos eventos como informação secundária;
-// - "membro": login ligado a um membro que não é voluntário → próximos eventos;
-// - "visitante": login sem cadastro de membro → próximos eventos.
+// - "membro" / "visitante": classificação da pessoa na base universal → próximos eventos.
 exports.getMinhaArea = async (req, res) => {
     try {
         const idMembro = req.usuario.id_membro;
@@ -44,7 +43,7 @@ exports.getMinhaArea = async (req, res) => {
             return res.json({ ...ficha, classificacao: 'voluntario', eventos });
         }
         res.json({
-            classificacao: membro ? 'membro' : 'visitante',
+            classificacao: membro?.classificacao === 'membro' ? 'membro' : 'visitante',
             nome: membro?.nome_completo || req.usuario.nome,
             eventos
         });

@@ -1,22 +1,29 @@
 const pool = require('../config/db');
+const { CRITERIOS } = require('./pessoasModel');
 
+// Voluntários = pessoas da base universal ATIVAS e APTAS ao voluntariado.
+// A ficha (tabela voluntarios: funções, disponibilidade, escalas) complementa a
+// pessoa; "servindo" é o status da ficha (pausado = ficha inativa).
 const voluntariosModel = {
 
     resumo: async () => {
         const result = await pool.query(
             `SELECT COUNT(*)::int AS total,
-                    COUNT(*) FILTER (WHERE ativo)::int AS ativos,
-                    COUNT(*) FILTER (WHERE NOT ativo)::int AS inativos,
-                    (SELECT COUNT(*)::int FROM vw_voluntarios_disponiveis) AS disponiveis
-             FROM voluntarios`
+                    COUNT(*) FILTER (WHERE v.ativo)::int AS ativos,
+                    COUNT(*) FILTER (WHERE NOT v.ativo)::int AS inativos,
+                    COUNT(*) FILTER (WHERE v.id_voluntario IS NULL)::int AS sem_ficha
+             FROM membros m
+             LEFT JOIN voluntarios v ON v.id_membro = m.id_membro
+             WHERE ${CRITERIOS.voluntarioElegivel}`
         );
         return result.rows[0];
     },
 
     listar: async () => {
         const result = await pool.query(
-            `SELECT v.id_voluntario, v.id_membro, m.nome_completo AS nome, m.telefone, m.email,
-                    v.id_departamento, d.nome AS departamento, v.disponibilidade, v.ativo, v.observacoes,
+            `SELECT v.id_voluntario, m.id_membro, m.nome_completo AS nome, m.telefone, m.email,
+                    v.id_departamento, d.nome AS departamento, COALESCE(v.disponibilidade, '{}') AS disponibilidade,
+                    v.ativo, (v.id_voluntario IS NOT NULL) AS tem_ficha, v.observacoes,
                     v.data_inicio_voluntariado,
                     COALESCE(
                         (SELECT json_agg(json_build_object('id_funcao', f.id_funcao, 'nome', f.nome) ORDER BY f.nome)
@@ -25,23 +32,36 @@ const voluntariosModel = {
                     (SELECT MAX(es.data_escala)
                      FROM escala_participantes ep JOIN escalas es ON es.id_escala = ep.id_escala
                      WHERE ep.id_voluntario = v.id_voluntario AND es.data_escala <= CURRENT_DATE) AS ultima_escala
-             FROM voluntarios v
-             JOIN membros m ON m.id_membro = v.id_membro
+             FROM membros m
+             LEFT JOIN voluntarios v ON v.id_membro = m.id_membro
              LEFT JOIN departamentos d ON d.id_departamento = v.id_departamento
-             ORDER BY v.ativo DESC, m.nome_completo ASC`
+             WHERE ${CRITERIOS.voluntarioElegivel}
+             ORDER BY (v.id_voluntario IS NULL), v.ativo DESC, m.nome_completo ASC`
         );
         return result.rows;
     },
 
-    // Membros ativos que ainda não são voluntários (para o cadastro)
+    // Pessoas ativas e aptas que ainda não têm ficha de voluntário (para o cadastro)
     candidatos: async () => {
         const result = await pool.query(
             `SELECT m.id_membro, m.nome_completo, m.telefone, m.email, m.apto_voluntario
              FROM membros m
-             WHERE m.ativo AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
-             ORDER BY m.apto_voluntario DESC, m.nome_completo ASC`
+             WHERE ${CRITERIOS.voluntarioElegivel}
+               AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
+             ORDER BY m.nome_completo ASC`
         );
         return result.rows;
+    },
+
+    // A pessoa pode receber ficha de voluntário? (ativa, apta e ainda sem ficha)
+    elegibilidade: async (idMembro) => {
+        const result = await pool.query(
+            `SELECT m.id_membro, m.ativo, m.apto_voluntario,
+                    EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro) AS tem_ficha
+             FROM membros m WHERE m.id_membro = $1`,
+            [idMembro]
+        );
+        return result.rows[0] || null;
     },
 
     departamentos: async () => {
@@ -69,10 +89,10 @@ const voluntariosModel = {
                 );
             }
 
-            // Atualiza o contato do membro e marca como apto ao voluntariado
+            // Atualiza o contato da pessoa (a aptidão é decidida antes, pelo administrador)
             await cliente.query(
                 `UPDATE membros
-                 SET apto_voluntario = TRUE,
+                 SET voluntario = TRUE,
                      telefone = COALESCE($2, telefone),
                      email = COALESCE($3, email)
                  WHERE id_membro = $1`,

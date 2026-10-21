@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { CRITERIOS } = require('./pessoasModel');
 
 // Monta o "WHERE" de cada relatório com parâmetros ($1, $2...) — nunca concatena valores
 function construtor() {
@@ -31,12 +32,13 @@ const RELATORIOS = {
             if (f.status === 'ativos') w.add("status = 'Ativo'");
             if (f.status === 'inativos') w.add("status = 'Inativo'");
             periodo(w, 'data', f);
+            // Todas as pessoas da base universal (membros e visitantes)
             return [`SELECT * FROM (
-                        SELECT nome_completo AS nome, 'Membro' AS tipo, telefone, email, data_entrada_igreja AS data,
+                        SELECT nome_completo AS nome, CASE WHEN classificacao = 'membro' THEN 'Membro' ELSE 'Visitante' END AS tipo,
+                               telefone, email,
+                               CASE WHEN classificacao = 'membro' THEN data_entrada_igreja ELSE data_primeira_visita END AS data,
                                CASE WHEN ativo THEN 'Ativo' ELSE 'Inativo' END AS status
                         FROM membros
-                        UNION ALL
-                        SELECT nome, 'Visitante', telefone, NULL, data_visita, 'Ativo' FROM visitantes
                     ) p ${w.where()} ORDER BY data DESC NULLS LAST, nome`, w.valores];
         }
     },
@@ -46,6 +48,7 @@ const RELATORIOS = {
         colunas: [['nome', 'Nome'], ['departamento', 'Departamento'], ['funcoes', 'Funções'], ['disponibilidade', 'Disponibilidade'], ['escalas', 'Escalas no período'], ['status', 'Status']],
         consulta(f) {
             const w = construtor();
+            w.add(CRITERIOS.voluntarioElegivel); // voluntário = pessoa ativa e apta
             if (f.status === 'ativos') w.add('v.ativo');
             if (f.status === 'inativos') w.add('NOT v.ativo');
             if (f.id_funcao) w.add('EXISTS (SELECT 1 FROM voluntario_funcoes x WHERE x.id_voluntario = v.id_voluntario AND x.id_funcao = ?)', f.id_funcao);
@@ -119,18 +122,20 @@ const RELATORIOS = {
         colunas: [['nome', 'Nome'], ['idade', 'Idade'], ['turma', 'Turma'], ['responsavel', 'Responsável'], ['telefone', 'Telefone'], ['presencas', 'Presenças no período'], ['status', 'Status']],
         consulta(f) {
             const w = construtor();
+            w.add(CRITERIOS.menor); // crianças = menos de 18 anos, pela data de nascimento
             if (f.id_turma) w.add('c.id_turma = ?', f.id_turma);
-            if (f.status === 'ativos') w.add('c.ativo');
-            if (f.status === 'inativos') w.add('NOT c.ativo');
+            if (f.status === 'ativos') w.add('(m.ativo AND COALESCE(c.ativo, TRUE))');
+            if (f.status === 'inativos') w.add('NOT (m.ativo AND COALESCE(c.ativo, TRUE))');
             const ini = f.inicio ? (w.valores.push(f.inicio), '$' + w.valores.length) : 'NULL';
             const fim = f.fim ? (w.valores.push(f.fim), '$' + w.valores.length) : 'NULL';
-            return [`SELECT c.nome_completo AS nome, date_part('year', age(c.data_nascimento))::int AS idade,
+            return [`SELECT m.nome_completo AS nome, ${CRITERIOS.idade} AS idade,
                             t.nome AS turma, r.nome_completo AS responsavel, r.telefone,
-                            (SELECT COUNT(*) FROM turmas p WHERE p.id_membro = c.id_membro
+                            (SELECT COUNT(*) FROM turmas p WHERE p.id_membro = m.id_membro
                                AND (${ini}::date IS NULL OR p.data >= ${ini}::date)
                                AND (${fim}::date IS NULL OR p.data <= ${fim}::date))::int AS presencas,
-                            CASE WHEN c.ativo THEN 'Ativo' ELSE 'Inativo' END AS status
-                     FROM criancas c
+                            CASE WHEN m.ativo AND COALESCE(c.ativo, TRUE) THEN 'Ativo' ELSE 'Inativo' END AS status
+                     FROM membros m
+                     LEFT JOIN criancas c ON c.id_membro = m.id_membro
                      LEFT JOIN cadastroturmas t ON t.id_turma = c.id_turma
                      LEFT JOIN LATERAL (
                          SELECT rs.nome_completo, rs.telefone FROM crianca_responsavel cr
@@ -138,7 +143,7 @@ const RELATORIOS = {
                          WHERE cr.id_crianca = c.id_crianca ORDER BY cr.responsavel_principal DESC LIMIT 1
                      ) r ON TRUE
                      ${w.where()}
-                     ORDER BY t.nome NULLS LAST, c.nome_completo`, w.valores];
+                     ORDER BY t.nome NULLS LAST, m.nome_completo`, w.valores];
         }
     },
 
@@ -199,10 +204,10 @@ const relatoriosModel = {
 
     resumo: async () => {
         const result = await pool.query(
-            `SELECT (SELECT COUNT(*) FROM membros) + (SELECT COUNT(*) FROM visitantes) AS participantes,
-                    (SELECT COUNT(*) FROM voluntarios WHERE ativo) AS voluntarios,
+            `SELECT (SELECT COUNT(*) FROM membros) AS participantes,
+                    (SELECT COUNT(*) FROM membros m WHERE ${CRITERIOS.voluntarioElegivel}) AS voluntarios,
                     (SELECT COUNT(*) FROM escalas) AS escalas,
-                    (SELECT COUNT(*) FROM criancas WHERE ativo) AS criancas`
+                    (SELECT COUNT(*) FROM membros m WHERE ${CRITERIOS.menor} AND m.ativo) AS criancas`
         );
         return result.rows[0];
     },

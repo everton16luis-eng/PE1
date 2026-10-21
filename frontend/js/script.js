@@ -195,10 +195,10 @@ function cabecalhos() {
 }
 
 // Administrador vê tudo; os demais só as áreas marcadas no cadastro.
-// "portal" (Minha área) é de quem não é da gestão: voluntários, logins ligados a um
-// membro e contas de visualização. O que aparece nela vem da classificação no banco.
+// "portal" (Minha área): logins de portal e de visualização, e quem tem ficha de
+// voluntário mesmo com perfil de gestão. O que aparece nela vem da classificação no banco.
 function temPermissao(area) {
-    if (area === 'portal') return ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.id_membro);
+    if (area === 'portal') return ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.voluntario);
     if (usuarioAtual?.perfil === 'VOLUNTARIO') return false;
     return usuarioAtual?.perfil === 'ADMINISTRADOR' || Boolean(usuarioAtual?.permissoes?.[area]);
 }
@@ -855,7 +855,7 @@ async function renderizarResumoInferior() {
         </div>`;
 
     if (temPermissao('participantes')) {
-        const recentes = (participantes.participantes || []).slice(0, 4);
+        const recentes = (participantes.participantes || []).filter(p => p.tipo !== 'conta').slice(0, 4);
         section.insertAdjacentHTML('beforeend', `
             <article class="panel">
                 <div class="panel-header"><h2>Participantes</h2><button type="button" data-acao="novo-participante">+ Novo</button></div>

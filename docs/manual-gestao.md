@@ -50,18 +50,18 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
 
 ## Participantes
 
-- **Lista:** membros e visitantes juntos. Visitantes dos últimos 30 dias aparecem como **Acompanhar**.
-- **Novo cadastro:** dados pessoais (nome, contato, nascimento, endereço, data da visita). **Toda pessoa cadastrada entra como visitante** — o cadastro não dá acesso ao sistema, não torna ninguém membro nem apto ao voluntariado.
+- **Lista:** **todas as pessoas do cadastro**, uma linha por pessoa — visitantes, membros, crianças, voluntários e quem tem login. Menores de 18 anos mostram a idade (filtro **Menores**); quem tem login mostra **Login: perfil** (visível para quem gerencia usuários). Visitantes dos últimos 30 dias aparecem como **Acompanhar**.
+- **Novo cadastro:** é a porta de entrada de todo o sistema. Dados pessoais (nome, contato, nascimento, endereço, data da visita). **Toda pessoa cadastrada entra como visitante** e já passa a valer nos outros setores pelos critérios de cada um (por exemplo, quem tem menos de 18 anos aparece em Crianças). O cadastro não dá acesso ao sistema, não torna ninguém membro nem apto ao voluntariado.
 - **Classificação (só administradores):** na coluna **Classificação** da lista:
-  - **Tornar membro** promove um visitante (informe data de entrada e, se houver, batismo). Ele entra como membro **não apto**;
+  - **Tornar membro** muda a classificação do visitante (é a mesma pessoa; informe data de entrada e, se houver, batismo). Ele vira membro **não apto**;
   - **Apto / Não apto** define se o membro pode ser voluntário — só membros ativos podem ser aptos;
-  - **Ativo / Inativo** — inativar também remove o apto. Um voluntário ativo precisa ser inativado antes na página **Voluntários**.
+  - **Ativo / Inativo** (para qualquer pessoa) — inativar também remove o apto. Um voluntário servindo precisa ser pausado antes em **Voluntários**. Inativar não apaga o cadastro.
 - São três coisas diferentes: o **tipo de pessoa** (visitante/membro, aqui), o **voluntariado** (página Voluntários) e o **acesso ao sistema** (página Usuários ou, para voluntários, a ficha do voluntário).
 
 ## Voluntários
 
-- **Lista:** funções, dias disponíveis e última escala de cada voluntário. O ícone de pessoa ativa ou inativa o voluntário.
-- **Novo voluntário:** escolha um membro já cadastrado, as funções e os dias disponíveis.
+- **Lista:** todas as pessoas **ativas e aptas** do cadastro. Quem já tem ficha mostra funções, dias e última escala, com status **Servindo** ou **Pausado** (o ícone pausa ou retoma o serviço). Quem ainda não tem ficha aparece como **Ficha a completar**, com o botão **Completar ficha**. Para alguém entrar aqui: Cadastro → **Tornar membro** → **Marcar apto** (em Participantes).
+- **Novo voluntário / Completar ficha:** escolha a pessoa (só aparecem as ativas e aptas sem ficha), as funções e os dias disponíveis. Ser voluntário não dá login nem acesso de gestão.
 - **Ficha do voluntário:** clique no **nome** ou no ícone de crachá. Na ficha você:
   - vê os indicadores (escalas realizadas, porcentagem de presença, próximas escalas e recusas);
   - trabalha nas **próximas escalas**: ✓ confirmar, ↶ voltar para aguardando, registrar recusa (pede o motivo) ou retirar o voluntário da escala;
@@ -87,8 +87,8 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
 
 ## Crianças
 
-- **Lista:** cada criança com idade, responsável, turma e se está **presente hoje**. Crianças com cadastro inativo aparecem como **Cadastro inativo** (não contam como ausentes) e têm o filtro **Inativas**. A presença vem da Lista de presença. Crianças com alergia aparecem com ⚠.
-- **Nova criança:** dados da criança, do responsável e da turma (sugerida pela idade). A **autorização do responsável é obrigatória**; a autorização de imagem é opcional.
+- **Lista:** **todas as pessoas do cadastro com menos de 18 anos** (calculado pela data de nascimento; quem faz 18 sai da lista sozinho e continua em Participantes). Quem tem ficha infantil mostra responsável e turma; quem ainda não tem aparece como **Ficha a completar** (filtro **Sem ficha**), com o botão **Completar ficha**. Crianças com cadastro inativo aparecem como **Cadastro inativo** (filtro **Inativas**). A presença vem da Lista de presença. Alergias aparecem com ⚠.
+- **Nova criança:** cadastra a criança no cadastro universal (como visitante, só menores de 18) junto com a ficha: responsável, turma (sugerida pela idade) e autorizações. **Completar ficha** faz o mesmo para quem já está no cadastro, sem cadastrar de novo. A **autorização do responsável é obrigatória**; a de imagem é opcional.
 - **Gerenciar turmas:** crie e edite turmas (faixa etária, responsável, dia e horário). Uma turma com crianças ou presenças registradas não pode ser excluída; marque-a como **Inativa**.
 
 ## Relatórios
@@ -105,7 +105,9 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
 
 Disponível para quem tem a permissão de Usuários.
 
-- **Novo usuário / editar:** nome, e-mail, telefone, senha, perfil, status e **permissões por área**. Ao editar, deixe a senha em branco para manter a atual.
+- **Lista:** pessoas com login de gestão (Administrador, Gestor, Secretaria, Financeiro e Visualização), inclusive inativas e pendentes. Voluntários não aparecem aqui só por servirem: função de escala não é acesso ao sistema.
+- **Novo usuário:** escolha **a pessoa do cadastro** que vai receber o acesso (só aparecem as que ainda não têm login; se ela não estiver lá, cadastre primeiro em Participantes), depois e-mail, senha, perfil, status e **permissões por área**.
+- **Editar:** o nome é o do cadastro da pessoa; aqui mudam e-mail, telefone de login, senha (em branco mantém a atual), perfil, status e permissões. Tirar o acesso não apaga a pessoa.
 - **Pendentes:** cadastros feitos pela tela de login. Edite e mude o status para **Ativo** para liberar.
 - **Regras:**
   - só administradores mexem em contas de administrador;

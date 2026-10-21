@@ -82,6 +82,12 @@ exports.novaEscala = async (req, res) => {
             dados.evento = { ...ev, nome: String(ev.nome).trim() };
         }
 
+        // Só voluntários elegíveis (pessoa ativa e apta, ficha ativa) que atuam na função
+        const inelegiveis = await Escalas.voluntariosInelegiveis(dados.id_funcao, voluntarios);
+        if (inelegiveis.length) {
+            return res.status(400).json({ erro: 'Há voluntário(s) que não estão ativos e aptos para esta função. Atualize a lista e tente de novo.' });
+        }
+
         res.status(201).json(await Escalas.criar(dados));
     } catch (error) {
         console.error('Erro ao cadastrar escala', error);

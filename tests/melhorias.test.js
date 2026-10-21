@@ -33,7 +33,10 @@ describe('Cadastro de pessoas: sempre como visitante', () => {
         assert.equal(r.corpo.tipo, 'visitante');
         assert.equal(r.corpo.email, 'pessoa.nova@exemplo.test');
         assert.equal(r.corpo.endereco, 'Rua A, 10 - Centro');
-        assert.deepEqual(await contar('membros', 'voluntarios', 'usuarios'), antes, 'não pode criar membro, voluntário ou login');
+        // Uma pessoa a mais na base universal, como visitante; nenhum voluntário nem login
+        assert.deepEqual(await contar('membros', 'voluntarios', 'usuarios'), { ...antes, membros: antes.membros + 1 }, 'não pode criar voluntário ou login');
+        const pessoa = (await pool.query('SELECT classificacao, apto_voluntario FROM membros WHERE id_membro = $1', [r.corpo.id])).rows[0];
+        assert.deepEqual(pessoa, { classificacao: 'visitante', apto_voluntario: false });
     });
 
     test('validações do cadastro', async () => {
@@ -60,13 +63,13 @@ describe('Classificação: só o administrador', () => {
     });
 
     test('quem não é administrador não promove nem altera classificação', async () => {
-        assert.equal((await api(`/api/participantes/visitantes/${visitante.id_visitante}/membro`, { metodo: 'POST', token: secretaria.token, corpo: {} })).status, 403);
+        assert.equal((await api(`/api/participantes/${visitante.id}/membro`, { metodo: 'POST', token: secretaria.token, corpo: {} })).status, 403);
         const membro = (await pool.query('SELECT id_membro FROM membros WHERE ativo LIMIT 1')).rows[0];
-        assert.equal((await api(`/api/participantes/membros/${membro.id_membro}`, { metodo: 'PATCH', token: secretaria.token, corpo: { apto_voluntario: true } })).status, 403);
+        assert.equal((await api(`/api/participantes/${membro.id_membro}`, { metodo: 'PATCH', token: secretaria.token, corpo: { apto_voluntario: true } })).status, 403);
     });
 
-    test('administrador promove visitante a membro (dados copiados, sem virar apto)', async () => {
-        const r = await api(`/api/participantes/visitantes/${visitante.id_visitante}/membro`, {
+    test('administrador promove visitante a membro (mesma pessoa, sem virar apto)', async () => {
+        const r = await api(`/api/participantes/${visitante.id}/membro`, {
             metodo: 'POST', token: admin.token, corpo: { data_entrada_igreja: '2026-10-01', data_batismo: '2020-05-10', participa_celula: true }
         });
         assert.equal(r.status, 201);
@@ -76,23 +79,22 @@ describe('Classificação: só o administrador', () => {
         assert.equal(r.corpo.apto_voluntario, false);
         assert.equal(r.corpo.participa_celula, true);
 
-        // O visitante fica como histórico, ligado ao membro, e some da lista de visitantes
-        const historico = (await pool.query('SELECT id_membro, promovido_em FROM visitantes WHERE id_visitante = $1', [visitante.id_visitante])).rows[0];
-        assert.equal(historico.id_membro, r.corpo.id_membro);
-        assert.ok(historico.promovido_em);
+        // É a mesma pessoa (mesmo id): só a classificação mudou; nada foi duplicado
+        assert.equal(r.corpo.id_membro, visitante.id);
+        assert.equal(r.corpo.classificacao, 'membro');
         const lista = (await api('/api/participantes', { token: admin.token })).corpo.participantes;
-        assert.ok(!lista.some(p => p.tipo === 'visitante' && p.id === visitante.id_visitante));
-        assert.ok(lista.some(p => p.tipo === 'membro' && p.id === r.corpo.id_membro));
+        assert.equal(lista.filter(p => p.id === visitante.id).length, 1);
+        assert.equal(lista.find(p => p.id === visitante.id).tipo, 'membro');
 
         // Não promove duas vezes
-        assert.equal((await api(`/api/participantes/visitantes/${visitante.id_visitante}/membro`, { metodo: 'POST', token: admin.token, corpo: {} })).status, 409);
-        assert.equal((await api('/api/participantes/visitantes/999999/membro', { metodo: 'POST', token: admin.token, corpo: {} })).status, 404);
+        assert.equal((await api(`/api/participantes/${visitante.id}/membro`, { metodo: 'POST', token: admin.token, corpo: {} })).status, 409);
+        assert.equal((await api('/api/participantes/999999/membro', { metodo: 'POST', token: admin.token, corpo: {} })).status, 404);
     });
 
     test('apto ao voluntariado e status respeitam as regras', async () => {
         const novo = (await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { nome: 'Futuro Voluntário' } })).corpo;
-        const membro = (await api(`/api/participantes/visitantes/${novo.id_visitante}/membro`, { metodo: 'POST', token: admin.token, corpo: {} })).corpo;
-        const rota = `/api/participantes/membros/${membro.id_membro}`;
+        const membro = (await api(`/api/participantes/${novo.id}/membro`, { metodo: 'POST', token: admin.token, corpo: {} })).corpo;
+        const rota = `/api/participantes/${membro.id_membro}`;
 
         assert.equal((await api(rota, { metodo: 'PATCH', token: admin.token, corpo: { apto_voluntario: true } })).corpo.apto_voluntario, true);
 
@@ -108,7 +110,7 @@ describe('Classificação: só o administrador', () => {
     test('voluntário ativo não perde o "apto" nem é inativado por aqui', async () => {
         const v = await voluntarioComEscalas(0);
         for (const corpo of [{ apto_voluntario: false }, { ativo: false }]) {
-            const r = await api(`/api/participantes/membros/${v.id_membro}`, { metodo: 'PATCH', token: admin.token, corpo });
+            const r = await api(`/api/participantes/${v.id_membro}`, { metodo: 'PATCH', token: admin.token, corpo });
             assert.equal(r.status, 409);
         }
     });
@@ -147,7 +149,7 @@ describe('Usuários: só contas de gestão', () => {
         const antes = await contar('usuarios');
         const candidato = (await pool.query(
             `SELECT m.id_membro FROM membros m
-             WHERE m.ativo AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro) LIMIT 1`
+             WHERE m.ativo AND m.apto_voluntario AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro) LIMIT 1`
         )).rows[0];
         const funcao = (await pool.query('SELECT id_funcao FROM funcoes LIMIT 1')).rows[0].id_funcao;
         const r = await api('/api/voluntarios', { metodo: 'POST', token: admin.token, corpo: { id_membro: candidato.id_membro, funcoes: [funcao], disponibilidade: ['domingo'] } });
@@ -243,7 +245,7 @@ describe('Minha área: experiência pela classificação real do login', () => {
     before(async () => {
         const m = (await pool.query(
             `SELECT id_membro FROM membros m
-             WHERE ativo AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
+             WHERE ativo AND classificacao = 'membro' AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
                AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_membro = m.id_membro)
              LIMIT 1`)).rows[0];
         membro = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA, id_membro: m.id_membro });

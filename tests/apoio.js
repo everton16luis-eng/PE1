@@ -53,15 +53,23 @@ async function api(rota, { metodo = 'GET', token, corpo, headers = {} } = {}) {
     return { status: resposta.status, corpo: json, texto, headers: resposta.headers };
 }
 
-// Cria um usuário direto no banco e devolve { id, email, token }
+// Cria um usuário direto no banco e devolve { id, email, token, id_membro }.
+// Todo login pertence a uma pessoa: sem id_membro, cria a pessoa (visitante).
 async function criarUsuario({ perfil = 'SECRETARIA', permissoes = NENHUMA, ativo = true, id_membro = null } = {}) {
     const email = `teste.${perfil.toLowerCase()}.${crypto.randomBytes(4).toString('hex')}@exemplo.test`;
+    if (!id_membro) {
+        id_membro = (await pool.query(
+            `INSERT INTO membros (nome_completo, email, classificacao, ativo, apto_voluntario, voluntario, data_primeira_visita)
+             VALUES ($1, $2, 'visitante', TRUE, FALSE, FALSE, CURRENT_DATE) RETURNING id_membro`,
+            [`Teste ${perfil}`, email]
+        )).rows[0].id_membro;
+    }
     const result = await pool.query(
         `INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo, permissoes, id_membro)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id_usuario`,
         [`Teste ${perfil}`, email, gerarHashSenha(SENHA), perfil, ativo, permissoes, id_membro]
     );
-    const usuario = { id: result.rows[0].id_usuario, email };
+    const usuario = { id: result.rows[0].id_usuario, email, id_membro };
     if (ativo) {
         const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: SENHA } });
         usuario.token = login.corpo?.token;

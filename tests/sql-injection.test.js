@@ -139,7 +139,7 @@ describe('Dados gravados literalmente (sem executar)', () => {
             const r = await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { tipo: 'visitante', nome, data_visita: '2026-10-21', telefone, observacoes: ataque } });
             assertSemVazamento(r, 'participante');
             assert.equal(r.status, 201);
-            const salvo = (await pool.query('SELECT nome, telefone, observacoes FROM visitantes WHERE id_visitante = $1', [r.corpo.id_visitante])).rows[0];
+            const salvo = (await pool.query('SELECT nome_completo AS nome, telefone, observacoes FROM membros WHERE id_membro = $1', [r.corpo.id])).rows[0];
             assert.deepEqual(salvo, { nome, telefone, observacoes: ataque });
         });
     }

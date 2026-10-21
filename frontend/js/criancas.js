@@ -26,27 +26,30 @@ async function gerenciaCriancas() {
                 <button type="button" class="filtro" data-filtro="presente">Presentes</button>
                 <button type="button" class="filtro" data-filtro="ausente">Ausentes</button>
                 ${dados.criancas.some(c => !c.ativo) ? '<button type="button" class="filtro" data-filtro="inativo">Inativas</button>' : ''}
+                ${dados.criancas.some(c => !c.tem_ficha) ? '<button type="button" class="filtro" data-filtro="sem-ficha">Sem ficha</button>' : ''}
             </div>
             <div class="table-responsive">
                 <table class="tabela-cartoes">
-                    <thead><tr><th>Criança</th><th>Idade</th><th>Responsável</th><th>Turma</th><th>Presença hoje</th></tr></thead>
+                    <thead><tr><th>Criança</th><th>Idade</th><th>Responsável</th><th>Turma</th><th>Presença hoje</th><th>Ação</th></tr></thead>
                     <tbody>
                         ${dados.criancas.map(c => `
-                            <tr data-filtro="${!c.ativo ? 'inativo' : c.presente_hoje ? 'presente' : 'ausente'}">
+                            <tr data-filtro="${!c.ativo ? 'inativo' : c.presente_hoje ? 'presente' : 'ausente'}" data-ficha="${c.tem_ficha}">
                                 <td>
                                     <div class="person">
                                         <div class="mini-avatar">${escapar(c.nome.charAt(0).toUpperCase())}</div>
                                         <div class="info">
                                             <strong>${escapar(c.nome)}</strong>
-                                            <small>Cadastro ${String(c.data_cadastro || '').slice(0, 4)}${c.alergias ? ' • ⚠ ' + escapar(c.alergias) : ''}</small>
+                                            <small>${c.tem_ficha ? `Ficha desde ${String(c.data_cadastro || '').slice(0, 4)}` : 'Sem ficha infantil'}${c.alergias ? ' • ⚠ ' + escapar(c.alergias) : ''}</small>
                                         </div>
                                     </div>
                                 </td>
                                 <td>${c.idade < 1 ? 'Bebê' : `${c.idade} ano${c.idade > 1 ? 's' : ''}`}</td>
                                 <td>${escapar(c.responsavel || '—')}${c.parentesco ? `<small style="display:block;color:var(--muted)">${escapar(c.parentesco)} • ${escapar(c.telefone || '')}</small>` : ''}</td>
-                                <td>${escapar(c.turma || 'Sem turma')}</td>
+                                <td>${c.tem_ficha ? escapar(c.turma || 'Sem turma') : '<span class="badge pending">Ficha a completar</span>'}</td>
                                 <td>${!c.ativo ? '<span class="badge inactive">Cadastro inativo</span>' : c.presente_hoje ? '<span class="badge ok">Presente</span>' : '<span class="badge pending">Ausente</span>'}</td>
-                            </tr>`).join('') || '<tr><td colspan="5" class="vazio">Nenhuma criança cadastrada.</td></tr>'}
+                                <td>${c.tem_ficha ? '<span class="sem-acao">Ficha completa</span>'
+                                    : `<button type="button" class="action-btn com-texto" data-completar="${c.id_membro}"><span class="material-icons">assignment_ind</span>Completar ficha</button>`}</td>
+                            </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhuma pessoa com menos de 18 anos no cadastro.</td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -70,23 +73,34 @@ async function gerenciaCriancas() {
     `;
 
     main.replaceChildren(
-        headerInterno('Crianças', 'Controle de crianças, responsáveis, turmas e presença'),
+        headerInterno('Crianças', 'Pessoas do cadastro com menos de 18 anos: responsáveis, turmas e presença'),
         cardsEstatisticas([
-            ['blue', 'child_care', r.criancas, 'Crianças ativas'],
+            ['blue', 'child_care', r.criancas, 'Menores de 18 ativos'],
             ['green', 'how_to_reg', r.presentes_hoje, 'Presentes hoje'],
-            ['purple', 'class', r.turmas, 'Turmas ativas'],
+            ['purple', 'assignment_ind', r.sem_ficha, 'Ficha infantil a completar'],
             ['orange', 'family_restroom', r.responsaveis, 'Responsáveis']
         ]),
         grade
     );
 
-    configurarFiltros(grade.querySelector('#painelCriancas'), (linha, filtro) => linha.dataset.filtro === filtro, { exigirInteracao: true });
+    configurarFiltros(grade.querySelector('#painelCriancas'),
+        (linha, filtro) => (filtro === 'sem-ficha' ? linha.dataset.ficha === 'false' : linha.dataset.filtro === filtro),
+        { exigirInteracao: true });
     grade.querySelector('#btnNovaCrianca').addEventListener('click', () => novaCrianca(dados.turmas));
+    // Pessoa menor de 18 já cadastrada: completa a ficha infantil (sem cadastrar de novo)
+    grade.querySelector('#painelCriancas').addEventListener('click', event => {
+        const botao = event.target.closest('[data-completar]');
+        if (!botao) return;
+        const pessoa = dados.criancas.find(c => c.id_membro === Number(botao.dataset.completar));
+        if (pessoa) novaCrianca(dados.turmas, { id_membro: pessoa.id_membro, nome: pessoa.nome, data_nascimento: pessoa.data_nascimento });
+    });
     grade.querySelector('#btnGerenciarTurmas').addEventListener('click', gerenciaTurmas);
 }
 
-function novaCrianca(turmas) {
-    registrarRota('criancas/nova', [turmas]);
+// Ficha infantil. Sem "pessoa": cadastra a criança na base universal + a ficha.
+// Com "pessoa" (já cadastrada, menor de 18): só completa a ficha dela.
+function novaCrianca(turmas, pessoa = null) {
+    registrarRota('criancas/nova', [turmas, pessoa]);
     const main = document.getElementById('main');
     const ativas = turmas.filter(t => t.ativo);
 
@@ -169,11 +183,26 @@ function novaCrianca(turmas) {
         </form>
     `;
 
-    main.replaceChildren(headerComVoltar('Nova Criança', 'Cadastre uma nova criança no sistema', gerenciaCriancas), section);
+    main.replaceChildren(pessoa
+        ? headerComVoltar('Completar ficha infantil', `${pessoa.nome} já está no cadastro: preencha os dados da área infantil`, gerenciaCriancas)
+        : headerComVoltar('Nova Criança', 'A criança entra no cadastro universal (como visitante) com a ficha infantil', gerenciaCriancas), section);
 
     const form = section.querySelector('form');
     const $ = id => section.querySelector('#' + id);
     $('cDataCadastro').value = dataDeHoje();
+
+    // Só menores de 18 anos: nasceu depois de "hoje menos 18 anos" e até hoje
+    const [ano, mes, dia] = dataDeHoje().split('-').map(Number);
+    $('cNascimento').max = dataDeHoje();
+    $('cNascimento').min = new Date(ano - 18, mes - 1, dia + 1).toLocaleDateString('sv-SE');
+
+    // Nome e nascimento vêm do cadastro da pessoa (não são editados aqui)
+    if (pessoa) {
+        $('cNome').value = pessoa.nome;
+        $('cNascimento').value = String(pessoa.data_nascimento || '').slice(0, 10);
+        $('cNome').readOnly = true;
+        $('cNascimento').readOnly = true;
+    }
 
     // Sugere a turma pela idade
     $('cNascimento').addEventListener('change', () => {
@@ -185,6 +214,7 @@ function novaCrianca(turmas) {
         const turma = ativas.find(t => idade >= t.idade_minima && idade <= t.idade_maxima);
         if (turma) $('cTurma').value = turma.id_turma;
     });
+    if (pessoa) $('cNascimento').dispatchEvent(new Event('change'));
 
     $('cancelarCrianca').addEventListener('click', () => abrirSubstituindo(gerenciaCriancas));
 
@@ -193,6 +223,7 @@ function novaCrianca(turmas) {
         if (!$('cAutorizacao').checked) return mensagemFormulario(form, 'É necessário confirmar a autorização do responsável.');
 
         const dados = {
+            id_membro: pessoa?.id_membro || null,
             nome: $('cNome').value,
             data_nascimento: $('cNascimento').value,
             sexo: $('cSexo').value,

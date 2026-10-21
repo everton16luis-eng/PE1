@@ -36,6 +36,14 @@ exports.novoVoluntario = async (req, res) => {
         if (!funcoes.length) return res.status(400).json({ erro: 'Selecione pelo menos uma função.' });
         if (!disponibilidade.length) return res.status(400).json({ erro: 'Informe pelo menos um dia de disponibilidade.' });
 
+        // Só quem está ativo e apto (definido pelo administrador em Participantes) recebe ficha
+        const pessoa = await Voluntarios.elegibilidade(idMembro);
+        if (!pessoa) return res.status(400).json({ erro: 'Membro, departamento ou função inexistente.' });
+        if (!pessoa.ativo || !pessoa.apto_voluntario) {
+            return res.status(400).json({ erro: 'Só pessoas ativas e aptas ao voluntariado podem ser voluntárias. O administrador define isso em Participantes.' });
+        }
+        if (pessoa.tem_ficha) return res.status(409).json({ erro: 'Esta pessoa já tem ficha de voluntário.' });
+
         const voluntario = await Voluntarios.criar({
             id_membro: idMembro,
             id_departamento: Number(b.id_departamento) || null,

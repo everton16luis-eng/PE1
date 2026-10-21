@@ -32,13 +32,17 @@ const usuariosModel = {
         return result.rows[0].total;
     },
 
-    // Página Usuários: só contas de gestão. Logins do portal do voluntário
-    // (perfil VOLUNTARIO) são administrados pela ficha do voluntário.
+    // Página Usuários: pessoas da base universal com login de GESTÃO (perfil
+    // administrativo). Logins do portal do voluntário (perfil VOLUNTARIO) são
+    // administrados pela ficha do voluntário. O nome vem do cadastro da pessoa.
     listar: async () => {
         const result = await pool.query(
-            `SELECT ${CAMPOS_PUBLICOS} FROM usuarios
-             WHERE perfil <> 'VOLUNTARIO'
-             ORDER BY ativo DESC, nome ASC`
+            `SELECT u.id_usuario, m.nome_completo AS nome, u.email, u.telefone, u.perfil, u.ativo, u.permissoes,
+                    u.observacoes, u.criado_em, u.ultimo_acesso, u.id_membro, m.classificacao
+             FROM usuarios u
+             JOIN membros m ON m.id_membro = u.id_membro
+             WHERE u.perfil <> 'VOLUNTARIO'
+             ORDER BY u.ativo DESC, m.nome_completo ASC`
         );
         return result.rows;
     },
@@ -55,8 +59,9 @@ const usuariosModel = {
         return result.rows[0];
     },
 
-    criar: async ({ nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes, id_membro = null }) => {
-        const result = await pool.query(
+    // Todo login pertence a uma pessoa da base universal (id_membro obrigatório)
+    criar: async ({ nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes, id_membro }, executor = pool) => {
+        const result = await executor.query(
             `INSERT INTO usuarios (nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes, id_membro)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              RETURNING ${CAMPOS_PUBLICOS}`,
@@ -65,16 +70,17 @@ const usuariosModel = {
         return result.rows[0];
     },
 
-    // Atualiza os dados; a senha só muda quando senha_hash vem preenchido
-    atualizar: async (id, { nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes }) => {
+    // Atualiza o acesso; a senha só muda quando senha_hash vem preenchido.
+    // O nome não muda por aqui: é o do cadastro da pessoa.
+    atualizar: async (id, { email, telefone, senha_hash, perfil, ativo, permissoes, observacoes }) => {
         const result = await pool.query(
             `UPDATE usuarios
-             SET nome = $2, email = $3, telefone = $4,
-                 senha_hash = COALESCE($5, senha_hash),
-                 perfil = $6, ativo = $7, permissoes = $8, observacoes = $9
+             SET email = $2, telefone = $3,
+                 senha_hash = COALESCE($4, senha_hash),
+                 perfil = $5, ativo = $6, permissoes = $7, observacoes = $8
              WHERE id_usuario = $1
              RETURNING ${CAMPOS_PUBLICOS}`,
-            [id, nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes]
+            [id, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes]
         );
         return result.rows[0];
     },

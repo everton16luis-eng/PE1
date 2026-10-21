@@ -11,7 +11,8 @@ router.get('/participantes', gestao, participantesController.getParticipantes);
 router.post('/participantes', gestao, participantesController.novoParticipante);
 
 // Classificação: só o administrador
-router.post('/participantes/visitantes/:id/membro', gestao, administrador, participantesController.promoverAMembro);
-router.patch('/participantes/membros/:id', gestao, administrador, participantesController.atualizarMembro);
+// (o :id é o da pessoa na base universal)
+router.post('/participantes/:id/membro', gestao, administrador, participantesController.promoverAMembro);
+router.patch('/participantes/:id', gestao, administrador, participantesController.atualizarMembro);
 
 module.exports = router;

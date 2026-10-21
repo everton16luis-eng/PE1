@@ -69,11 +69,24 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Listas** de Participantes, Voluntários, Escalas, Funções, Crianças, Turmas e Relatórios recentes: no celular e no tablet (até 860px) viram cartões com todos os campos e botões de 44px; no computador continuam em tabela. A busca e os filtros se reorganizam no celular.
 - **Relatórios:** a prévia mostra todas as colunas (até 20 linhas); pendentes saem das mais próximas para as mais distantes.
 - **Crianças:** cadastro inativo deixou de aparecer como "Ausente"; novo filtro "Inativas" quando houver.
-- **Testes:** 13 novos, totalizando 282.
+- **Participantes:** membros com login mostram o perfil de acesso. (Os logins sem cadastro, listados por um tempo como "Contas", viraram pessoas do cadastro na seção 9.)
+- **Testes:** 18 novos, totalizando 287.
+
+## 9. Base universal de pessoas
+
+- **Um cadastro por pessoa:** a tabela `membros` virou o cadastro universal (com `classificacao` visitante/membro). Visitantes, a criança sem pessoa e os logins sem pessoa (Administrador, Rosângela, Marcos, Cláudia e Everton) foram levados para ela pela migração `pessoas.sql` — nada foi apagado e os ids, escalas, funções, presenças e responsáveis foram preservados (backup antes em `backups/antes-da-base-universal-20261021.dump`).
+- **Setores filtram a mesma base:** Participantes = todas; Crianças = menos de 18 anos pela data de nascimento (17 menores que não apareciam passaram a aparecer, para completar a ficha); Voluntários = ativos e aptos (ficha a completar, servindo ou pausado); Usuários = login de gestão, sempre de uma pessoa do cadastro.
+- **Regras no servidor:** ficha de voluntário só para ativo e apto (e não altera mais a aptidão sozinha); escala só aceita voluntários elegíveis da função; ficha infantil só para menores, uma por pessoa; apto só para membros; novo login exige uma pessoa sem login; o pedido de acesso pela tela de login cria a pessoa.
+- **Telas:** Participantes com filtro Menores; Voluntários e Crianças com "Completar ficha"; Usuários escolhe a pessoa do cadastro.
+- **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
+- **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
 ## Pendências conhecidas
 
 - A tela de **Eventos** salva só o evento; funções e voluntários marcados nela não viram escala (use Escalas → Nova escala).
 - O módulo **Financeiro** tem tabelas e dados, mas ainda não tem telas.
 - Itens de produção (HTTPS, CORS, CSP, recuperação de senha por e-mail) estão em [Segurança](seguranca.md#limitações-conhecidas-e-recomendações-para-produção).
+- **Possíveis duplicatas antigas:** 16 visitantes têm o mesmo nome de um membro e 2 nomes de visitante se repetem. Não foram unidos automaticamente (podem ser homônimos); falta uma ferramenta para unir cadastros.
+- **Responsáveis:** a tabela `responsaveis` ainda guarda os contatos à parte (60 dos 65 têm o mesmo nome de um membro). Ligar cada responsável à pessoa do cadastro depende de conferência manual.
+- **Edição de dados pessoais:** ainda não há tela para corrigir nome, nascimento ou contato de uma pessoa depois do cadastro.
 - `frontend/backup.txt` é um rascunho antigo do HTML do dashboard e pode ser removido.

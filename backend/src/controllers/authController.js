@@ -1,4 +1,6 @@
+const pool = require('../config/db');
 const Usuarios = require('../models/usuariosModel');
+const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha, gerarToken } = require('../config/seguranca');
 const Limite = require('../config/limiteLogin');
@@ -55,16 +57,30 @@ exports.registro = async (req, res) => {
 
         const primeiroAcesso = (await Usuarios.contarAdministradoresAtivos()) === 0;
 
-        await Usuarios.criar({
-            nome,
-            email,
-            telefone,
-            senha_hash: gerarHashSenha(senha),
-            perfil: primeiroAcesso ? 'ADMINISTRADOR' : 'VISUALIZACAO',
-            ativo: primeiroAcesso,
-            permissoes: primeiroAcesso ? PERMISSOES_ADMIN : PERMISSOES_VISUALIZACAO,
-            observacoes: primeiroAcesso ? 'Primeiro administrador do sistema' : 'Cadastro feito pela tela de login'
-        });
+        // Quem pede acesso entra no cadastro universal (como visitante) e o
+        // login fica ligado a essa pessoa — tudo ou nada, numa transação
+        const cliente = await pool.connect();
+        try {
+            await cliente.query('BEGIN');
+            const pessoa = await Pessoas.criar({ nome, email, telefone, observacoes: 'Cadastro feito pela tela de login' }, cliente);
+            await Usuarios.criar({
+                nome,
+                email,
+                telefone,
+                senha_hash: gerarHashSenha(senha),
+                perfil: primeiroAcesso ? 'ADMINISTRADOR' : 'VISUALIZACAO',
+                ativo: primeiroAcesso,
+                permissoes: primeiroAcesso ? PERMISSOES_ADMIN : PERMISSOES_VISUALIZACAO,
+                observacoes: primeiroAcesso ? 'Primeiro administrador do sistema' : 'Cadastro feito pela tela de login',
+                id_membro: pessoa.id_membro
+            }, cliente);
+            await cliente.query('COMMIT');
+        } catch (error) {
+            await cliente.query('ROLLBACK');
+            throw error;
+        } finally {
+            cliente.release();
+        }
 
         res.status(201).json({
             mensagem: primeiroAcesso
@@ -78,6 +94,10 @@ exports.registro = async (req, res) => {
     }
 }
 
+// Dados do login + se a pessoa tem ficha de voluntário (dá direito à Minha área,
+// mesmo para quem também tem um perfil de gestão)
 exports.me = async (req, res) => {
-    res.json(await Usuarios.buscarPorId(req.usuario.id_usuario));
+    const usuario = await Usuarios.buscarPorId(req.usuario.id_usuario);
+    const ficha = await pool.query('SELECT 1 FROM voluntarios WHERE id_membro = $1', [usuario.id_membro]);
+    res.json({ ...usuario, voluntario: ficha.rowCount > 0 });
 }

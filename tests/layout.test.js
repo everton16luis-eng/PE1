@@ -563,7 +563,7 @@ describe('Minha área, dashboard e listas responsivas', () => {
     test('Minha área do membro: próximos eventos, sem escalas e sem rolagem lateral', async () => {
         const m = (await pool.query(
             `SELECT id_membro FROM membros m
-             WHERE ativo AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
+             WHERE ativo AND classificacao = 'membro' AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
                AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_membro = m.id_membro)
              LIMIT 1`)).rows[0];
         const membro = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA, id_membro: m.id_membro });

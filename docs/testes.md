@@ -2,7 +2,7 @@
 
 [← Voltar ao README](../README.md)
 
-São **282 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
+São **298 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
 
 ## Como rodar
 
@@ -38,6 +38,7 @@ node --test tests/voluntario.test.js
 | `sql-injection.test.js` | 12 ataques (`' OR '1'='1`, `; DROP TABLE`, `UNION SELECT`, `pg_sleep`…) no login, em parâmetros de URL, IDs, filtros de relatório e campos de cadastro. Verifica que nenhuma tabela perdeu registros, que os textos são gravados literalmente e que não vaza mensagem do banco. Também valida 14 entradas inválidas (400) |
 | `voluntario.test.js` | Portal: bloqueio de todas as rotas de gestão, dados só do próprio voluntário, confirmar/recusar/"mudei de ideia", não responder escala alheia nem passada, ausências (conflitos e períodos inválidos), preferências, troca de senha. Ficha: permissão, edição, recusa e retirada de escala. Acesso ao portal: criação, perfil e permissões, duplicidade, bloqueio |
 | `melhorias.test.js` | Cadastro sempre como visitante (campos de privilégio ignorados); promoção a membro e apto/ativo só por administrador, com as regras de consistência; Usuários sem contas do portal; turma Next por último; editar e remover eventos (permissão, validação, escalas junto); formato das escalas da semana; Minha área por classificação (voluntário, membro, visitante); relatório de pendentes |
+| `base-universal.test.js` | Base universal de pessoas: integridade (toda visita, ficha e login aponta para uma pessoa), um cadastro passando pelos setores (Participantes, Crianças < 18, Voluntários = ativo e apto, Usuários = login de gestão), quem faz 18 anos sai de Crianças, ficha infantil e de voluntário sem duplicar a pessoa, pedido de acesso cria a pessoa, classificação só pelo administrador, escala só com voluntários elegíveis |
 | `layout.test.js` | Login e registro no mesmo padrão em celular, tablet e desktop; todas as páginas sem erro de JavaScript e sem rolagem horizontal; título não sobreposto; menu lateral no celular; calendário; listas que só aparecem após busca/filtro; botões Voltar/Avançar e recarregar; formulários não ficam no histórico; ficha do voluntário; portal (confirmar e recusar pela tela); XSS; menu de usuário restrito |
 | `apoio.js` | Funções comuns: sobe a API no banco de testes (`iniciar`, `encerrar`), faz requisições (`api`), cria usuários com perfil/permissões (`criarUsuario`), conta registros (`contar`), encontra voluntário com escalas (`voluntarioComEscalas`) |
 
