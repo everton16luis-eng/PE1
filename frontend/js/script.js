@@ -1,310 +1,706 @@
-const API_URL = 'http://localhost:3000/api'
+// Mesma origem do servidor Express (funciona em localhost e em produção)
+const API_URL = '/api';
+
+// Usuário logado (preenchido ao entrar no sistema)
+let usuarioAtual = null;
 
 async function carregarDashboard() {
-    const dados = await dadosDashboard()
+    if (!lerToken()) {
+        mostrarLogin();
+        return;
+    }
+
+    try {
+        usuarioAtual = await enviarDados('auth/me', 'GET');
+    } catch {
+        return; // token inválido: enviarDados já abriu a tela de login
+    }
+
     const app = document.getElementById('app');
-    const main = document.createElement('main')
-    const sectionCards = atualizarCards(dados)
-    const sectionResumoEscalas = ""
+    const main = document.createElement('main');
     main.classList.add('content');
     main.id = 'main';
-    app.appendChild(main)
-    main.appendChild(headerInterno('Dashboard', 'Gerencie sua Igreja'))
-    main.appendChild(sectionCards)
-    main.appendChild(await renderizarEscalas())
-    app.appendChild(sideBar());
 
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+
+    app.replaceChildren(sideBar(), overlay, main);
+
+    // Abre a página que estava na URL (recarregar mantém a página atual)
+    const estado = history.state?.rota ? history.state : { rota: rotaDaUrl(), args: [] };
+    await abrirRotaDoHistorico(estado);
+    if (!history.state?.rota) {
+        history.replaceState({ rota: estado.rota, args: [] }, '', `#/${estado.rota}`);
+    }
 }
+
+// ===================
+//    NAVEGAÇÃO     ===
+// ===================
+// Cada página registra uma rota (#/participantes, #/participantes/novo...)
+// para os botões Voltar/Avançar do navegador funcionarem.
+
+let navegandoPeloHistorico = false;
+let substituirProximaRota = false;
+
+// rota -> [função da página, permissão necessária, rota de volta se faltar dado]
+const ROTAS = {
+    'dashboard': [gerenciaDashboard, null],
+    'eventos': [gerenciaEvento, 'escalas'],
+    'presenca': [gerenciaPresenca, 'criancas'],
+    'participantes': [gerenciaParticipantes, 'participantes'],
+    'participantes/novo': [novoParticipante, 'participantes'],
+    'voluntarios': [gerenciaVoluntarios, 'voluntarios'],
+    'voluntarios/novo': [novoVoluntario, 'voluntarios'],
+    'voluntarios/ficha': [fichaVoluntario, 'voluntarios', 'voluntarios'],
+    'minha-area': [gerenciaMinhaArea, 'portal'],
+    'funcoes': [gerenciaFuncoes, 'voluntarios'],
+    'funcoes/nova': [formularioFuncao, 'voluntarios'],
+    'funcoes/editar': [formularioFuncao, 'voluntarios', 'funcoes'],
+    'escalas': [gerenciaEscalas, 'escalas'],
+    'escalas/nova': [novaEscala, 'escalas'],
+    'criancas': [gerenciaCriancas, 'criancas'],
+    'criancas/nova': [novaCrianca, 'criancas', 'criancas'],
+    'turmas': [gerenciaTurmas, 'criancas'],
+    'relatorios': [gerenciaRelatorios, 'relatorios'],
+    'relatorios/gerar': [gerarRelatorio, 'relatorios'],
+    'usuarios': [gerenciaUsuarios, 'usuarios'],
+    'usuarios/novo': [formularioUsuario, 'usuarios'],
+    'usuarios/editar': [formularioUsuario, 'usuarios', 'usuarios'],
+    'configuracoes': [gerenciaConfiguracoes, null]
+};
+
+function rotaDaUrl() {
+    return decodeURIComponent(location.hash.replace(/^#\/?/, '')) || 'dashboard';
+}
+
+// Chamada no início de cada página (antes de qualquer await)
+function registrarRota(rota, args = []) {
+    if (navegandoPeloHistorico) return;
+    const substituir = substituirProximaRota || history.state?.rota === rota;
+    // "anterior" = página de onde se chegou (usada para voltar depois de salvar)
+    const estado = { rota, args, anterior: substituir ? history.state?.anterior : history.state?.rota };
+    substituirProximaRota = false;
+    history[substituir ? 'replaceState' : 'pushState'](estado, '', `#/${rota}`);
+    atualizarTitulo(rota);
+}
+
+// Título da aba = nome da página no menu (ex.: "Participantes — Igreja Novo Caminho")
+function atualizarTitulo(rota) {
+    const base = rota.split('/')[0];
+    const link = document.getElementById(ROTAS[base]?.[0]?.name);
+    const textoDoLink = link ? [...link.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : '';
+    const nome = textoDoLink || base.replace(/^./, c => c.toUpperCase());
+    document.title = `${nome} — Igreja Novo Caminho`;
+}
+
+// Sai de um formulário (salvar/cancelar/voltar) sem deixá-lo no histórico:
+// se o formulário foi aberto a partir dessa página, volta no histórico;
+// senão, substitui a entrada atual.
+function abrirSubstituindo(abrirPagina, ...args) {
+    const rota = Object.keys(ROTAS).find(r => ROTAS[r][0] === abrirPagina && !ROTAS[r][2]);
+    if (rota && history.state?.anterior === rota) {
+        substituirProximaRota = false;
+        if (args.length) {
+            // Volta e reabre com os dados novos (ex.: dia da escala criada)
+            const estadoAnterior = { rota, args };
+            window.addEventListener('popstate', () => history.replaceState({ ...history.state, ...estadoAnterior }, '', location.hash), { once: true, capture: true });
+        }
+        history.back();
+        return;
+    }
+    substituirProximaRota = true;
+    return abrirPagina(...args);
+}
+
+async function abrirRotaDoHistorico(estado) {
+    let rota = ROTAS[estado?.rota] ? estado.rota : 'dashboard';
+    let [abrir, permissao, rotaDeVolta] = ROTAS[rota];
+    let args = estado?.args || [];
+
+    // Página que precisa de dados que não estão no histórico: volta para a lista
+    if (rotaDeVolta && !args[0]) {
+        rota = rotaDeVolta;
+        [abrir, permissao] = ROTAS[rota];
+        args = [];
+    }
+    // Voluntário só acessa a Minha área; os demais vão ao Dashboard se não tiverem permissão
+    if (somenteVoluntario() && permissao !== 'portal') {
+        rota = 'minha-area';
+    } else if (permissao && !temPermissao(permissao)) {
+        rota = 'dashboard';
+    }
+    if (rota !== estado?.rota) {
+        [abrir] = ROTAS[rota];
+        args = [];
+        // O endereço acompanha a página realmente aberta
+        history.replaceState({ rota, args }, '', `#/${rota}`);
+        estado = { rota, args };
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(modal => modal.remove());
+    document.body.classList.remove('menu-aberto');
+
+    navegandoPeloHistorico = true;
+    let carregando;
+    try {
+        carregando = abrir(...args);
+    } finally {
+        navegandoPeloHistorico = false;
+    }
+    atualizarTitulo(estado?.rota || 'dashboard');
+    await carregando;
+}
+
+window.addEventListener('popstate', () => {
+    if (!usuarioAtual) return; // na tela de login não há páginas para abrir
+    abrirRotaDoHistorico(history.state?.rota ? history.state : { rota: rotaDaUrl(), args: [] });
+});
+
+// ===================
+//      SESSÃO     ===
+// ===================
+
+// O token fica no localStorage ("lembrar") ou só nesta aba (sessionStorage)
+function lerToken() {
+    try {
+        return sessionStorage.getItem('igreja-token') || localStorage.getItem('igreja-token');
+    } catch {
+        return null;
+    }
+}
+
+function salvarToken(token, lembrar) {
+    try {
+        (lembrar ? localStorage : sessionStorage).setItem('igreja-token', token);
+    } catch {
+        // navegador sem armazenamento: a sessão dura até recarregar a página
+    }
+}
+
+function sairDoSistema() {
+    try {
+        sessionStorage.removeItem('igreja-token');
+        localStorage.removeItem('igreja-token');
+    } catch {
+        // nada a limpar
+    }
+    usuarioAtual = null;
+    mostrarLogin();
+}
+
+function cabecalhos() {
+    const token = lerToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Administrador vê tudo; os demais só as áreas marcadas no cadastro.
+// "portal" (Minha área) é de quem tem o login ligado a um cadastro de voluntário.
+function temPermissao(area) {
+    if (area === 'portal') return usuarioAtual?.perfil === 'VOLUNTARIO' || Boolean(usuarioAtual?.id_membro);
+    if (usuarioAtual?.perfil === 'VOLUNTARIO') return false;
+    return usuarioAtual?.perfil === 'ADMINISTRADOR' || Boolean(usuarioAtual?.permissoes?.[area]);
+}
+
+const somenteVoluntario = () => usuarioAtual?.perfil === 'VOLUNTARIO';
 
 // ===================
 //       DADOS     ===
 // ===================
-async function dadosDashboard() {
+
+// Faz o GET na API e devolve o JSON (ou o valor padrão em caso de erro)
+async function buscarDados(rota, padrao) {
     try {
-        const cards = await fetch(`${API_URL}/dashboardPessoas`);
-        if (!cards.ok) {
-            throw new Error('Erro ao consultar a API');
+        const resposta = await fetch(`${API_URL}/${rota}`, { headers: cabecalhos() });
+        if (resposta.status === 401) {
+            sairDoSistema();
+            return padrao;
         }
-
-        const dados = await cards.json();
-        console.log(dados)
-        return dados
-
+        if (!resposta.ok) {
+            throw new Error(`Erro ao consultar a API (${rota})`);
+        }
+        return (await resposta.json()) ?? padrao;
     } catch (erro) {
-        console.error('Erro ao carregar dashboard:', erro);
+        console.error(erro.message);
+        return padrao;
     }
+}
 
+async function dadosDashboard() {
+    return buscarDados('dashboardPessoas', {});
 }
 
 async function dadosFuncoes() {
-    try {
-        const funcoes = await fetch(`${API_URL}/funcoes`);
-        if (!funcoes.ok) {
-            throw new Error('Erro ao consultar a API');
-        }
-        const dados = await funcoes.json();
-        return dados
-    } catch (error) {
-        console.log(erro.message)
-
-    }
-
+    return buscarDados('funcoes', []);
 }
 
 async function dadosEventos() {
-    try {
-        const funcoes = await fetch(`${API_URL}/eventosDisponiveis`);
-        if (!funcoes.ok) {
-            throw new Error('Erro ao consultar a API');
-        }
-        const dados = await funcoes.json();
-        return dados
-    } catch (error) {
-        console.log(erro.message)
-
-    }
-
+    return buscarDados('eventosDisponiveis', []);
 }
 
 async function dadosVolutanrios() {
-    try {
-        const voluntarios = await fetch(`${API_URL}/voluntariosDisponiveis`);
-        if (!voluntarios.ok) {
-            throw new Error('Erro ao consultar a API');
-        }
-        const dados = await voluntarios.json();
-        return dados
-    } catch (error) {
-        console.log(erro.message)
-
-    }
-
+    return buscarDados('voluntariosDisponiveis', []);
 }
-async function dadosEscalas() {
 
+async function dadosEscalas() {
+    return buscarDados('escalasSemana', []);
+}
+
+async function dadosConfirmacoes() {
+    return buscarDados('confirmacoesPendentes', []);
+}
+
+async function dadosGrafico() {
+    return buscarDados('graficoConfirmacoes', {});
+}
+
+async function dadosTodosEventos() {
+    return buscarDados('eventos', []);
+}
+
+// Envia dados para a API (POST/PATCH) e devolve o JSON ou lança o erro
+async function enviarDados(rota, metodo, corpo) {
+    const resposta = await fetch(`${API_URL}/${rota}`, {
+        method: metodo,
+        headers: { 'Content-Type': 'application/json', ...cabecalhos() },
+        body: corpo ? JSON.stringify(corpo) : undefined
+    });
+    const dados = await resposta.json().catch(() => ({}));
+
+    if (resposta.status === 401 && !rota.startsWith('auth/login')) {
+        sairDoSistema();
+    }
+    if (!resposta.ok) {
+        throw new Error(dados.erro || 'Erro ao comunicar com o servidor.');
+    }
+    return dados;
 }
 // ===================================
 
 // ====================
-// ELEMNTOS DE TELA ===
+//    UTILITÁRIOS    ===
+// ====================
+
+// Evita que textos vindos do banco sejam interpretados como HTML
+function escapar(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+function formatarData(data, opcoes = {}) {
+    if (!data) return '';
+    return new Date(data).toLocaleDateString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        ...opcoes
+    });
+}
+
+function formatarHora(hora) {
+    return hora ? String(hora).slice(0, 5) : '';
+}
+
+function marcarMenuAtivo(id) {
+    document.querySelectorAll('.sidebar nav a').forEach(link => {
+        link.classList.toggle('active', link.id === id);
+    });
+}
+
+// Data de hoje no fuso local (AAAA-MM-DD)
+function dataDeHoje() {
+    const hoje = new Date();
+    hoje.setMinutes(hoje.getMinutes() - hoje.getTimezoneOffset());
+    return hoje.toISOString().slice(0, 10);
+}
+
+// Datas que vêm do banco como "AAAA-MM-DD" ou ISO, sem conversão de fuso
+function formatarDataSimples(data) {
+    if (!data) return '';
+    const [ano, mes, dia] = String(data).slice(0, 10).split('-');
+    return `${dia}/${mes}/${ano}`;
+}
+
+const normalizarTexto = texto => String(texto ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+const NOMES_DIAS = { domingo: 'Domingo', segunda: 'Segunda', terca: 'Terça', quarta: 'Quarta', quinta: 'Quinta', sexta: 'Sexta', sabado: 'Sábado' };
+const nomesDosDias = dias => (dias || []).map(dia => NOMES_DIAS[dia] || dia).join(' / ');
+
+//  Cards de estatística das páginas de gestão
+function cardsEstatisticas(itens) {
+    const section = document.createElement('section');
+    section.className = 'cards';
+    section.innerHTML = itens.map(([cor, icone, valor, rotulo]) => `
+        <div class="stat ${cor}">
+            <span class="material-icons">${icone}</span>
+            <div><strong>${escapar(valor ?? 0)}</strong><small>${escapar(rotulo)}</small></div>
+        </div>
+    `).join('');
+    return section;
+}
+
+//  Busca + botões de filtro de uma tabela.
+//  "corresponde(linha, filtro)" decide se a linha aparece no filtro escolhido.
+//  Com "exigirInteracao", nenhum registro aparece (nem fica na página) até a
+//  pessoa pesquisar um nome ou clicar em um dos filtros.
+function configurarFiltros(container, corresponde, { exigirInteracao = false } = {}) {
+    const busca = container.querySelector('.search');
+    const botoes = [...container.querySelectorAll('.filtro')];
+    const tbody = container.querySelector('tbody');
+    const linhas = [...tbody.querySelectorAll('tr[data-filtro]')];
+    const contador = container.querySelector('.contador');
+    if (!linhas.length) return; // tabela vazia: mantém a mensagem "nenhum cadastrado"
+
+    if (exigirInteracao) botoes.forEach(b => b.classList.remove('ativo'));
+    let filtroAtual = exigirInteracao ? null : (botoes.find(b => b.classList.contains('ativo'))?.dataset.filtro || 'todos');
+
+    const aviso = document.createElement('tr');
+    aviso.className = 'aviso-filtro';
+    aviso.innerHTML = `<td colspan="${container.querySelectorAll('thead th').length || 1}" class="vazio"></td>`;
+
+    function filtrar() {
+        const termo = normalizarTexto(busca?.value);
+        const interagiu = !exigirInteracao || Boolean(termo) || Boolean(filtroAtual);
+        const encontradas = interagiu
+            ? linhas.filter(linha => normalizarTexto(linha.textContent).includes(termo)
+                && (!filtroAtual || filtroAtual === 'todos' || corresponde(linha, filtroAtual)))
+            : [];
+
+        if (exigirInteracao) {
+            tbody.replaceChildren(...encontradas);
+        } else {
+            const visiveis = new Set(encontradas);
+            linhas.forEach(linha => { linha.hidden = !visiveis.has(linha); });
+        }
+
+        if (!encontradas.length) {
+            aviso.firstElementChild.textContent = interagiu
+                ? 'Nenhum registro encontrado com essa pesquisa/filtro.'
+                : 'Pesquise pelo nome ou use os filtros acima para exibir os registros.';
+            tbody.appendChild(aviso);
+        } else {
+            aviso.remove();
+        }
+
+        if (contador) {
+            contador.textContent = interagiu
+                ? `${encontradas.length} de ${linhas.length} registro(s)`
+                : `${linhas.length} registro(s) cadastrados`;
+        }
+    }
+
+    busca?.addEventListener('input', filtrar);
+    botoes.forEach(botao => botao.addEventListener('click', () => {
+        botoes.forEach(b => b.classList.toggle('ativo', b === botao));
+        filtroAtual = botao.dataset.filtro;
+        filtrar();
+    }));
+    filtrar();
+}
+
+//  Abre um modal simples; devolve o elemento para preencher e a função de fechar
+function abrirModal(titulo, descricao, conteudoHtml) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay mostrar';
+    overlay.innerHTML = `
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div><h2></h2><p></p></div>
+                <button type="button" class="modal-close" aria-label="Fechar">×</button>
+            </div>
+            <div class="modal-corpo">${conteudoHtml}</div>
+        </div>
+    `;
+    overlay.querySelector('h2').textContent = titulo;
+    overlay.querySelector('p').textContent = descricao || '';
+
+    const fechar = () => overlay.remove();
+    overlay.querySelector('.modal-close').addEventListener('click', fechar);
+    overlay.addEventListener('click', event => { if (event.target === overlay) fechar(); });
+    document.addEventListener('keydown', function aoTeclar(event) {
+        if (event.key === 'Escape') { fechar(); document.removeEventListener('keydown', aoTeclar); }
+    });
+
+    document.body.appendChild(overlay);
+    return { modal: overlay.querySelector('.modal'), fechar };
+}
+
+//  Cabeçalho de formulário com botão voltar (cadastros)
+function headerComVoltar(nome, descricao, voltar) {
+    const header = headerInterno(nome, descricao);
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'back-button';
+    botao.setAttribute('aria-label', 'Voltar');
+    botao.innerHTML = '<span class="material-icons">arrow_back</span>';
+    botao.addEventListener('click', () => abrirSubstituindo(voltar));
+    header.querySelector('.topbar-title').insertBefore(botao, header.querySelector('.topbar-title > div'));
+    return header;
+}
+
+//  Mostra mensagem de erro/sucesso abaixo de um formulário
+function mensagemFormulario(form, texto, erro = true) {
+    let campo = form.querySelector('.mensagem-form');
+    if (!campo) {
+        campo = document.createElement('p');
+        campo.className = 'mensagem-form';
+        campo.setAttribute('role', 'status');
+        campo.style.cssText = 'margin-top:12px;font-size:13px;';
+        form.appendChild(campo);
+    }
+    campo.textContent = texto;
+    campo.style.color = erro ? '#c34e4e' : '#22955e';
+}
+
+// ====================
+// ELEMENTOS DE TELA ==
 // ====================
 
 //  Barra lateral
-function sideBar(paginaAtiva) {
-    const sideBar = document.createElement('aside')
-    sideBar.classList.add('sidebar')
-    sideBar.id = 'sidebar'
-    sideBar.innerHTML =
-        `
+function sideBar() {
+    const sideBar = document.createElement('aside');
+    sideBar.classList.add('sidebar');
+    sideBar.id = 'sidebar';
+    sideBar.innerHTML = `
         <div class="brand">
+            <img class="brand-logo" src="img/terracota.png" alt="Logo da Igreja Novo Caminho" hidden>
             <div class="brand-icon">✝</div>
-                <div class="brand">
-                    <img src="img/terracota.png" width="70px" alt="">
-                    <div><strong>Igreja Novo Caminho</strong><span>ADMIN</span></div>
-                </div>
-            </div>
-            <nav>
-                <a class="" id="gerenciaDashboard" href="#"><span class="material-icons">dashboard</span>Dashboard</a>
-                <a class="" id="gerenciaEvento" href="#"><span class="material-icons">circle</span> Eventos</a>
-                <a class="" href="/participantes"><span class="material-icons">groups</span>Participantes</a>
-                <a class="" href="/voluntarios"><span class="material-icons">volunteer_activism</span>Voluntários</a>
-                <a class="" href="/escalas"><span class="material-icons">calendar_month</span>Escalas</a>
-                <a class="" href="/funcoes"><span class="material-icons">engineering</span>Funções</a>
-                <a class="" href="/criancas"><span class="material-icons">escalator_warning</span>Crianças</a>
-                <a class="" href="/relatorios"><span class="material-icons">receipt_long</span>Relatórios</a>
-                <a class="" href="/usuarios"><span class="material-icons">manage_accounts</span>Usuários</a>
-                <a class="" href="/configuracoes"><span class="material-icons">settings</span>Configurações</a>
-            </nav>
-            <div class="sidebar-footer">Sistema de Gestão<br>da Igreja</div>
-    `
-    sideBar.querySelector('#gerenciaEvento')
-        .addEventListener('click', (event) => {
-            event.preventDefault();
-            gerenciaEvento();
+            <div><strong>Igreja Novo Caminho</strong><span>ADMIN</span></div>
+        </div>
+        <nav></nav>
+        <div class="sidebar-footer">Sistema de Gestão<br>da Igreja</div>
+    `;
+
+    // Mostra o logo só se a imagem existir; senão mantém o ícone ✝
+    const logo = sideBar.querySelector('.brand-logo');
+    logo.addEventListener('load', () => {
+        logo.hidden = false;
+        sideBar.querySelector('.brand-icon').hidden = true;
+    });
+
+    // [id, ícone, nome, função da página, permissão necessária]
+    const paginas = [
+        ['gerenciaMinhaArea', 'badge', 'Minha área', gerenciaMinhaArea, 'portal'],
+        ['gerenciaDashboard', 'dashboard', 'Dashboard', gerenciaDashboard, null],
+        ['gerenciaEvento', 'event', 'Eventos', gerenciaEvento, 'escalas'],
+        ['gerenciaPresenca', 'fact_check', 'Lista de presença', gerenciaPresenca, 'criancas'],
+        ['gerenciaParticipantes', 'groups', 'Participantes', gerenciaParticipantes, 'participantes'],
+        ['gerenciaVoluntarios', 'volunteer_activism', 'Voluntários', gerenciaVoluntarios, 'voluntarios'],
+        ['gerenciaEscalas', 'calendar_month', 'Escalas', gerenciaEscalas, 'escalas'],
+        ['gerenciaFuncoes', 'engineering', 'Funções', gerenciaFuncoes, 'voluntarios'],
+        ['gerenciaCriancas', 'escalator_warning', 'Crianças', gerenciaCriancas, 'criancas'],
+        ['gerenciaRelatorios', 'receipt_long', 'Relatórios', gerenciaRelatorios, 'relatorios'],
+        ['gerenciaUsuarios', 'manage_accounts', 'Usuários', gerenciaUsuarios, 'usuarios'],
+        ['gerenciaConfiguracoes', 'settings', 'Configurações', gerenciaConfiguracoes, null]
+    ];
+
+    const nav = sideBar.querySelector('nav');
+    paginas
+        .filter(([, , , , permissao]) => somenteVoluntario() ? permissao === 'portal' : (!permissao || temPermissao(permissao)))
+        .forEach(([id, icone, nome, abrirPagina]) => {
+            const link = document.createElement('a');
+            link.id = id;
+            link.href = '#';
+            link.innerHTML = `<span class="material-icons">${icone}</span>${nome}`;
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                abrirPagina();
+            });
+            nav.appendChild(link);
         });
-    return sideBar
+
+    return sideBar;
 }
+
+//  Cabeçalho interno das páginas
+function headerInterno(nome, descricao) {
+    const header = document.createElement('header');
+    header.classList.add('topbar');
+    header.id = 'topbar';
+    header.innerHTML = `
+        <div class="topbar-title">
+            <button type="button" class="menu-toggle" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+                <span class="material-icons">menu</span>
+            </button>
+            <div>
+                <h1></h1>
+                <p></p>
+            </div>
+        </div>
+        <div class="profile">
+            <span class="material-icons notifications">notifications</span>
+            <div class="avatar"></div>
+            <div class="profile-info">
+                <strong></strong>
+                <small><a href="#" class="sair">Sair</a></small>
+            </div>
+        </div>
+    `;
+    header.querySelector('h1').innerText = nome;
+    header.querySelector('p').innerText = descricao;
+
+    const nomeUsuario = usuarioAtual?.nome || 'Administrador';
+    header.querySelector('.avatar').textContent = nomeUsuario.charAt(0).toUpperCase();
+    header.querySelector('.profile-info strong').textContent = nomeUsuario;
+    header.querySelector('.sair').addEventListener('click', (event) => {
+        event.preventDefault();
+        sairDoSistema();
+    });
+
+    return header;
+}
+
 //  Cards do Dashboard
 function atualizarCards(dados) {
-    const sectionCards = document.createElement('section')
-    sectionCards.classList.add('cards')
-    sectionCards.id = 'cards'
-    sectionCards.innerHTML =
-        `
-    <article class="stat-card blue">
-        <div class="stat-icon">
-
-            <span class="material-symbols-outlined card-resume blue">
-                display_group
-            </span>
-
-        </div>
-        <div><span>Visitantes</span><strong id="total_visitantes"></strong><small>Total cadastrados</small>
-        </div>
-    </article>
+    const sectionCards = document.createElement('section');
+    sectionCards.classList.add('cards');
+    sectionCards.id = 'cards';
+    sectionCards.innerHTML = `
+        <article class="stat-card blue">
+            <div class="stat-icon">
+                <span class="material-symbols-outlined card-resume">display_group</span>
+            </div>
+            <div><span>Visitantes</span><strong id="total_visitantes"></strong><small>Total cadastrados</small></div>
+        </article>
         <article class="stat-card green">
             <div class="stat-icon">
-
-                <span class="material-icons card-resume green">groups</span>
-
+                <span class="material-icons card-resume">groups</span>
             </div>
             <div><span>Membros</span><strong id="total_membros"></strong><small>Total cadastrados</small></div>
         </article>
         <article class="stat-card purple">
             <div class="stat-icon">
-
-                <span class="material-icons card-resume purple">volunteer_activism</span>
-
+                <span class="material-icons card-resume">volunteer_activism</span>
             </div>
             <div><span>Voluntários</span><strong id="total_voluntarios"></strong><small>Ativos</small></div>
         </article>
         <article class="stat-card orange">
-            <div class="stat-icon"><span class="material-icons card-resume orange">calendar_month</span></div>
-            <div><span>Escalas do mês</span><strong id="total_escalas"></strong><small>Funções escaladas</small>
+            <div class="stat-icon">
+                <span class="material-icons card-resume">calendar_month</span>
             </div>
+            <div><span>Escalas do mês</span><strong id="total_escalas"></strong><small>Funções escaladas</small></div>
         </article>
-
-    `
-    sectionCards.querySelector('#total_visitantes').textContent =
-        dados.total_visitantes ?? 0;
-
-    sectionCards.querySelector('#total_membros').textContent =
-        dados.total_membros ?? 0;
-
-    sectionCards.querySelector('#total_voluntarios').textContent =
-        dados.total_voluntarios ?? 0;
-
-    sectionCards.querySelector('#total_escalas').textContent =
-        dados.total_escalas ?? 0;
+    `;
+    sectionCards.querySelector('#total_visitantes').textContent = dados?.total_visitantes ?? 0;
+    sectionCards.querySelector('#total_membros').textContent = dados?.total_membros ?? 0;
+    sectionCards.querySelector('#total_voluntarios').textContent = dados?.total_voluntarios ?? 0;
+    sectionCards.querySelector('#total_escalas').textContent = dados?.total_escalas ?? 0;
 
     return sectionCards;
 }
 
-function renderizarConfirmacoes(confirmacoes) {
+//  Linhas da tabela "Escalas da Semana"
+function linhasEscalas(escalas) {
+    if (!escalas.length) {
+        return '<tr><td colspan="5" class="vazio">Nenhuma escala cadastrada para esta semana.</td></tr>';
+    }
 
-    const lista = document.getElementById('lista-confirmacoes');
+    return escalas.map(item => {
+        const pendentes = Number(item.pendentes) || 0;
+        const confirmados = Number(item.confirmados) || 0;
+        const status = pendentes > 0
+            ? `<b class="pending">${pendentes} pendente${pendentes > 1 ? 's' : ''}</b>${item.recusados ? ` <b class="badge inactive">${item.recusados} recusou</b>` : ''}`
+            : `<b class="ok">${confirmados} confirmado${confirmados !== 1 ? 's' : ''}</b>`;
 
-    lista.innerHTML = '';
-
-    confirmacoes.forEach(item => {
-
-        const inicial = item.nome.charAt(0).toUpperCase();
-
-        const dataFormatada = new Date(item.data_escala)
-            .toLocaleDateString('pt-BR');
-
-        lista.innerHTML += `
-            <div class="person">
-
-                <div class="mini-avatar">
-                    ${inicial}
-                </div>
-
-                <div class="info">
-                    <strong>${item.nome}</strong>
-
-                    <small>
-                        ${item.funcao} • ${dataFormatada}
-                    </small>
-                </div>
-
-                <span class="badge pending">
-                    Pendente
-                </span>
-
-            </div>
+        return `
+            <tr>
+                <td>${formatarData(item.data_escala)}</td>
+                <td>${escapar(item.evento)}</td>
+                <td>${escapar(item.funcao)}</td>
+                <td>${formatarHora(item.horario)}</td>
+                <td>${status}</td>
+            </tr>
         `;
-    });
+    }).join('');
 }
 
-async function renderizarEscalas(escalas) {
-    const dados = await dadosEventos();
-    const sectionEscalas = document.createElement('section')
-    sectionEscalas.classList.add('grid-main')
-    sectionEscalas.innerHTML = `
+//  Lista "Confirmações Pendentes"
+function listaConfirmacoes(confirmacoes) {
+    if (!confirmacoes.length) {
+        return '<p class="vazio">Nenhuma confirmação pendente.</p>';
+    }
 
+    return confirmacoes.map(item => `
+        <div class="person">
+            <div class="mini-avatar">${escapar(item.nome.charAt(0).toUpperCase())}</div>
+            <div class="info">
+                <strong>${escapar(item.nome)}</strong>
+                <small>${escapar(item.funcao)} • ${formatarData(item.data_escala)}</small>
+            </div>
+            <span>Pendente</span>
+        </div>
+    `).join('');
+}
+
+//  Gráfico donut de confirmações do mês
+function graficoConfirmacoes(grafico) {
+    const confirmados = Number(grafico?.confirmados) || 0;
+    const pendentes = Number(grafico?.pendentes) || 0;
+    const ausentes = Number(grafico?.ausentes) || 0;
+    const total = confirmados + pendentes + ausentes;
+    const pct = valor => total ? Math.round((valor / total) * 100) : 0;
+    const fimConfirmados = pct(confirmados);
+    const fimPendentes = fimConfirmados + pct(pendentes);
+
+    return `
+        <div class="donut" style="background: conic-gradient(#25ad6b 0 ${fimConfirmados}%, #f5a027 ${fimConfirmados}% ${fimPendentes}%, #e9504f ${fimPendentes}% 100%)">
+            <div><strong>${pct(confirmados)}%</strong><span>Confirmados</span></div>
+        </div>
+        <div class="legend">
+            <p><i class="dot confirmed"></i> Confirmados <b>${pct(confirmados)}%</b></p>
+            <p><i class="dot waiting"></i> Pendentes <b>${pct(pendentes)}%</b></p>
+            <p><i class="dot absent"></i> Ausentes <b>${pct(ausentes)}%</b></p>
+        </div>
+    `;
+}
+
+async function renderizarEscalas() {
+    const [escalas, eventos, confirmacoes, grafico] = await Promise.all([
+        dadosEscalas(),
+        dadosEventos(),
+        dadosConfirmacoes(),
+        dadosGrafico()
+    ]);
+    const sectionEscalas = document.createElement('section');
+    sectionEscalas.classList.add('grid-main');
+    sectionEscalas.innerHTML = `
         <article class="panel schedule-panel">
             <div class="panel-header">
                 <h2>Escalas da Semana</h2>
-                <button>Ver todas</button>
+                <button type="button">Ver todas</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Evento</th>
-                        <th>Função</th>
-                        <th>Horário</th>
-                        <th>Voluntários</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>18/08/2026</td>
-                        <td>Culto de Domingo</td>
-                        <td>Recepção</td>
-                        <td>08:00 - 12:00</td>
-                        <td><b class="ok">4 confirmados</b></td>
-                    </tr>
-                    <tr>
-                        <td>18/08/2026</td>
-                        <td>Culto de Domingo</td>
-                        <td>Louvor</td>
-                        <td>08:00 - 12:00</td>
-                        <td><b class="ok">5 confirmados</b></td>
-                    </tr>
-                    <tr>
-                        <td>18/08/2026</td>
-                        <td>Culto de Domingo</td>
-                        <td>Kids</td>
-                        <td>08:00 - 12:00</td>
-                        <td><b class="ok">6 confirmados</b></td>
-                    </tr>
-                    <tr>
-                        <td>25/08/2026</td>
-                        <td>Culto de Domingo</td>
-                        <td>Estacionamento</td>
-                        <td>08:00 - 12:00</td>
-                        <td><b class="pending">3 pendentes</b></td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Evento</th>
+                            <th>Função</th>
+                            <th>Horário</th>
+                            <th>Voluntários</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-escalas">
+                        ${linhasEscalas(escalas)}
+                    </tbody>
+                </table>
+            </div>
         </article>
 
         <article class="panel confirmations">
             <div class="panel-header">
                 <h2>Confirmações Pendentes</h2>
-                <button>Ver todas</button>
+                <button type="button">Ver todas</button>
             </div>
-            <div class="person">
-                <div class="mini-avatar">M</div>
-                <div><strong>Maria Silva</strong><small>Louvor • 18/08/2026</small></div><span>Pendente</span>
-            </div>
-            <div class="person">
-                <div class="mini-avatar">J</div>
-                <div><strong>João Oliveira</strong><small>Recepção • 18/08/2026</small></div>
-                <span>Pendente</span>
-            </div>
-            <div class="person">
-                <div class="mini-avatar">A</div>
-                <div><strong>Ana Paula</strong><small>Kids • 18/08/2026</small></div><span>Pendente</span>
-            </div>
+            ${listaConfirmacoes(confirmacoes)}
         </article>
 
         <article class="panel chart-panel">
             <div class="panel-header">
-                <h2>Gráfico de Confirmações</h2>
-                <button>Ver relatórios</button>
+                <h2>Confirmações do Mês</h2>
+                <button type="button">Ver relatórios</button>
             </div>
             <div class="chart-content">
-                <div class="donut">
-                    <div><strong>68%</strong><span>Confirmados</span></div>
-                </div>
-                <div class="legend">
-                    <p><i class="dot confirmed"></i> Confirmados <b>68%</b></p>
-                    <p><i class="dot waiting"></i> Pendentes <b>22%</b></p>
-                    <p><i class="dot absent"></i> Ausentes <b>10%</b></p>
-                </div>
+                ${graficoConfirmacoes(grafico)}
             </div>
         </article>
 
@@ -312,426 +708,328 @@ async function renderizarEscalas(escalas) {
             <div class="panel-header">
                 <h2>Próximos Eventos</h2>
             </div>
-            <div id="proximosEventos"> 
-            </div    
+            <div id="proximosEventos"></div>
         </article>
-    
-    `
+    `;
+
     const proximosEventos = sectionEscalas.querySelector('#proximosEventos');
-    dados.forEach(item => {
+
+    if (!eventos.length) {
+        proximosEventos.innerHTML = '<p class="vazio">Nenhum evento cadastrado.</p>';
+    }
+
+    eventos.forEach(item => {
         const linha = document.createElement('div');
         const data = document.createElement('b');
         const nome = document.createElement('span');
-        nome.textContent = item.nome
-        const horario = document.createElement('strong')
-        horario.textContent = item.hora_inicio?.slice(0,5) || "";
+        const horario = document.createElement('strong');
+
         linha.className = 'event';
-        data.textContent = new Date(item.data_evento).toLocaleDateString(
-            'pt-BR',{
-                day : '2-digit',
-                month : '2-digit',
-                timeZone : 'America/Sao_Paulo'
-            }
-        );
+        data.textContent = formatarData(item.data_evento, { day: '2-digit', month: '2-digit' });
+        nome.textContent = item.nome;
+        horario.textContent = formatarHora(item.hora_inicio);
+
         linha.append(data, nome, horario);
-        proximosEventos.appendChild(linha)
-
-
-        
+        proximosEventos.appendChild(linha);
     });
-    ;
 
-    return sectionEscalas
-
-    const tabela = document.getElementById('lista-escalas');
-
-
-    tabela.innerHTML = '';
-
-    escalas.forEach(item => {
-
-        const dataFormatada = new Date(item.data_escala)
-            .toLocaleDateString('pt-BR');
-
-        const horario = item.horario.substring(0, 5);
-
-        tabela.innerHTML +=
-            // `
-            //         <td>${dataFormatada}</td>
-            //         <td>${horario}</td>
-            //         <td>${item.descricao}</td>
-            //         <td>${item.observacoe}</td>
-            // `
-            `
-        <tr>
-                <td>18/08/2026</td>
-                <td>Recepção</td>  
-                <td>08:00 - 12:00</td>
-                <td><b class="ok">4 confirmados</b></td>
-              </tr>
-        `
-            ;
-    });
+    return sectionEscalas;
 }
 
-function renderizarEventos(eventos) {
+async function gerenciaDashboard() {
+    registrarRota('dashboard');
+    marcarMenuAtivo('gerenciaDashboard');
+    const main = document.getElementById('main');
+    const [dados, escalas, inferior] = await Promise.all([dadosDashboard(), renderizarEscalas(), renderizarResumoInferior()]);
 
-    const lista = document.getElementById('lista-eventos');
+    main.replaceChildren(
+        headerInterno('Dashboard', 'Gerencie sua Igreja'),
+        atualizarCards(dados),
+        escalas,
+        inferior
+    );
+}
 
-    lista.innerHTML = '';
+//  Faixa inferior: participantes recentes, voluntários e atalhos de relatórios
+async function renderizarResumoInferior() {
+    const [participantes, voluntarios] = await Promise.all([
+        temPermissao('participantes') ? buscarDados('participantes', {}) : {},
+        temPermissao('voluntarios') ? buscarDados('voluntarios', {}) : {}
+    ]);
 
-    eventos.forEach(evento => {
+    const section = document.createElement('section');
+    section.className = 'bottom-grid';
 
-        const data = new Date(evento.data_evento);
+    const linha = (nome, detalhe, extra = '') => `
+        <div class="list-row">
+            <div class="mini-avatar">${escapar(nome.charAt(0).toUpperCase())}</div>
+            <div class="info"><strong>${escapar(nome)}</strong><small>${detalhe}</small></div>${extra}
+        </div>`;
 
-        const dia = String(data.getUTCDate()).padStart(2, '0');
-        const mes = String(data.getUTCMonth() + 1).padStart(2, '0');
-        const ano = data.getUTCFullYear();
+    if (temPermissao('participantes')) {
+        const recentes = (participantes.participantes || []).slice(0, 4);
+        section.insertAdjacentHTML('beforeend', `
+            <article class="panel">
+                <div class="panel-header"><h2>Participantes</h2><button type="button" data-acao="novo-participante">+ Novo</button></div>
+                ${recentes.map(p => linha(p.nome, p.tipo === 'visitante'
+                    ? `Visitante • ${formatarDataSimples(p.data)}`
+                    : `Membro desde ${String(p.data || '').slice(0, 4) || '—'}`)).join('') || '<p class="vazio">Nenhum participante.</p>'}
+            </article>`);
+    }
 
-        const dataFormatada = `${dia}/${mes}/${ano}`;
+    if (temPermissao('voluntarios')) {
+        const ativos = (voluntarios.voluntarios || []).filter(v => v.ativo).slice(0, 4);
+        section.insertAdjacentHTML('beforeend', `
+            <article class="panel">
+                <div class="panel-header"><h2>Voluntários</h2><button type="button" data-acao="novo-voluntario">+ Novo</button></div>
+                ${ativos.map(v => linha(v.nome, escapar(v.funcoes.map(f => f.nome).join(', ')), '<em class="status">Ativo</em>')).join('') || '<p class="vazio">Nenhum voluntário.</p>'}
+            </article>`);
+    }
 
-        lista.innerHTML += `
-            <div class="list-row">
+    if (temPermissao('relatorios')) {
+        section.insertAdjacentHTML('beforeend', `
+            <article class="panel report-card">
+                <div class="panel-header"><h2>Relatórios</h2></div>
+                <a href="#" data-relatorio="participantes"><span class="material-icons">groups</span><span>Relatório de Participantes</span>›</a>
+                <a href="#" data-relatorio="voluntarios"><span class="material-icons">volunteer_activism</span><span>Relatório de Voluntários</span>›</a>
+                <a href="#" data-relatorio="escalas"><span class="material-icons">calendar_month</span><span>Relatório de Escalas</span>›</a>
+                <a href="#" data-relatorio="presencas"><span class="material-icons">assignment_turned_in</span><span>Relatório de Presenças</span>›</a>
+            </article>`);
+    }
 
-                <div class="mini-avatar">
-                    ${dia}
-                </div>
-
-                <div class="info">
-                    <strong>${evento.nome}</strong>
-
-                    <small>
-                        ${dataFormatada}
-                    </small>
-                </div>
-
-            </div>
-        `;
+    section.addEventListener('click', event => {
+        const relatorio = event.target.closest('[data-relatorio]');
+        if (relatorio) {
+            event.preventDefault();
+            marcarMenuAtivo('gerenciaRelatorios');
+            gerarRelatorio(relatorio.dataset.relatorio);
+        }
+        if (event.target.closest('[data-acao="novo-participante"]')) {
+            marcarMenuAtivo('gerenciaParticipantes');
+            novoParticipante();
+        }
+        if (event.target.closest('[data-acao="novo-voluntario"]')) {
+            marcarMenuAtivo('gerenciaVoluntarios');
+            novoVoluntario();
+        }
     });
+
+    return section;
 }
-
-function headerInterno(nome, descricao) {
-    const header = document.createElement('header');
-    header.classList.add('topbar');
-    header.id = 'topbar'
-    header.innerHTML = `
-            <div>
-                <h1></h1>
-                <p></p>
-            </div>
-            <div class="profile">
-                <div class="profile"><span class="material-icons notifications">
-                        notifications
-                    </span>
-                    <div class="avatar">A</div>
-                    <div>
-                        <strong>Administrador</strong>
-                        <small>
-                            <a href="/login">
-                                <p><a class="a" href="http://localhost:3000/login">Perfil</a></p>
-                            </a>
-                        </small>
-                    </div>
-            </div>
-    `
-    header.querySelector('h1').innerText = nome;
-    header.querySelector('p').innerText = descricao
-
-    return header
-}
-
 
 async function gerenciaEvento() {
-    const dados = await dadosFuncoes();
-    const eventosDisponiveis = await dadosEventos();
-    const voluntarios = await dadosVolutanrios();
-    document.getElementById('gerenciaEvento').classList.add('active');
-    const header = headerInterno("Gerenciar Eventos", "Crie e gerencie os eventos da igreja.");
-    const main = document.getElementById('main')
+    registrarRota('eventos');
+    marcarMenuAtivo('gerenciaEvento');
+    const [dados, eventosDisponiveis, voluntarios] = await Promise.all([
+        dadosFuncoes(),
+        dadosTodosEventos(),
+        dadosVolutanrios()
+    ]);
+    const header = headerInterno('Gerenciar Eventos', 'Crie e gerencie os eventos da igreja.');
+    const main = document.getElementById('main');
 
     main.innerHTML = `
     <div class="eventos-abas">
-    <div class="abas-menu" role="tablist" aria-label="Eventos">
-        <button
-            type="button"
-            id="tab-criar"
-            class="aba-botao ativa"
-            role="tab"
-            aria-selected="true"
-            aria-controls="aba-criar"
-            data-aba="aba-criar">
-            Criar evento
-        </button>
+        <div class="abas-menu" role="tablist" aria-label="Eventos">
+            <button type="button" id="tab-criar" class="aba-botao ativa" role="tab"
+                aria-selected="true" aria-controls="aba-criar" data-aba="aba-criar">
+                Criar evento
+            </button>
+            <button type="button" id="tab-gerenciar" class="aba-botao" role="tab"
+                aria-selected="false" aria-controls="aba-gerenciar" data-aba="aba-gerenciar" tabindex="-1">
+                Gerenciar eventos
+            </button>
+        </div>
 
-        <button
-            type="button"
-            id="tab-gerenciar"
-            class="aba-botao"
-            role="tab"
-            aria-selected="false"
-            aria-controls="aba-gerenciar"
-            data-aba="aba-gerenciar"
-            tabindex="-1">
-            Gerenciar eventos
-        </button>
-    </div>
-
-    <div
-        id="aba-criar"
-        role="tabpanel"
-        aria-labelledby="tab-criar">
-
-        <section class="panel volunteer-form">
-        <form id="formEscala">
-            <!-- =========================
-                        DATA E HORÁRIO
+        <div id="aba-criar" role="tabpanel" aria-labelledby="tab-criar">
+            <section class="panel volunteer-form">
+                <form id="formEscala">
+                    <!-- =========================
+                            DATA E HORÁRIO
                     ========================== -->
-            <div class="form-section">
-                <div class="section-title">
-                    <span class="material-icons">
-                        event
-                    </span>
+                    <div class="form-section">
+                        <div class="section-title">
+                            <span class="material-icons">event</span>
+                            <div>
+                                <h3>Dados do Evento</h3>
+                                <p>Preencha os campos com os dados do evento</p>
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="nomeEvento">Nome do Evento</label>
+                                <input type="text" id="nomeEvento" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="data">Data</label>
+                                <input type="date" id="data" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="horarioInicio">Horário de início</label>
+                                <input type="time" id="horarioInicio" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="horarioFim">Horário previsto para o término</label>
+                                <input type="time" id="horarioFim" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="tipoEvento">Tipo de culto / evento</label>
+                                <select id="tipoEvento" required>
+                                    <option value="">Selecione</option>
+                                    <option value="culto">Culto</option>
+                                    <option value="culto-jovens">Culto de Jovens</option>
+                                    <option value="culto-infantil">Culto Infantil</option>
+                                    <option value="evento">Evento</option>
+                                    <option value="reuniao">Reunião</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-                    <div>
-                        <h3>Dados do Evento</h3>
-                        <p>Preencha os campos com os dados do evento</p>
-                    </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="nome-evento">Nome do Evento.</label>
-                        <input type="text" id="nomeEvento" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="data">
-                            Data.
-                        </label>
-                        <input type="date" id="data" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="horarioInicio">
-                            Horário de início.
-                        </label>
-                        <input type="time" id="horarioInicio" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="horarioFim">
-                            Horário previsto para o término.
-                        </label>
-                        <input type="time" id="horarioFim" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="culto">
-                            Tipo de culto / evento
-                        </label>
-                        <select id="tipoEvento" required>
-                            <option value="">
-                                Selecione
-                            </option>
-                            <option value="culto">
-                                Culto
-                            </option>
-                            <option value="culto-jovens">
-                                Culto de Jovens
-                            </option>
-                            <option value="culto-infantil">
-                                Culto Infantil
-                            </option>
-                            <option value="evento">
-                                Evento
-                            </option>
-                            <option value="reuniao">
-                                Reunião
-                            </option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <!-- =========================
-                        FUNÇÃO
+                    <!-- =========================
+                                FUNÇÃO
                     ========================== -->
-            <div class="form-section">
-                <div class="section-title">
-                    <span class="material-icons">
-                        engineering
-                    </span>
-                    <div>
-                        <h3>Funções</h3>
-                        <p>
-                            Defina as funções necessarias no evento.
-                        </p>
+                    <div class="form-section">
+                        <div class="section-title">
+                            <span class="material-icons">engineering</span>
+                            <div>
+                                <h3>Funções</h3>
+                                <p>Defina as funções necessárias no evento.</p>
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="funcao">Função</label>
+                                <select id="funcao" required></select>
+                            </div>
+                            <div class="form-group" id="qtd_voluntarios">
+                                <label for="quantidade">Número de voluntários</label>
+                                <input type="number" id="quantidade" min="1" max="50" value="1" required>
+                            </div>
+                            <div class="form-actions-left">
+                                <button type="button" id="salvaFuncao" class="primary">
+                                    <span class="material-icons">add</span>
+                                    Adicionar função
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="form-grid">
+
+                    <!-- =========================
+                              VOLUNTÁRIOS
+                    ========================== -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <span class="material-icons">groups</span>
+                            <div>
+                                <h3>Voluntários</h3>
+                                <p>Designe os voluntários que estão aptos a colaborar no evento.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Função</th>
+                                        <th>Voluntários necessários</th>
+                                        <th>Selecione os voluntários</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-funcoes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- =========================
+                              OBSERVAÇÕES
+                    ========================== -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <span class="material-icons">notes</span>
+                            <div>
+                                <h3>Observações</h3>
+                                <p>Adicione informações importantes.</p>
+                            </div>
+                        </div>
                         <div class="form-group">
-                            <label for="funcao">
-                                Função
-                            </label>
-                            <select id="funcao" required>
-                            </select>
+                            <label for="observacoes">Observações</label>
+                            <textarea id="observacoes" rows="5" placeholder="Digite observações sobre esta escala..."></textarea>
                         </div>
-                        <div class="form-group" id="qtd_voluntarios">
-                            <label>Número de voluntários</label>
-                            <input type="number" id="quantidade" min="1" max="50" value="1" required></input>
-                        </div>
-                        <div></div>
-                        <div class="form-actions-left">
-                            <button type="button" id="salvaFuncao" class="primary">
-                                <span class="material-icons">add</span>
-                                Adicionar função
-                            </button>
-                        </div>
-                    <div>
                     </div>
-                </div>
-            </div>
-            <!-- =========================
-                        VOLUNTÁRIOS
-            ========================== -->
-            <div class="form-section">
-                <div class="section-title">
-                    <span class="material-icons">
-                        groups
-                    </span>
-                    <div>
-                        <h3>Voluntários</h3>
-                        <p>
-                            Designe as os voluntarioss que estão aptos a colaborar no evento.
-                        </p>
-                    </div>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Função</th>
-                            <th>Voluntarios Necessarios</th>
-                            <th>Selecione os Voluntários</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-funcoes">
-                    </tbody>
-                </table>
-            </div>
-            <!-- =========================
-                        OBSERVAÇÕES
+
+                    <!-- =========================
+                                BOTÕES
                     ========================== -->
-            <div class="form-section">
+                    <div class="form-actions">
+                        <a href="#" id="cancelarEvento" class="btn-cancel">Cancelar</a>
+                        <button type="button" id="criarEvento" class="primary">
+                            <span class="material-icons">save</span>
+                            Criar Evento
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <div id="aba-gerenciar" role="tabpanel" aria-labelledby="tab-gerenciar" hidden>
+            <section class="panel">
                 <div class="section-title">
-                    <span class="material-icons">
-                        notes
-                    </span>
+                    <span class="material-icons">event_note</span>
                     <div>
-                        <h3>Observações</h3>
-                        <p>
-                            Adicione informações importantes.
-                        </p>
+                        <h3>Gerenciar eventos</h3>
+                        <p>Consulte e gerencie os eventos cadastrados.</p>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="observacoes">
-                        Observações
-                    </label>
-                    <textarea id="observacoes" rows="5" placeholder="Digite observações sobre esta escala..."></textarea>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Evento</th>
+                                <th>Data</th>
+                                <th>Início</th>
+                                <th>Término</th>
+                                <th>Tipo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-eventos"></tbody>
+                    </table>
                 </div>
-
-            </div>
-            <!-- =========================
-                        BOTÕES
-                    ========================== -->
-            <div class="form-actions">
-                <a href="/escalas" class="btn-cancel">
-                    Cancelar
-                </a>
-                <button type="button" id="criarEvento" class="primary">
-                    <span class="material-icons">
-                        save
-                    </span>
-                    Criar Evento
-                </button>
-            </div>
-        </form>
-</section>
+            </section>
+        </div>
     </div>
-
-    <div
-        id="aba-gerenciar"
-        role="tabpanel"
-        aria-labelledby="tab-gerenciar"
-        hidden>
-
-        <section class="panel">
-            <div class="section-title">
-                <span class="material-icons">event_note</span>
-                <div>
-                    <h3>Gerenciar eventos</h3>
-                    <p>Consulte e gerencie os eventos cadastrados.</p>
-                </div>
-            </div>
-
-            <div class="eventos-tabela">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Evento</th>
-                            <th>Data</th>
-                            <th>Início</th>
-                            <th>Término</th>
-                            <th>Tipo</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-eventos">
-
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </div>
-</div>
     `;
-    main.prepend(header)
-    const listaFuncoes = document.getElementById('funcao')
-    const listaEventos = document.getElementById('lista-eventos')
-    listaFuncoes.innerHTML = '<option value="">Selecione uma função</option>';
+    main.prepend(header);
+
+    const listaFuncoes = document.getElementById('funcao');
+    const listaEventos = document.getElementById('lista-eventos');
+
+    listaFuncoes.add(new Option('Selecione uma função', ''));
     dados.forEach(item => {
-        listaFuncoes.innerHTML += `
-        <option value="${item.nome}">
-            ${item.nome}
-        </option>
-        `
+        listaFuncoes.add(new Option(item.nome, item.nome));
     });
-    eventosDisponiveis.forEach(evento => {
-        const dataFormatada = new Date(evento.data_evento).toLocaleDateString('pt-BR', {
-            timeZone: 'America/Sao_Paulo'
-        });
-        listaEventos.innerHTML += `
+
+    listaEventos.innerHTML = eventosDisponiveis.length
+        ? eventosDisponiveis.map(evento => `
             <tr>
+                <td>${escapar(evento.nome)}</td>
+                <td>${formatarData(evento.data_evento)}</td>
+                <td>${formatarHora(evento.hora_inicio)}</td>
+                <td>${formatarHora(evento.hora_fim)}</td>
+                <td>${escapar(evento.tipo_evento)}</td>
                 <td>
-                ${evento.nome}
-                </td>
-                <td>
-                ${dataFormatada}
-                </td>
-                <td>
-                ${evento.hora_inicio}
-                </td>
-                <td>
-                ${evento.hora_fim}
-                </td>
-                <td>
-                ${evento.tipo_evento}
-                </td>
-                <td>
-                <div class="acoes">
-                    <button type="button" class="btn-editar">Editar</button>
-                    <button type="button" class="btn-remover">Remover</button>
-                </div>
+                    <div class="acoes">
+                        <button type="button" class="btn-editar">Editar</button>
+                        <button type="button" class="btn-remover">Remover</button>
+                    </div>
                 </td>
             </tr>
-        ` 
-        
-    });
-    const funcoes = []
+        `).join('')
+        : '<tr><td colspan="6" class="vazio">Nenhum evento cadastrado.</td></tr>';
+
+    const funcoes = [];
+
     function capturaFuncao() {
         const campoFuncao = document.getElementById('funcao');
         const campoQuantidade = document.getElementById('quantidade');
@@ -763,10 +1061,7 @@ async function gerenciaEvento() {
 
         const existente = funcoes.find(item => item.nome === nomeFuncao);
 
-        if (
-            existente &&
-            Number(existente.numero_voluntarios) === quantidade
-        ) {
+        if (existente && Number(existente.numero_voluntarios) === quantidade) {
             alert('Função já cadastrada com essa quantidade');
             return;
         }
@@ -813,30 +1108,24 @@ async function gerenciaEvento() {
             const escolhas = escolhasAnteriores.get(item.nome) || [];
 
             for (let i = 0; i < Number(item.numero_voluntarios); i++) {
-                const div = document.createElement('div');
                 const select = document.createElement('select');
 
                 select.className = 'voluntario';
                 select.required = true;
+                select.setAttribute('aria-label', `Voluntário ${i + 1} para ${item.nome}`);
 
                 // A opção vazia permite desmarcar o voluntário.
                 select.add(new Option('Selecione um voluntário', ''));
 
                 voluntarios.forEach(voluntario => {
                     // Usa o ID para diferenciar pessoas com o mesmo nome.
-                    select.add(
-                        new Option(
-                            voluntario.nome_completo,
-                            String(voluntario.id_membro)
-                        )
-                    );
+                    select.add(new Option(voluntario.nome_completo, String(voluntario.id_membro)));
                 });
 
                 // Recupera a escolha anterior, se ainda existir.
                 select.value = escolhas[i] || '';
 
-                div.appendChild(select);
-                colunaVoluntarios.appendChild(div);
+                colunaVoluntarios.appendChild(select);
             }
 
             linha.append(colunaNome, colunaQuantidade, colunaVoluntarios);
@@ -871,31 +1160,15 @@ async function gerenciaEvento() {
         });
 
         atualizarOpcoes();
-
-        // 6. Atualiza os outros selects que exibem as funções disponíveis.
-        document.querySelectorAll('.funcaoDisp').forEach(select => {
-            const escolhaAnterior = select.value;
-
-            select.innerHTML = '';
-            select.add(new Option('Selecione uma função', ''));
-
-            funcoes.forEach(item => {
-                select.add(new Option(item.nome, item.nome));
-            });
-
-            select.value = escolhaAnterior;
-        });
     }
 
     function capturarFuncoesEVoluntarios() {
         const linhas = document.querySelectorAll('#lista-funcoes tr');
 
-        const resultado = Array.from(linhas)
+        return Array.from(linhas)
             .filter(linha => linha.dataset.funcao)
             .map(linha => {
-                const selects = linha.querySelectorAll('.voluntario');
-
-                const selecionados = Array.from(selects)
+                const selecionados = Array.from(linha.querySelectorAll('.voluntario'))
                     .filter(select => select.value !== '')
                     .map(select => ({
                         id_membro: Number(select.value),
@@ -907,36 +1180,32 @@ async function gerenciaEvento() {
                     voluntarios: selecionados
                 };
             });
-
-        return resultado;
     }
 
     async function criarEvento() {
-
         const funcoesSelecionadas = capturarFuncoesEVoluntarios();
-        const nomeEvento = document.getElementById('nomeEvento')
+        const nomeEvento = document.getElementById('nomeEvento');
         const dataEvento = document.getElementById('data');
         const horaInicio = document.getElementById('horarioInicio');
         const horaFim = document.getElementById('horarioFim');
         const tipoEvento = document.getElementById('tipoEvento');
-        const observacoe = document.getElementById('observacoes').value
 
-        if (nomeEvento.value === "") {
-            alert('Por favor dê um nome para o seu evento')
-            nomeEvento.focus()
-            return
-        } else if (dataEvento.value === "") {
-            alert('Por favor defina a data do evento.')
-            dataEvento.focus()
-            return
-        } else if (horaFim.value <= horaInicio.value || horaInicio.value === "" || horaFim.value === "") {
-            alert("Verifique o horario do evento, algo está incorreto!")
-            horaInicio.focus()
-            return
-        } else if (tipoEvento.value === "") {
-            alert("Por favor selecione o tipo de evento!")
-            tipoEvento.focus
-            return
+        if (nomeEvento.value.trim() === '') {
+            alert('Por favor dê um nome para o seu evento');
+            nomeEvento.focus();
+            return;
+        } else if (dataEvento.value === '') {
+            alert('Por favor defina a data do evento.');
+            dataEvento.focus();
+            return;
+        } else if (horaInicio.value === '' || horaFim.value === '' || horaFim.value <= horaInicio.value) {
+            alert('Verifique o horário do evento, algo está incorreto!');
+            horaInicio.focus();
+            return;
+        } else if (tipoEvento.value === '') {
+            alert('Por favor selecione o tipo de evento!');
+            tipoEvento.focus();
+            return;
         } else if (
             funcoesSelecionadas.length === 0 ||
             funcoesSelecionadas.some(funcao => funcao.voluntarios.length === 0)
@@ -952,7 +1221,7 @@ async function gerenciaEvento() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    nome: nomeEvento.value,
+                    nome: nomeEvento.value.trim(),
                     data_evento: dataEvento.value,
                     criado_em: new Date().toISOString(),
                     hora_inicio: horaInicio.value,
@@ -966,56 +1235,285 @@ async function gerenciaEvento() {
                 throw new Error(resultado.erro || 'Erro ao criar evento');
             }
 
-            gerenciaEvento()
             console.log('Evento criado:', resultado);
             alert('Evento criado com sucesso!');
+            gerenciaEvento();
         } catch (erro) {
             console.error(erro);
             alert(erro.message);
         }
-
-
-
-        funcoesSelecionadas.forEach(funcao => {
-            funcao.voluntarios.forEach(voluntario => {
-
-                console.log({
-                    nomeEvento,
-                    dataEvento,
-                    horaInicio,
-                    horaFim,
-                    tipoEvento,
-                    observacoes: observacoe,
-                    funcao: funcao.nome_funcao,
-                    id_membro: voluntario.id_membro,
-                    nome_voluntario: voluntario.nome
-                });
-            });
-        });
     }
 
-    document.getElementById('salvaFuncao')
-        .addEventListener('click', capturaFuncao);
-    document.getElementById('criarEvento')
-        .addEventListener('click', criarEvento);
-    iniciarAbasEventos()
+    document.getElementById('salvaFuncao').addEventListener('click', capturaFuncao);
+    document.getElementById('criarEvento').addEventListener('click', criarEvento);
+    document.getElementById('cancelarEvento').addEventListener('click', event => {
+        event.preventDefault();
+        gerenciaDashboard();
+    });
+    iniciarAbasEventos();
 }
 
+async function gerenciaPresenca() {
+    registrarRota('presenca');
+    marcarMenuAtivo('gerenciaPresenca');
+    const [membros, turmasIniciais] = await Promise.all([
+        buscarDados('presenca/membros', []),
+        buscarDados('presenca/turmas', [])
+    ]);
+    const header = headerInterno('Lista de presença', 'Organize a entrada e a saída de cada turma.');
+    const main = document.getElementById('main');
 
-function gerenciaDashboard() {
-    const header = headerInterno("Dashboard", "Algo aqui");
-    const main = document.getElementById('main')
+    // Data de hoje no fuso local (AAAA-MM-DD)
+    const hoje = new Date();
+    hoje.setMinutes(hoje.getMinutes() - hoje.getTimezoneOffset());
+    const dataHoje = hoje.toISOString().slice(0, 10);
+
+    let turmas = turmasIniciais;
+    let registros = [];
+    let saidaPendente = null;
 
     main.innerHTML = `
-    ${header}`
+        <div class="toolbar">
+            <label for="data-presenca">Data da presença</label>
+            <input class="seletor" id="data-presenca" type="date" value="${dataHoje}" required>
+        </div>
+
+        <div class="resumo" id="resumo"></div>
+
+        <section class="panel busca-panel">
+            <h2>Adicionar membro à turma</h2>
+            <p class="subtitulo">Pesquise o nome, escolha a turma e registre a presença.</p>
+            <label for="busca">Nome do membro</label>
+            <input class="search" id="busca" type="search" placeholder="Digite um nome para pesquisar…" autocomplete="off">
+            <div id="resultados"></div>
+
+            <form class="nova-turma" id="form-turma">
+                <input class="seletor" id="nome-turma" type="text" placeholder="Nome da nova turma" aria-label="Nome da nova turma" maxlength="100">
+                <button type="submit">Cadastrar turma</button>
+            </form>
+
+            <p id="mensagem" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="presenca-grid" id="turmas" aria-label="Turmas"></section>
+
+        <dialog id="modal-saida">
+            <h2>Confirmar saída</h2>
+            <p id="modal-conteudo"></p>
+            <button type="button" id="cancelar-modal">Cancelar</button>
+            <button type="button" class="primary" id="confirmar-modal">Confirmar saída</button>
+        </dialog>
+    `;
+    main.prepend(header);
+
+    const campoData = document.getElementById('data-presenca');
+    const campoBusca = document.getElementById('busca');
+    const modal = document.getElementById('modal-saida');
+
+    const normalizar = texto => String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+    function idade(dataNascimento) {
+        if (!dataNascimento) return null;
+        const nascimento = new Date(dataNascimento);
+        const anos = hoje.getFullYear() - nascimento.getFullYear();
+        const fezAniversario = hoje >= new Date(hoje.getFullYear(), nascimento.getMonth(), nascimento.getDate());
+        return fezAniversario ? anos : anos - 1;
+    }
+
+    function mensagem(texto, erro = false) {
+        const campo = document.getElementById('mensagem');
+        campo.textContent = texto;
+        campo.classList.toggle('erro', erro);
+    }
+
+    function presente(idMembro) {
+        return registros.find(r => r.id_membro === idMembro && !r.hora_saida);
+    }
+
+    function pesquisar() {
+        const termo = normalizar(campoBusca.value);
+        const resultados = document.getElementById('resultados');
+
+        if (!termo) {
+            resultados.innerHTML = '';
+            return;
+        }
+
+        const encontrados = membros.filter(m => normalizar(m.nome_completo).includes(termo)).slice(0, 20);
+
+        resultados.innerHTML = encontrados.length
+            ? encontrados.map(m => {
+                const ativo = presente(m.id_membro);
+                const anos = idade(m.data_nascimento);
+                const detalhe = ativo
+                    ? 'Presente em ' + escapar(ativo.nome_turma)
+                    : (anos !== null ? `${anos} anos` : 'Disponível para adicionar');
+
+                return `
+                    <div class="resultado">
+                        <div>
+                            <strong>${escapar(m.nome_completo)}</strong>
+                            <small>${detalhe}</small>
+                        </div>
+                        <div class="acoes">
+                            <select class="seletor" aria-label="Turma para ${escapar(m.nome_completo)}" data-turma-membro="${m.id_membro}" ${ativo ? 'disabled' : ''}>
+                                ${turmas.map(t => `<option value="${t.id_turma}">${escapar(t.nome)}</option>`).join('')}
+                            </select>
+                            <button type="button" class="primary" data-acao="adicionar" data-membro="${m.id_membro}" ${ativo || !turmas.length ? 'disabled' : ''}>Adicionar</button>
+                        </div>
+                    </div>
+                `;
+            }).join('')
+            : '<p class="vazio">Nenhum membro encontrado.</p>';
+    }
+
+    function renderizar() {
+        const ativos = registros.filter(r => !r.hora_saida).length;
+
+        document.getElementById('resumo').innerHTML = `
+            <span><strong>${ativos}</strong> presentes agora</span>
+            <span><strong>${registros.length - ativos}</strong> saídas registradas</span>
+            <span><strong>${registros.length}</strong> registros no dia</span>
+        `;
+
+        document.getElementById('turmas').innerHTML = turmas.length
+            ? turmas.map(t => {
+                const lista = registros.filter(r => r.id_turma === t.id_turma);
+                return `
+                    <div class="panel turma">
+                        <div class="panel-header">
+                            <h2>${escapar(t.nome)}</h2>
+                            <span class="badge ok">${lista.filter(r => !r.hora_saida).length} presentes</span>
+                        </div>
+                        <p class="subtitulo">${lista.length} registros nesta data</p>
+                        ${lista.length
+                            ? lista.map(r => `
+                                <div class="registro ${r.hora_saida ? 'saiu' : ''}">
+                                    <strong>${escapar(r.nome_membro)}</strong>
+                                    <small>Entrada às ${formatarHora(r.hora_entrada)}${r.hora_saida ? ' · Saída às ' + formatarHora(r.hora_saida) : ''}</small>
+                                    <div class="acoes">
+                                        <span class="badge ${r.hora_saida ? 'inactive' : 'ok'}">${r.hora_saida ? 'Saiu' : 'Presente'}</span>
+                                        ${!r.hora_saida ? `<button type="button" class="saida" data-acao="sair" data-registro="${r.id_registro}">Confirmar saída</button>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')
+                            : '<p class="vazio">Nenhuma presença registrada.<br>Pesquise um membro para começar.</p>'}
+                    </div>
+                `;
+            }).join('')
+            : '<p class="vazio">Nenhuma turma cadastrada. Cadastre uma turma acima.</p>';
+
+        pesquisar();
+    }
+
+    async function atualizarTela() {
+        try {
+            registros = await enviarDados(`presenca?data=${campoData.value}`, 'GET');
+        } catch (erro) {
+            registros = [];
+            mensagem(erro.message, true);
+        }
+        renderizar();
+    }
+
+    async function adicionar(idMembro) {
+        const membro = membros.find(m => m.id_membro === idMembro);
+        const select = main.querySelector(`[data-turma-membro="${idMembro}"]`);
+        if (!membro || !select) return;
+
+        if (presente(idMembro)) {
+            mensagem('Este membro já está presente em uma turma.', true);
+            return;
+        }
+
+        try {
+            await enviarDados('presenca', 'POST', {
+                id_turma: Number(select.value),
+                id_membro: idMembro,
+                data: campoData.value
+            });
+            mensagem(`${membro.nome_completo} adicionado(a) à turma.`);
+        } catch (erro) {
+            mensagem(erro.message, true);
+        }
+        await atualizarTela();
+    }
+
+    function pedirSaida(idRegistro) {
+        const registro = registros.find(r => r.id_registro === idRegistro && !r.hora_saida);
+        if (!registro) return;
+
+        saidaPendente = registro.id_registro;
+        document.getElementById('modal-conteudo').textContent =
+            `Confirma que ${registro.nome_membro} saiu da turma? O horário de saída será registrado.`;
+        modal.showModal();
+    }
+
+    async function confirmarSaida() {
+        const id = saidaPendente;
+        modal.close();
+        if (!id) return;
+
+        try {
+            await enviarDados(`presenca/${id}/saida`, 'PATCH');
+            mensagem('Saída confirmada.');
+        } catch (erro) {
+            mensagem(erro.message, true);
+        }
+        await atualizarTela();
+    }
+
+    async function cadastrarTurma(event) {
+        event.preventDefault();
+        const campoNome = document.getElementById('nome-turma');
+        const nome = campoNome.value.trim();
+
+        if (!nome) {
+            mensagem('Informe o nome da turma.', true);
+            return;
+        }
+
+        try {
+            await enviarDados('presenca/turmas', 'POST', { nome });
+            turmas = await buscarDados('presenca/turmas', turmas);
+            campoNome.value = '';
+            mensagem(`Turma "${nome}" cadastrada.`);
+            renderizar();
+        } catch (erro) {
+            mensagem(erro.message, true);
+        }
+    }
+
+    // Os botões são recriados a cada renderização, então o clique é tratado no container
+    main.querySelector('.busca-panel').addEventListener('click', event => {
+        const botao = event.target.closest('button[data-acao="adicionar"]');
+        if (botao) adicionar(Number(botao.dataset.membro));
+    });
+    document.getElementById('turmas').addEventListener('click', event => {
+        const botao = event.target.closest('button[data-acao="sair"]');
+        if (botao) pedirSaida(Number(botao.dataset.registro));
+    });
+
+    document.getElementById('confirmar-modal').addEventListener('click', confirmarSaida);
+    document.getElementById('cancelar-modal').addEventListener('click', () => modal.close());
+    modal.addEventListener('close', () => { saidaPendente = null; });
+    campoBusca.addEventListener('input', pesquisar);
+    document.getElementById('form-turma').addEventListener('submit', cadastrarTurma);
+    campoData.addEventListener('change', () => {
+        if (!campoData.value) campoData.value = dataHoje;
+        mensagem('');
+        atualizarTela();
+    });
+
+    if (!membros.length) mensagem('Nenhum membro ativo cadastrado.', true);
+    await atualizarTela();
 }
+
 function iniciarAbasEventos() {
     const container = document.querySelector('.eventos-abas');
     if (!container) return;
 
-    const botoes = Array.from(
-        container.querySelectorAll('.aba-botao')
-    );
+    const botoes = Array.from(container.querySelectorAll('.aba-botao'));
 
     function ativarAba(botaoAtivo) {
         botoes.forEach(botao => {

@@ -4,6 +4,8 @@ const dashboardControler = require('../controllers/dashboardController')
 
 router.get('/dashboardPessoas', dashboardControler.getAllPessoas);
 router.get('/escalasSemana', dashboardControler.getEscalasSemana);
+router.get('/confirmacoesPendentes', dashboardControler.getConfirmacoesPendentes);
+router.get('/graficoConfirmacoes', dashboardControler.getGraficoConfirmacoes);
 router.post('/criarEvento', dashboardControler.criarEvento);
 router.post('/criarFuncao', dashboardControler.criarFuncao);
 

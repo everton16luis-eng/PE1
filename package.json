@@ -2,11 +2,18 @@
   "name": "igreja-novo-caminho---refatorado",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "backend/src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "test": "node tests/preparar-banco.js && node --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "dev": "nodemon backend/src/server.js",
+    "start": "node backend/src/server.js",
+    "db:presenca": "node backend/database/executar.js backend/database/presenca.sql",
+    "db:paginas": "node backend/database/executar.js backend/database/paginas.sql",
+    "db:seed": "node backend/database/seed.js && node backend/database/executar.js backend/database/seed-paginas.sql && node backend/database/seed-voluntarios.js",
+    "db:setup": "npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:seed",
+    "test:seguranca": "node tests/preparar-banco.js && node --test tests/seguranca-acesso.test.js tests/sql-injection.test.js",
+    "test:layout": "node tests/preparar-banco.js && node --test tests/layout.test.js",
+    "db:voluntario": "node backend/database/executar.js backend/database/voluntario.sql"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +28,7 @@
     "pg": "^8.23.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "playwright-core": "1.63.0"
   }
 }
