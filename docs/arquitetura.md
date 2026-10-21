@@ -67,7 +67,7 @@ Middlewares em `backend/src/middlewares/autenticacao.js`:
 | `js/login.js` | Tela de login e registro |
 | `js/participantes.js`, `voluntarios.js`, `funcoes.js`, `escalas.js`, `criancas.js`, `usuarios.js`, `configuracoes.js`, `relatorios.js` | Uma área cada |
 | `js/voluntario.js` | Ficha do voluntário + utilitários usados também pelo portal |
-| `js/portal.js` | Minha área (portal do voluntário) |
+| `js/portal.js` | Minha área: escalas do voluntário (portal) ou próximos eventos para membros e visitantes |
 
 Os arquivos de área são carregados **antes** do `script.js`, que dá a partida (`carregarDashboard()`).
 

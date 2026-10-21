@@ -189,7 +189,7 @@ async function gerenciaRelatorios() {
     recentes.innerHTML = `
         <div class="panel-header"><div><h2>Relatórios recentes</h2><p class="panel-description">Últimos relatórios gerados pelo sistema.</p></div></div>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead><tr><th>Relatório</th><th>Período</th><th>Formato</th><th>Registros</th><th>Gerado em</th><th>Ação</th></tr></thead>
                 <tbody>
                     ${dados.recentes.map((rel, i) => `
@@ -389,11 +389,14 @@ async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {
             if ($('gTipo')?.value !== tipo) return; // o tipo mudou enquanto carregava
             $('previewTotal').textContent = relatorio.linhas.length;
             $('previewColunas').textContent = relatorio.colunas.length;
-            const colunas = relatorio.colunas.slice(0, 3);
+            // Todas as colunas (a tabela rola na horizontal) e as primeiras linhas
+            const colunas = relatorio.colunas;
+            const LINHAS_PREVIEW = 20;
             $('previewTabela').innerHTML = `
                 <thead><tr>${colunas.map(c => `<th>${escapar(c.titulo)}</th>`).join('')}</tr></thead>
-                <tbody>${relatorio.linhas.slice(0, 8).map(l => `<tr>${colunas.map(c => `<td>${escapar(valorCelula(l[c.chave]))}</td>`).join('')}</tr>`).join('')
-                    || `<tr><td colspan="${colunas.length}" class="vazio">Nenhum registro com esses filtros.</td></tr>`}</tbody>`;
+                <tbody>${relatorio.linhas.slice(0, LINHAS_PREVIEW).map(l => `<tr>${colunas.map(c => `<td>${escapar(valorCelula(l[c.chave]))}</td>`).join('')}</tr>`).join('')
+                    || `<tr><td colspan="${colunas.length}" class="vazio">Nenhum registro com esses filtros.</td></tr>`}</tbody>
+                ${relatorio.linhas.length > LINHAS_PREVIEW ? `<tfoot><tr><td colspan="${colunas.length}" class="vazio">Mostrando ${LINHAS_PREVIEW} de ${relatorio.linhas.length}. Gere o relatório para ver todos.</td></tr></tfoot>` : ''}`;
         } catch (erro) {
             $('previewTabela').innerHTML = `<tbody><tr><td class="vazio">${escapar(erro.message)}</td></tr></tbody>`;
         }

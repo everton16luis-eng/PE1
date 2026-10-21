@@ -54,7 +54,7 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/dashboardPessoas` | login | `{ total_visitantes, total_membros, total_voluntarios, total_escalas }` |
-| GET | `/escalasSemana` | login | Escalas da semana atual por função: `data_escala`, `evento`, `funcao`, `horario`, `confirmados`, `pendentes`, `recusados` |
+| GET | `/escalasSemana` | login | Eventos da semana atual que têm escalas: `[{ id_evento, nome, data, hora_inicio, hora_fim, tipo_evento, vagas, escalados, confirmados, pendentes, recusados, faltam, funcoes: [{ id_escala, funcao, horario, qtd_voluntarios, confirmados, pendentes, recusados, voluntarios: [{ nome, confirmado, recusado, motivo_recusa }] }] }]` |
 | GET | `/confirmacoesPendentes` | login | 5 próximos escalados que ainda não responderam (recusas não entram) |
 | GET | `/graficoConfirmacoes` | login | Mês atual: `{ confirmados, pendentes, ausentes }` (ausentes inclui recusas) |
 | POST | `/criarEvento` | login | *Legado, não usado pelo frontend.* `{ nome, data_evento }` |
@@ -64,8 +64,10 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/eventos` | login | Todos os eventos, do mais recente ao mais antigo |
-| GET | `/eventosDisponiveis` | login | Próximos 4 eventos a partir de hoje |
+| GET | `/eventos` | login | Todos os eventos, do mais recente ao mais antigo, com `total_escalas` |
+| PUT | `/eventos/:id` | `escalas` | `{ nome, data_evento, tipo_evento, hora_inicio?, hora_fim? }` — fim depois do início; a data das escalas do evento acompanha a nova data |
+| DELETE | `/eventos/:id` | `escalas` | Remove o evento **e as escalas dele** (numa transação). 404 se não existir |
+| GET | `/eventosDisponiveis` | login | Próximos 4 eventos a partir de hoje (por data e horário) |
 | POST | `/novoEvento` | login | `{ nome, data_evento, hora_inicio?, hora_fim?, tipo_evento?, criado_em? }` |
 | GET | `/funcoes` | login | Lista simples de funções (`id_funcao`, `nome`, `descricao`, `qtd_voluntarios`) |
 | GET | `/voluntariosDisponiveis` | login | Membros aptos ainda não marcados como voluntários |
@@ -85,8 +87,10 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/participantes` | `participantes` | `{ resumo, participantes }` — membros e visitantes juntos (`tipo`, `nome`, `email`, `telefone`, `data`, `ativo`) |
-| POST | `/participantes` | `participantes` | **Visitante:** `{ tipo: "visitante", nome, data_visita, telefone?, observacoes? }`. **Membro:** `{ tipo: "membro", nome, data_nascimento?, telefone?, email?, estado_civil?, endereco?, numero?, bairro?, data_entrada_igreja?, data_batismo?, participa_celula?, id_funcao?, observacoes? }` — com `id_funcao` o membro já é cadastrado como voluntário nessa função |
+| GET | `/participantes` | `participantes` | `{ resumo, participantes }` — membros e visitantes juntos (`tipo`, `nome`, `email`, `telefone`, `data`, `ativo`; membros também `apto`, `voluntario`). Visitantes já promovidos não aparecem duas vezes |
+| POST | `/participantes` | `participantes` | `{ nome, data_visita?, data_nascimento?, telefone?, email?, estado_civil?, endereco?, numero?, bairro?, observacoes? }` — **sempre cria um visitante**. `tipo`, `apto_voluntario`, `id_funcao` e `perfil` são ignorados |
+| POST | `/participantes/visitantes/:id/membro` | `participantes` **e** perfil `ADMINISTRADOR` | `{ data_entrada_igreja?, data_batismo?, participa_celula? }` — promove o visitante a membro (não apto). 404 inexistente, 409 já promovido |
+| PATCH | `/participantes/membros/:id` | `participantes` **e** perfil `ADMINISTRADOR` | `{ ativo?, apto_voluntario? }` — só ativos podem ser aptos; inativar remove o apto; voluntário ativo não pode ser inativado nem perder o apto aqui (409) |
 
 ## Voluntários
 
@@ -112,11 +116,11 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 
 ## Portal do voluntário
 
-O voluntário é identificado **pelo login** (`usuarios.id_membro`); nenhuma rota aceita id de voluntário. Login sem cadastro de voluntário → 404 com orientação.
+A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota aceita id de voluntário. `GET /portal` responde a qualquer login com `classificacao` vinda do banco; as demais rotas exigem cadastro de voluntário (senão 404 com orientação).
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/portal` | portal | Mesma estrutura da ficha, **sem** `observacoes` e `acesso` |
+| GET | `/portal` | login | **Voluntário** (login ligado a um cadastro de voluntário, ativo ou não): mesma estrutura da ficha, **sem** `observacoes` e `acesso`, mais `classificacao: "voluntario"` e `eventos`. **Membro** (login ligado a um membro que não é voluntário) ou **visitante** (login sem cadastro de membro): `{ classificacao: "membro" | "visitante", nome, eventos }`. `eventos` = 12 próximos eventos a partir de hoje, por data e horário |
 | PATCH | `/portal/escalas/:idEscala` | portal | `{ resposta: "confirmar" \| "pendente" \| "recusar", motivo? }` — só escalas **futuras** e do próprio voluntário (senão 404) |
 | PUT | `/portal/preferencias` | portal | `{ disponibilidade: [dia], telefone?, email? }` — ao menos um dia |
 | POST | `/portal/ausencias` | portal | `{ data_inicio, data_fim, motivo? }` — fim ≥ início e ≥ hoje; devolve `conflitos` |
@@ -176,9 +180,9 @@ Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/usuarios` | `usuarios` | `{ usuarios, resumo }` |
-| POST | `/usuarios` | `usuarios` | `{ nome, email, senha (≥ 6), perfil, ativo?, telefone?, observacoes?, permissoes? }` |
-| PUT | `/usuarios/:id` | `usuarios` | Mesmo corpo; `senha` opcional (vazia mantém a atual) |
+| GET | `/usuarios` | `usuarios` | `{ usuarios, resumo }` — só contas de gestão; logins do portal (`VOLUNTARIO`) ficam de fora |
+| POST | `/usuarios` | `usuarios` | `{ nome, email, senha (≥ 6), perfil, ativo?, telefone?, observacoes?, permissoes? }` — `perfil` `VOLUNTARIO` é recusado (400): o acesso ao portal é criado na ficha do voluntário |
+| PUT | `/usuarios/:id` | `usuarios` | Mesmo corpo; `senha` opcional (vazia mantém a atual). Contas `VOLUNTARIO` não são editadas aqui (400) |
 
 Regras para quem **não** é administrador (403): não cria nem promove administradores, não edita contas de administrador, não altera o próprio perfil ou as próprias permissões e não concede permissões que não possui. O sistema não deixa ficar sem administrador ativo (400).
 

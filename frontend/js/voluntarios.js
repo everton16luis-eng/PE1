@@ -23,7 +23,7 @@ async function gerenciaVoluntarios() {
             <button type="button" class="filtro" data-filtro="inativo">Inativos</button>
         </div>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead>
                     <tr><th>Voluntário</th><th>Funções</th><th>Disponibilidade</th><th>Última escala</th><th>Status</th><th>Ação</th></tr>
                 </thead>

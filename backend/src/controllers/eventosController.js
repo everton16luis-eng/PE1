@@ -57,3 +57,49 @@ exports.novoEvento = async (req, res) => {
         responderErro(res, error);
     }
 }
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const HORA = /^\d{2}:\d{2}(:\d{2})?$/;
+const TIPOS = ['culto', 'culto-jovens', 'culto-infantil', 'evento', 'reuniao'];
+
+exports.atualizarEvento = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'Evento inválido.' });
+
+        const b = req.body;
+        const dados = {
+            nome: typeof b.nome === 'string' ? b.nome.trim().slice(0, 150) : '',
+            data_evento: DATA.test(b.data_evento || '') ? b.data_evento : null,
+            hora_inicio: HORA.test(b.hora_inicio || '') ? b.hora_inicio : null,
+            hora_fim: HORA.test(b.hora_fim || '') ? b.hora_fim : null,
+            tipo_evento: TIPOS.includes(b.tipo_evento) ? b.tipo_evento : null
+        };
+        if (!dados.nome || !dados.data_evento) return res.status(400).json({ erro: 'Informe o nome e a data do evento.' });
+        if (!dados.tipo_evento) return res.status(400).json({ erro: 'Selecione o tipo de culto / evento.' });
+        if (dados.hora_inicio && dados.hora_fim && dados.hora_fim <= dados.hora_inicio) {
+            return res.status(400).json({ erro: 'O horário de término deve ser depois do início.' });
+        }
+
+        const evento = await Eventos.atualizarEvento(id, dados);
+        if (!evento) return res.status(404).json({ erro: 'Evento não encontrado.' });
+        res.json(evento);
+    } catch (error) {
+        console.error('Erro ao atualizar evento', error);
+        responderErro(res, error);
+    }
+}
+
+exports.removerEvento = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'Evento inválido.' });
+
+        const resultado = await Eventos.removerEvento(id);
+        if (!resultado) return res.status(404).json({ erro: 'Evento não encontrado.' });
+        res.json({ mensagem: 'Evento removido.', ...resultado });
+    } catch (error) {
+        console.error('Erro ao remover evento', error);
+        responderErro(res, error);
+    }
+}

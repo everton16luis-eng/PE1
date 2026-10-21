@@ -9,20 +9,6 @@ class resumoDashboard {
     }
 };
 
-class escalasSemana {
-    constructor(id_escala, data_escala, id_funcao, funcao, horario,
-                total_voluntarios, confirmados, pendentes) {
-        this.id_escala = id_escala;
-        this.data_escala = data_escala;
-        this.id_funcao = id_funcao;
-        this.funcao = funcao;
-        this.horario = horario;
-        this.total_voluntarios = total_voluntarios;
-        this.confirmados = confirmados;
-        this.pendentes = pendentes;
-    }
-};
-
 class eventoIgreja {
     constructor(id_evento, nome, data_evento) {
         this.id_evento = id_evento;
@@ -86,26 +72,67 @@ const dashboardModel = {
     // Escalas da semana atual (segunda a domingo)
     escalasSemana: async () => {
         const result = await pool.query(
-            `SELECT es.id_escala, es.data_escala, ep.id_funcao, f.nome AS funcao, es.horario, e.nome AS evento,
-                    COUNT(*)::int AS total_voluntarios,
-                    COUNT(*) FILTER (WHERE ep.confirmado IS TRUE)::int AS confirmados,
-                    COUNT(*) FILTER (WHERE ep.confirmado IS NOT TRUE AND NOT ep.recusado)::int AS pendentes,
-                    COUNT(*) FILTER (WHERE ep.recusado)::int AS recusados
+            `SELECT es.id_escala, es.data_escala, es.id_funcao, f.nome AS funcao, es.horario, es.qtd_voluntarios,
+                    e.id_evento, e.nome AS evento, e.data_evento, e.hora_inicio, e.hora_fim, e.tipo_evento,
+                    COALESCE(json_agg(json_build_object(
+                        'nome', m.nome_completo, 'confirmado', ep.confirmado,
+                        'recusado', ep.recusado, 'motivo_recusa', ep.motivo_recusa
+                    ) ORDER BY m.nome_completo) FILTER (WHERE ep.id_voluntario IS NOT NULL), '[]') AS voluntarios
              FROM escalas es
-             INNER JOIN escala_participantes ep ON ep.id_escala = es.id_escala
-             INNER JOIN funcoes f ON f.id_funcao = ep.id_funcao
              LEFT JOIN eventos e ON e.id_evento = es.id_evento
+             LEFT JOIN funcoes f ON f.id_funcao = es.id_funcao
+             LEFT JOIN escala_participantes ep ON ep.id_escala = es.id_escala
+             LEFT JOIN voluntarios v ON v.id_voluntario = ep.id_voluntario
+             LEFT JOIN membros m ON m.id_membro = v.id_membro
              WHERE es.data_escala >= date_trunc('week', CURRENT_DATE)
                AND es.data_escala < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
-             GROUP BY es.id_escala, ep.id_funcao, f.nome, e.nome
-             ORDER BY es.data_escala ASC, es.horario ASC, f.nome ASC`
+             GROUP BY es.id_escala, f.nome, e.id_evento
+             ORDER BY es.data_escala ASC, e.hora_inicio ASC NULLS LAST, f.nome ASC`
         );
-        return result.rows.map(row => ({
-            ...new escalasSemana(row.id_escala, row.data_escala, row.id_funcao, row.funcao,
-                                 row.horario, row.total_voluntarios, row.confirmados, row.pendentes),
-            recusados: row.recusados,
-            evento: row.evento
-        }));
+
+        // Agrupa por evento: cada evento com suas funções e os voluntários de cada uma
+        const eventos = new Map();
+        for (const row of result.rows) {
+            const chave = row.id_evento ?? `sem-evento-${row.data_escala}`;
+            if (!eventos.has(chave)) {
+                eventos.set(chave, {
+                    id_evento: row.id_evento,
+                    nome: row.evento || 'Escala sem evento',
+                    data: row.data_evento || row.data_escala,
+                    hora_inicio: row.hora_inicio,
+                    hora_fim: row.hora_fim,
+                    tipo_evento: row.tipo_evento,
+                    funcoes: []
+                });
+            }
+            const voluntarios = row.voluntarios;
+            eventos.get(chave).funcoes.push({
+                id_escala: row.id_escala,
+                funcao: row.funcao,
+                horario: row.horario,
+                qtd_voluntarios: row.qtd_voluntarios,
+                voluntarios,
+                confirmados: voluntarios.filter(v => v.confirmado).length,
+                pendentes: voluntarios.filter(v => !v.confirmado && !v.recusado).length,
+                recusados: voluntarios.filter(v => v.recusado).length
+            });
+        }
+
+        // Totais do evento (quem recusou não conta como escalado)
+        return [...eventos.values()].map(evento => {
+            const soma = campo => evento.funcoes.reduce((total, f) => total + f[campo], 0);
+            const vagas = evento.funcoes.reduce((total, f) => total + (f.qtd_voluntarios || 0), 0);
+            const escalados = soma('confirmados') + soma('pendentes');
+            return {
+                ...evento,
+                vagas,
+                escalados,
+                confirmados: soma('confirmados'),
+                pendentes: soma('pendentes'),
+                recusados: soma('recusados'),
+                faltam: Math.max(vagas - escalados, 0)
+            };
+        });
     },
 
     // Próximos voluntários escalados que ainda não confirmaram

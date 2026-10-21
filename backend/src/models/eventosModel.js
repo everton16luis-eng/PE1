@@ -47,13 +47,14 @@ const eventoModel = {
         return new eventos(p.id_evento, p.nome, p.data_evento, p.criado_em, p.hora_inicio, p.hora_fim, p.tipo_evento);
     },
 
-    // Próximos 4 eventos a partir de hoje
-    selecionaEventos: async () => {
+    // Próximos eventos a partir de hoje (4 no dashboard)
+    selecionaEventos: async (limite = 4) => {
         const result = await pool.query(
             `SELECT * FROM eventos
              WHERE data_evento >= CURRENT_DATE
-             ORDER BY data_evento ASC, hora_inicio ASC
-             LIMIT 4`
+             ORDER BY data_evento ASC, hora_inicio ASC NULLS LAST, id_evento ASC
+             LIMIT $1`,
+            [limite]
         );
         return result.rows.map(row =>
             new eventos(row.id_evento, row.nome, row.data_evento, row.criado_em, row.hora_inicio, row.hora_fim, row.tipo_evento)
@@ -61,13 +62,48 @@ const eventoModel = {
     },
 
     // Todos os eventos, dos mais recentes para os mais antigos
+    // (com o total de escalas, para avisar antes de remover)
     selecionaTodosEventos: async () => {
         const result = await pool.query(
-            'SELECT * FROM eventos ORDER BY data_evento DESC, hora_inicio DESC'
+            `SELECT e.*, (SELECT COUNT(*) FROM escalas es WHERE es.id_evento = e.id_evento)::int AS total_escalas
+             FROM eventos e ORDER BY e.data_evento DESC, e.hora_inicio DESC`
         );
-        return result.rows.map(row =>
-            new eventos(row.id_evento, row.nome, row.data_evento, row.criado_em, row.hora_inicio, row.hora_fim, row.tipo_evento)
+        return result.rows.map(row => ({
+            ...new eventos(row.id_evento, row.nome, row.data_evento, row.criado_em, row.hora_inicio, row.hora_fim, row.tipo_evento),
+            total_escalas: row.total_escalas
+        }));
+    },
+
+    atualizarEvento: async (id, { nome, data_evento, hora_inicio, hora_fim, tipo_evento }) => {
+        const result = await pool.query(
+            `UPDATE eventos
+             SET nome = $2, data_evento = $3, hora_inicio = $4, hora_fim = $5, tipo_evento = $6
+             WHERE id_evento = $1
+             RETURNING *`,
+            [id, nome, data_evento, hora_inicio, hora_fim, tipo_evento]
         );
+        const p = result.rows[0];
+        if (!p) return null;
+        // As escalas do evento acompanham a nova data
+        await pool.query('UPDATE escalas SET data_escala = $2 WHERE id_evento = $1', [id, data_evento]);
+        return new eventos(p.id_evento, p.nome, p.data_evento, p.criado_em, p.hora_inicio, p.hora_fim, p.tipo_evento);
+    },
+
+    // Remove o evento com suas escalas (os voluntários escalados saem junto)
+    removerEvento: async (id) => {
+        const cliente = await pool.connect();
+        try {
+            await cliente.query('BEGIN');
+            const escalas = await cliente.query('DELETE FROM escalas WHERE id_evento = $1', [id]);
+            const evento = await cliente.query('DELETE FROM eventos WHERE id_evento = $1', [id]);
+            await cliente.query('COMMIT');
+            return evento.rowCount ? { escalas_removidas: escalas.rowCount } : null;
+        } catch (error) {
+            await cliente.query('ROLLBACK');
+            throw error;
+        } finally {
+            cliente.release();
+        }
     },
 
     selecionaFuncao: async () => {

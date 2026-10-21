@@ -25,13 +25,14 @@ async function gerenciaCriancas() {
                 <button type="button" class="filtro ativo" data-filtro="todos">Todos</button>
                 <button type="button" class="filtro" data-filtro="presente">Presentes</button>
                 <button type="button" class="filtro" data-filtro="ausente">Ausentes</button>
+                ${dados.criancas.some(c => !c.ativo) ? '<button type="button" class="filtro" data-filtro="inativo">Inativas</button>' : ''}
             </div>
             <div class="table-responsive">
-                <table>
+                <table class="tabela-cartoes">
                     <thead><tr><th>Criança</th><th>Idade</th><th>Responsável</th><th>Turma</th><th>Presença hoje</th></tr></thead>
                     <tbody>
                         ${dados.criancas.map(c => `
-                            <tr data-filtro="${c.presente_hoje ? 'presente' : 'ausente'}">
+                            <tr data-filtro="${!c.ativo ? 'inativo' : c.presente_hoje ? 'presente' : 'ausente'}">
                                 <td>
                                     <div class="person">
                                         <div class="mini-avatar">${escapar(c.nome.charAt(0).toUpperCase())}</div>
@@ -44,7 +45,7 @@ async function gerenciaCriancas() {
                                 <td>${c.idade < 1 ? 'Bebê' : `${c.idade} ano${c.idade > 1 ? 's' : ''}`}</td>
                                 <td>${escapar(c.responsavel || '—')}${c.parentesco ? `<small style="display:block;color:var(--muted)">${escapar(c.parentesco)} • ${escapar(c.telefone || '')}</small>` : ''}</td>
                                 <td>${escapar(c.turma || 'Sem turma')}</td>
-                                <td>${c.presente_hoje ? '<span class="badge ok">Presente</span>' : '<span class="badge pending">Ausente</span>'}</td>
+                                <td>${!c.ativo ? '<span class="badge inactive">Cadastro inativo</span>' : c.presente_hoje ? '<span class="badge ok">Presente</span>' : '<span class="badge pending">Ausente</span>'}</td>
                             </tr>`).join('') || '<tr><td colspan="5" class="vazio">Nenhuma criança cadastrada.</td></tr>'}
                     </tbody>
                 </table>
@@ -71,7 +72,7 @@ async function gerenciaCriancas() {
     main.replaceChildren(
         headerInterno('Crianças', 'Controle de crianças, responsáveis, turmas e presença'),
         cardsEstatisticas([
-            ['blue', 'child_care', r.criancas, 'Crianças cadastradas'],
+            ['blue', 'child_care', r.criancas, 'Crianças ativas'],
             ['green', 'how_to_reg', r.presentes_hoje, 'Presentes hoje'],
             ['purple', 'class', r.turmas, 'Turmas ativas'],
             ['orange', 'family_restroom', r.responsaveis, 'Responsáveis']
@@ -241,7 +242,7 @@ async function gerenciaTurmas() {
             <button type="button" class="filtro" data-filtro="inativa">Inativas</button>
         </div>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead><tr><th>Turma</th><th>Faixa etária</th><th>Crianças</th><th>Responsável</th><th>Dia</th><th>Status</th><th>Ações</th></tr></thead>
                 <tbody>
                     ${dados.turmas.map(t => `

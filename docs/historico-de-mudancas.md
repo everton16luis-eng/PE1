@@ -51,6 +51,26 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Segurança:** o perfil Voluntário fica bloqueado fora do portal, tanto no servidor quanto na tela.
 - **Testes:** 41 novos, totalizando 246.
 
+## 7. Melhorias de uso e regras de cadastro
+
+- **Sair no celular:** botão de sair no cabeçalho em telas pequenas.
+- **Dashboard:** escalas da semana agrupadas por evento, com cor por tipo e detalhes expansíveis (funções, vagas, voluntários e confirmação).
+- **Eventos:** editar e remover funcionando (antes os botões não faziam nada) e lista em cartões no celular. Novas rotas `PUT`/`DELETE /eventos/:id`.
+- **Lista de presença:** a turma Next fica sempre por último (pelo nome, sem renomear nada no banco).
+- **Cadastro de pessoas:** todo cadastro entra como visitante; promover a membro e definir apto/ativo é exclusivo do administrador. Migração `cadastro.sql`.
+- **Relatórios:** o botão Visualizar tinha estilo quebrado porque as regras de `.form-actions` só valiam para `.primary`; agora valem também para `.secondary`.
+- **Usuários:** deixou de listar os logins do portal do voluntário (nada foi apagado).
+- **Testes:** 23 novos, totalizando 269.
+
+## 8. Minha área por perfil, dashboard e listas responsivas
+
+- **Minha área:** o `/portal` passou a responder a qualquer login com a classificação do banco. Voluntários continuam com as escalas em primeiro lugar e ganharam a programação da igreja como painel secundário; membros e visitantes veem os próximos eventos. Contas de Visualização também passaram a ver a Minha área.
+- **Dashboard:** "Ver todas" (pendentes) e "Ver relatórios" não tinham ação; agora abrem o relatório de escalas já filtrado. A tag "Recusou" estava riscada por uma regra `line-through`, removida.
+- **Listas** de Participantes, Voluntários, Escalas, Funções, Crianças, Turmas e Relatórios recentes: no celular e no tablet (até 860px) viram cartões com todos os campos e botões de 44px; no computador continuam em tabela. A busca e os filtros se reorganizam no celular.
+- **Relatórios:** a prévia mostra todas as colunas (até 20 linhas); pendentes saem das mais próximas para as mais distantes.
+- **Crianças:** cadastro inativo deixou de aparecer como "Ausente"; novo filtro "Inativas" quando houver.
+- **Testes:** 13 novos, totalizando 282.
+
 ## Pendências conhecidas
 
 - A tela de **Eventos** salva só o evento; funções e voluntários marcados nela não viram escala (use Escalas → Nova escala).

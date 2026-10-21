@@ -27,13 +27,16 @@ Para secretaria, líderes de departamento e administradores. O que aparece no se
 
 Mostra os totais (visitantes, membros, voluntários e escalas do mês), as escalas desta semana, quem ainda não confirmou presença, o gráfico de confirmações do mês e os próximos eventos. Na parte de baixo há atalhos para cadastros e relatórios.
 
+- **Confirmações Pendentes → Ver todas:** abre o relatório de escalas filtrado por **pendentes**, de hoje em diante (as mais próximas primeiro). Sem acesso a Relatórios, abre a tela de Escalas.
+- **Confirmações do Mês → Ver relatórios:** abre o relatório de escalas do mês atual (os mesmos dados do gráfico).
+- **Escalas da semana:** cada evento aparece resumido (nome, dia, horário e tipo, com uma cor por tipo) e com os totais de confirmados, aguardando e recusados. Toque no evento para abrir os detalhes: funções, quantidade prevista, voluntários escalados e a situação de cada um.
 - **"Recusou"** na escala da semana: algum voluntário avisou que não poderá ir. Abra **Escalas** para providenciar um substituto.
 
 ## Eventos
 
 - **Criar evento:** preencha nome, data, horários e tipo, adicione ao menos uma função com voluntários e clique em **Criar Evento**.
   > Hoje esta tela salva **apenas o evento**; as funções e os voluntários marcados aqui não viram escala. Para escalar voluntários, use **Escalas → Nova escala** (que também pode criar o evento).
-- **Gerenciar eventos:** mostra todos os eventos cadastrados.
+- **Gerenciar eventos:** mostra todos os eventos cadastrados. Quem tem a permissão de Escalas pode **Editar** (nome, data, tipo e horários; as escalas acompanham a nova data) e **Remover** (o sistema pede confirmação e avisa quantas escalas serão apagadas junto). No celular cada evento vira um cartão com os botões embaixo.
 
 ## Lista de presença
 
@@ -43,14 +46,17 @@ Registra a entrada e a saída dos membros nas turmas (Kids, Next, Adolescentes�
 2. Pesquise o nome, escolha a turma e clique em **Adicionar**. A hora de entrada é registrada.
 3. Na saída, clique em **Confirmar saída** no cartão da turma.
 
-Você também cadastra turmas novas nesta tela.
+Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre por último.
 
 ## Participantes
 
 - **Lista:** membros e visitantes juntos. Visitantes dos últimos 30 dias aparecem como **Acompanhar**.
-- **Novo participante:** escolha **Membro** ou **Visitante**.
-  - **Visitante:** nome, telefone e data da visita.
-  - **Membro:** ficha completa. Se você escolher uma **Função como voluntário**, ele já fica cadastrado como voluntário.
+- **Novo cadastro:** dados pessoais (nome, contato, nascimento, endereço, data da visita). **Toda pessoa cadastrada entra como visitante** — o cadastro não dá acesso ao sistema, não torna ninguém membro nem apto ao voluntariado.
+- **Classificação (só administradores):** na coluna **Classificação** da lista:
+  - **Tornar membro** promove um visitante (informe data de entrada e, se houver, batismo). Ele entra como membro **não apto**;
+  - **Apto / Não apto** define se o membro pode ser voluntário — só membros ativos podem ser aptos;
+  - **Ativo / Inativo** — inativar também remove o apto. Um voluntário ativo precisa ser inativado antes na página **Voluntários**.
+- São três coisas diferentes: o **tipo de pessoa** (visitante/membro, aqui), o **voluntariado** (página Voluntários) e o **acesso ao sistema** (página Usuários ou, para voluntários, a ficha do voluntário).
 
 ## Voluntários
 
@@ -81,7 +87,7 @@ Você também cadastra turmas novas nesta tela.
 
 ## Crianças
 
-- **Lista:** cada criança com idade, responsável, turma e se está **presente hoje**. A presença vem da Lista de presença. Crianças com alergia aparecem com ⚠.
+- **Lista:** cada criança com idade, responsável, turma e se está **presente hoje**. Crianças com cadastro inativo aparecem como **Cadastro inativo** (não contam como ausentes) e têm o filtro **Inativas**. A presença vem da Lista de presença. Crianças com alergia aparecem com ⚠.
 - **Nova criança:** dados da criança, do responsável e da turma (sugerida pela idade). A **autorização do responsável é obrigatória**; a autorização de imagem é opcional.
 - **Gerenciar turmas:** crie e edite turmas (faixa etária, responsável, dia e horário). Uma turma com crianças ou presenças registradas não pode ser excluída; marque-a como **Inativa**.
 
@@ -106,7 +112,7 @@ Disponível para quem tem a permissão de Usuários.
   - ninguém altera as próprias permissões;
   - você só concede permissões que também tem;
   - o sistema não deixa ficar sem nenhum administrador ativo.
-- **Acesso de voluntário:** crie pela **ficha do voluntário**, não por aqui. Assim o login já fica ligado ao cadastro dele.
+- **Acesso de voluntário:** crie pela **ficha do voluntário**, não por aqui. Assim o login já fica ligado ao cadastro dele. Esta página lista **só as contas de gestão**; os logins do portal do voluntário não aparecem nem podem ser criados aqui.
 
 ## Configurações
 

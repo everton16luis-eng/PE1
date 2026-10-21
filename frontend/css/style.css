@@ -146,6 +146,26 @@ img {
     color: #fff;
 }
 
+/* Botão de sair só com ícone: aparece no celular, onde o nome e o link "Sair" ficam ocultos */
+.sair-mobile {
+    display: none;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+}
+
+@media (max-width: 700px) {
+    .sair-mobile {
+        display: inline-flex;
+    }
+}
+
 .sidebar-footer {
     margin-top: auto;
     font-size: 11px;
@@ -742,8 +762,235 @@ tr:last-child td {
 
 .acoes .btn-editar,
 .acoes .btn-remover {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 34px;
     padding: 8px 14px;
     color: #fff;
+    white-space: nowrap;
+}
+
+.acoes .btn-editar .material-icons,
+.acoes .btn-remover .material-icons {
+    font-size: 16px;
+}
+
+/* =========================================================
+   DASHBOARD — EVENTOS DA SEMANA (acordeão)
+========================================================= */
+
+.eventos-semana {
+    display: grid;
+    gap: 10px;
+}
+
+.evento-semana {
+    --cor-evento: #965b39;
+    --fundo-evento: #f7ece4;
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--cor-evento);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.evento-semana.tipo-culto, .agenda-evento.tipo-culto { --cor-evento: #965b39; --fundo-evento: #f7ece4; }
+.evento-semana.tipo-culto-jovens, .agenda-evento.tipo-culto-jovens { --cor-evento: #7853d5; --fundo-evento: #f1ebff; }
+.evento-semana.tipo-culto-infantil, .agenda-evento.tipo-culto-infantil { --cor-evento: #2ea36b; --fundo-evento: #e7f7ee; }
+.evento-semana.tipo-evento, .agenda-evento.tipo-evento { --cor-evento: #2879dc; --fundo-evento: #e8f1ff; }
+.evento-semana.tipo-reuniao, .agenda-evento.tipo-reuniao { --cor-evento: #ed8d28; --fundo-evento: #fff3e3; }
+
+.evento-cabecalho {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+}
+
+.evento-cabecalho:hover,
+.evento-semana.aberto .evento-cabecalho {
+    background: var(--fundo-evento);
+}
+
+.evento-dia {
+    min-width: 74px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--cor-evento);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.evento-info {
+    min-width: 0;
+}
+
+.evento-info strong,
+.evento-info small {
+    display: block;
+}
+
+.evento-info strong {
+    font-size: 14px;
+}
+
+.evento-info small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+/* Resumo (confirmados, pendentes...) na segunda linha, sob o nome do evento */
+.evento-resumo {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.evento-seta {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.evento-seta {
+    color: var(--cor-evento);
+    transition: transform .2s;
+}
+
+.evento-semana.aberto .evento-seta {
+    transform: rotate(180deg);
+}
+
+.evento-detalhes {
+    padding: 4px 14px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.funcao-semana {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f2f6;
+}
+
+.funcao-titulo strong,
+.funcao-titulo small {
+    display: block;
+}
+
+.funcao-titulo strong {
+    font-size: 12px;
+}
+
+.funcao-titulo small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.voluntarios-semana {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
+}
+
+.voluntarios-semana li,
+.legenda-semana > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+}
+
+.voluntarios-semana .material-icons,
+.legenda-semana .material-icons {
+    font-size: 15px;
+}
+
+.voluntarios-semana .confirmado,
+.legenda-semana .confirmado { background: #e7f7ee; color: #1f7a4d; }
+.voluntarios-semana .aguardando,
+.legenda-semana .aguardando { background: #fff3e3; color: #a35d0d; }
+.voluntarios-semana .recusado,
+.legenda-semana .recusado { background: #fdeaea; color: #b03b3b; }
+
+.legenda-semana {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+
+    .evento-resumo {
+        grid-column: 1 / -1;
+    }
+
+    .funcao-semana {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+}
+
+/* Mensagem de sucesso/erro acima de listas */
+.mensagem-lista {
+    min-height: 0;
+    font-size: 13px;
+    color: #22955e;
+}
+
+.mensagem-lista:not(:empty) {
+    margin-bottom: 10px;
+}
+
+.mensagem-lista.erro {
+    color: #c34e4e;
+}
+
+/* Botão de ação com ícone + texto (ex.: classificação de participantes) */
+.action-btn.com-texto {
+    width: auto;
+    gap: 4px;
+    padding: 0 10px;
+    margin: 2px 4px 2px 0;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.action-btn.com-texto .material-icons {
+    font-size: 16px;
+}
+
+.action-btn:disabled {
+    opacity: .45;
 }
 
 .btn-editar { background: #2563eb; }
@@ -889,19 +1136,27 @@ td .voluntario:focus {
     grid-column: 1 / -1;
 }
 
+/* Botões de formulário (principal e secundário, ex.: "Visualizar" dos relatórios)
+   ficam alinhados, com o mesmo tamanho de texto e ícone */
 .form-actions .primary,
-.form-actions-left .primary {
+.form-actions-left .primary,
+.form-actions .secondary,
+.form-actions-left .secondary {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     padding: 12px 22px;
     font-size: 13px;
+    line-height: 1.2;
 }
 
 .form-actions .primary .material-icons,
-.form-actions-left .primary .material-icons {
+.form-actions-left .primary .material-icons,
+.form-actions .secondary .material-icons,
+.form-actions-left .secondary .material-icons {
     font-size: 19px;
+    margin: 0;
 }
 
 
@@ -1213,6 +1468,8 @@ dialog button {
 
     .form-actions .primary,
     .form-actions-left .primary,
+    .form-actions .secondary,
+    .form-actions-left .secondary,
     .btn-cancel {
         width: 100%;
     }
@@ -1227,6 +1484,157 @@ dialog button {
 
     .resultado .acoes .seletor {
         flex: 1;
+    }
+}
+
+
+/* =========================================================
+   LISTAS EM CARTÕES (celular e tablet)
+   Tabelas com a classe "tabela-cartoes" (Participantes, Voluntários,
+   Funções, Crianças, Turmas, Escalas do dia, Relatórios recentes,
+   Eventos): cada linha vira um cartão "rótulo: valor". Nada é escondido:
+   todas as colunas e ações continuam visíveis, só reorganizadas.
+   Os rótulos (data-label) vêm de rotularTabela() em script.js.
+========================================================= */
+
+@media (max-width: 860px) {
+
+    .table-responsive table.tabela-cartoes {
+        min-width: 0;
+    }
+
+    .tabela-cartoes thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+
+    .tabela-cartoes tbody {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .tabela-cartoes tbody tr {
+        display: block;
+        min-width: 0;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    /* Rótulo à esquerda (40%), valor à direita, com quebra de textos longos */
+    .tabela-cartoes tbody td {
+        position: relative;
+        display: block;
+        min-height: 30px;
+        padding: 6px 0 6px 40%;
+        border: 0;
+        font-size: 12px;
+        overflow-wrap: anywhere;
+    }
+
+    .tabela-cartoes tbody td::before {
+        content: attr(data-label);
+        position: absolute;
+        top: 6px;
+        left: 0;
+        width: calc(40% - 10px);
+        color: var(--muted);
+        font-weight: 600;
+        overflow-wrap: normal;
+    }
+
+    .tabela-cartoes tbody td .badge {
+        white-space: normal;
+    }
+
+    /* 1ª coluna (nome) = título do cartão */
+    .tabela-cartoes tbody td.celula-titulo {
+        padding: 0 0 10px;
+        margin-bottom: 4px;
+        border-bottom: 1px solid #f0f2f6;
+        font-size: 13px;
+    }
+
+    .tabela-cartoes tbody td.celula-titulo::before,
+    .tabela-cartoes tbody td.celula-acoes::before,
+    .tabela-cartoes tbody td[data-label="Ações"]::before,
+    .tabela-cartoes tbody td.vazio::before {
+        content: none;
+    }
+
+    .tabela-cartoes .person .info {
+        min-width: 0;
+    }
+
+    /* Ações: largura total, botões de toque com 44px */
+    .tabela-cartoes tbody td.celula-acoes,
+    .tabela-cartoes tbody td[data-label="Ações"] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 0 0;
+        margin-top: 6px;
+        border-top: 1px solid #f0f2f6;
+    }
+
+    .tabela-cartoes td.celula-acoes > button,
+    .tabela-cartoes td.celula-acoes > .acoes {
+        flex: 1 1 auto;
+    }
+
+    .tabela-cartoes td.celula-acoes .action-btn,
+    .tabela-cartoes td.celula-acoes > button {
+        display: inline-flex;
+        align-items: center;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0 12px;
+        justify-content: center;
+    }
+
+    /* Botões só com ícone ganham o nome da ação (o mesmo do title) */
+    .tabela-cartoes td.celula-acoes .action-btn[title]::after {
+        content: attr(title);
+        margin-left: 6px;
+        font-size: 13px;
+    }
+
+    .tabela-cartoes .acoes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .tabela-cartoes .acoes .btn-editar,
+    .tabela-cartoes .acoes .btn-remover {
+        min-height: 44px;
+        font-size: 14px;
+    }
+
+    /* Lista vazia / "pesquise para exibir": mensagem centralizada, sem cartão */
+    .tabela-cartoes tbody tr:has(> td.vazio) {
+        grid-column: 1 / -1;
+        border-style: dashed;
+        background: transparent;
+    }
+
+    .tabela-cartoes tbody td.vazio {
+        padding: 14px 0;
+        text-align: center;
+    }
+}
+
+/* Tablet: dois cartões por linha */
+@media (min-width: 560px) and (max-width: 860px) {
+
+    .tabela-cartoes tbody {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -2194,6 +2602,108 @@ small.motivo {
     border-top: 1px solid var(--border);
 }
 
+/* Minha área: próximos eventos da igreja */
+
+.panel + .painel-agenda {
+    margin-top: 17px;
+}
+
+.cards.cards-duas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 420px) {
+    .cards.cards-duas {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.agenda-eventos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 12px;
+    list-style: none;
+}
+
+.agenda-evento {
+    --cor-evento: #965b39;
+    --fundo-evento: #f7ece4;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--cor-evento);
+    border-radius: 10px;
+    background: #fff;
+    min-width: 0;
+}
+
+.agenda-data {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 52px;
+    border-radius: 9px;
+    background: var(--fundo-evento);
+    color: var(--cor-evento);
+    font-size: 11px;
+    text-transform: uppercase;
+    line-height: 1.1;
+}
+
+.agenda-data strong {
+    font-size: 20px;
+}
+
+.agenda-info {
+    min-width: 0;
+}
+
+.agenda-info strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.agenda-info small {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.agenda-info .material-icons {
+    font-size: 15px;
+}
+
+.agenda-selos {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ver-todos-eventos {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.selo-tipo {
+    padding: 4px 7px;
+    border-radius: 5px;
+    background: var(--fundo-evento);
+    color: var(--cor-evento);
+    font-size: 10px;
+    font-weight: 600;
+}
+
 /* Cartões de escala do portal */
 
 .escala-cards {
@@ -2284,5 +2794,21 @@ small.motivo {
     .escala-card .acoes button {
         flex: 1 1 100%;
         justify-content: center;
+    }
+}
+
+
+/* Busca em largura total e filtros dividindo a linha de baixo */
+@media (max-width: 700px) {
+
+    .toolbar .search {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .toolbar .filtro {
+        flex: 1 1 0;
+        min-height: 40px;
+        white-space: nowrap;
     }
 }

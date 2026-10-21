@@ -80,7 +80,7 @@ async function gerenciaUsuarios() {
     `;
 
     main.replaceChildren(
-        headerInterno('Usuários', 'Gerencie acessos, perfis e permissões do sistema'),
+        headerInterno('Usuários', 'Contas de acesso da equipe de gestão. O acesso de voluntários ao portal fica na ficha de cada voluntário.'),
         cardsEstatisticas([
             ['blue', 'manage_accounts', r.total, 'Total de usuários'],
             ['green', 'check_circle', r.ativos, 'Usuários ativos'],
@@ -131,7 +131,7 @@ function formularioUsuario(usuario = null) {
                         <label for="uPerfil">Perfil de acesso</label>
                         <select id="uPerfil" required>
                             <option value="">Selecione o perfil</option>
-                            ${Object.entries(PERFIS).map(([valor, nome]) => `<option value="${valor}">${nome}</option>`).join('')}
+                            ${Object.entries(PERFIS).filter(([valor]) => valor !== 'VOLUNTARIO').map(([valor, nome]) => `<option value="${valor}">${nome}</option>`).join('')}
                         </select>
                     </div>
                 </div>

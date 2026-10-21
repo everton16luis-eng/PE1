@@ -2,8 +2,11 @@ const Usuarios = require('../models/usuariosModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha } = require('../config/seguranca');
 
-const PERFIS = ['ADMINISTRADOR', 'GESTOR', 'SECRETARIA', 'FINANCEIRO', 'VOLUNTARIO', 'VISUALIZACAO'];
+// Perfis de contas de gestão. O perfil VOLUNTARIO (portal) não é criado nem
+// editado por aqui: a conta precisa estar ligada a um voluntário (ficha).
+const PERFIS = ['ADMINISTRADOR', 'GESTOR', 'SECRETARIA', 'FINANCEIRO', 'VISUALIZACAO'];
 const AREAS = ['participantes', 'voluntarios', 'escalas', 'criancas', 'relatorios', 'usuarios'];
+const MENSAGEM_PORTAL = 'Contas do portal do voluntário são gerenciadas na ficha do voluntário (página Voluntários).';
 
 // Lê e valida o corpo do formulário de usuário
 function dadosDoFormulario(body, senhaObrigatoria) {
@@ -19,6 +22,7 @@ function dadosDoFormulario(body, senhaObrigatoria) {
     const senha = String(body.senha || '');
 
     if (!dados.nome || !/^\S+@\S+\.\S+$/.test(dados.email)) return { erro: 'Informe nome e um e-mail válido.' };
+    if (dados.perfil === 'VOLUNTARIO') return { erro: MENSAGEM_PORTAL };
     if (!PERFIS.includes(dados.perfil)) return { erro: 'Selecione um perfil de acesso válido.' };
     if ((senhaObrigatoria || senha) && senha.length < 6) return { erro: 'A senha deve ter pelo menos 6 caracteres.' };
 
@@ -84,6 +88,7 @@ exports.atualizarUsuario = async (req, res) => {
         // Não deixa o sistema ficar sem nenhum administrador ativo
         const atual = await Usuarios.buscarPorId(id);
         if (!atual) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+        if (atual.perfil === 'VOLUNTARIO') return res.status(400).json({ erro: MENSAGEM_PORTAL });
 
         const bloqueio = bloqueioDePrivilegio(req.usuario, dados, atual);
         if (bloqueio) return res.status(403).json({ erro: bloqueio });

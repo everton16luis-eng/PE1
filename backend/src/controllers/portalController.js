@@ -5,9 +5,13 @@
 
 const Voluntarios = require('../models/voluntariosModel');
 const Usuarios = require('../models/usuariosModel');
+const Participantes = require('../models/participantesModel');
+const Eventos = require('../models/eventosModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha } = require('../config/seguranca');
 const Regras = require('../config/regrasVoluntario');
+
+const PROXIMOS_EVENTOS = 12;
 
 // Descobre o voluntário do usuário logado; responde 404 se não houver
 async function meuVoluntario(req, res) {
@@ -19,14 +23,31 @@ async function meuVoluntario(req, res) {
     return id;
 }
 
+// Minha área de qualquer login. A experiência vem da classificação real no banco:
+// - "voluntario": login ligado a um membro com cadastro de voluntário → ficha (escalas
+//   em primeiro lugar) + próximos eventos como informação secundária;
+// - "membro": login ligado a um membro que não é voluntário → próximos eventos;
+// - "visitante": login sem cadastro de membro → próximos eventos.
 exports.getMinhaArea = async (req, res) => {
     try {
-        const id = await meuVoluntario(req, res);
-        if (!id) return;
-        const ficha = await Voluntarios.buscarFicha(id);
-        delete ficha.acesso;
-        delete ficha.observacoes; // anotações internas da equipe
-        res.json(ficha);
+        const idMembro = req.usuario.id_membro;
+        const [idVoluntario, membro, eventos] = await Promise.all([
+            idMembro ? Voluntarios.idPorMembro(idMembro) : null,
+            idMembro ? Participantes.buscarMembro(idMembro) : null,
+            Eventos.selecionaEventos(PROXIMOS_EVENTOS)
+        ]);
+
+        if (idVoluntario) {
+            const ficha = await Voluntarios.buscarFicha(idVoluntario);
+            delete ficha.acesso;
+            delete ficha.observacoes; // anotações internas da equipe
+            return res.json({ ...ficha, classificacao: 'voluntario', eventos });
+        }
+        res.json({
+            classificacao: membro ? 'membro' : 'visitante',
+            nome: membro?.nome_completo || req.usuario.nome,
+            eventos
+        });
     } catch (error) {
         console.error('Erro ao carregar portal do voluntário', error);
         responderErro(res, error);

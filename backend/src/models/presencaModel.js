@@ -16,7 +16,10 @@ const presencaModel = {
     // Busca as turmas ativas, ordenadas pela faixa etária.
     selecionaTurmas: async () => {
         const result = await pool.query(
-            'SELECT id_turma, nome FROM cadastroturmas WHERE ativo ORDER BY idade_minima NULLS LAST, id_turma ASC'
+            // A turma NEXT vai sempre por último; as demais seguem a faixa etária
+            `SELECT id_turma, nome FROM cadastroturmas
+             WHERE ativo
+             ORDER BY (LOWER(TRIM(nome)) ~ '^next\\M') ASC, idade_minima NULLS LAST, id_turma ASC`
         );
 
         return result.rows;

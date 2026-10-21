@@ -17,6 +17,12 @@ Não tem login? Peça à secretaria para criar o seu **acesso ao portal**.
 
 No topo aparecem a sua **próxima escala**, quantas escalas estão **aguardando a sua resposta**, quantas vezes você já serviu e a sua porcentagem de presença.
 
+## Próximos eventos da igreja
+
+Logo abaixo das suas escalas aparece a programação da igreja (nome, dia, horário e tipo de cada evento). Os eventos em que você vai servir têm o selo **Você está escalado(a)**. A lista mostra 6 eventos; toque em **Ver todos os eventos** para ver o restante.
+
+> **Membros e visitantes** com login também têm a Minha área: para eles ela mostra só a programação da igreja.
+
 ## Minhas próximas escalas
 
 Cada escala aparece num cartão com a data, o evento, a sua função e o **horário de chegada**. A cor da faixa lateral indica a situação:

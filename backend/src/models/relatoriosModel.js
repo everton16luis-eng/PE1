@@ -93,7 +93,7 @@ const RELATORIOS = {
                      JOIN voluntarios v ON v.id_voluntario = ep.id_voluntario
                      JOIN membros m ON m.id_membro = v.id_membro
                      ${w.where()}
-                     ORDER BY es.data_escala DESC, es.horario, fn.nome, m.nome_completo`, w.valores];
+                     ORDER BY es.data_escala ${f.status === 'pendentes' ? 'ASC' /* as mais próximas primeiro */ : 'DESC'}, es.horario, fn.nome, m.nome_completo`, w.valores];
         }
     },
 

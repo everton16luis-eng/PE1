@@ -1,6 +1,78 @@
 // =========================================
-// PORTAL DO VOLUNTÁRIO ("Minha área")
+// MINHA ÁREA
+// Voluntário: as próprias escalas em primeiro lugar (portal do voluntário).
+// Membro ou visitante: a programação da igreja.
+// A classificação vem da API (dados reais do login), não da tela.
 // =========================================
+
+// Quantos dias faltam (texto curto): "Hoje", "Amanhã", "Em 5 dias"
+function diasAte(data) {
+    const [a, m, d] = String(data).slice(0, 10).split('-').map(Number);
+    const [ha, hm, hd] = dataDeHoje().split('-').map(Number);
+    const dias = Math.round((Date.UTC(a, m - 1, d) - Date.UTC(ha, hm - 1, hd)) / 86400000);
+    return dias <= 0 ? 'Hoje' : dias === 1 ? 'Amanhã' : `Em ${dias} dias`;
+}
+
+// Painel "Próximos eventos da igreja" (escalados = ids de eventos em que a pessoa serve)
+// (limite = quantos aparecem antes do botão "Ver todos")
+function painelProximosEventos(eventos, { titulo, descricao, escalados = new Set(), limite = Infinity }) {
+    const painel = document.createElement('section');
+    painel.className = 'panel painel-agenda';
+    painel.innerHTML = `
+        <div class="panel-header"><div><h2>${titulo}</h2><p>${descricao}</p></div></div>
+        ${eventos.length ? `<ul class="agenda-eventos">
+            ${eventos.map((ev, i) => {
+                const tipo = TIPOS_DE_EVENTO[ev.tipo_evento] ? ev.tipo_evento : 'evento';
+                const [, mes, dia] = String(ev.data_evento).slice(0, 10).split('-');
+                const horario = ev.hora_inicio ? `${formatarHora(ev.hora_inicio)}${ev.hora_fim ? ' às ' + formatarHora(ev.hora_fim) : ''}` : 'Horário a definir';
+                return `
+                    <li class="agenda-evento tipo-${tipo}" ${i >= limite ? 'hidden' : ''}>
+                        <span class="agenda-data" aria-hidden="true"><strong>${dia}</strong>${MESES_CURTOS[Number(mes) - 1]}</span>
+                        <div class="agenda-info">
+                            <strong>${escapar(ev.nome)}</strong>
+                            <small><span class="material-icons" aria-hidden="true">event</span>${escapar(dataComSemana(ev.data_evento))}</small>
+                            <small><span class="material-icons" aria-hidden="true">schedule</span>${horario}</small>
+                        </div>
+                        <div class="agenda-selos">
+                            <span class="selo-tipo">${TIPOS_DE_EVENTO[tipo]}</span>
+                            <span class="badge pending">${diasAte(ev.data_evento)}</span>
+                            ${escalados.has(ev.id_evento) ? '<span class="badge ok">Você está escalado(a)</span>' : ''}
+                        </div>
+                    </li>`;
+            }).join('')}
+        </ul>
+        ${eventos.length > limite ? `<button type="button" class="secondary ver-todos-eventos"><span class="material-icons">expand_more</span>Ver todos os eventos (${eventos.length})</button>` : ''}`
+        : '<p class="vazio">Nenhum evento programado no momento. Volte em breve!</p>'}
+    `;
+    painel.querySelector('.ver-todos-eventos')?.addEventListener('click', event => {
+        painel.querySelectorAll('.agenda-evento[hidden]').forEach(item => { item.hidden = false; });
+        event.currentTarget.remove();
+    });
+    return painel;
+}
+
+const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+// Membro ou visitante: painel informativo com a programação
+function areaDoParticipante(main, dados, primeiroNome) {
+    const eventos = dados.eventos || [];
+    const proximo = eventos[0];
+    const emUmaSemana = eventos.filter(ev => /^(Hoje|Amanhã|Em [2-7] dias)$/.test(diasAte(ev.data_evento))).length;
+    const cards = cardsEstatisticas([
+        ['blue', 'event', proximo ? dataComSemana(proximo.data_evento) : '—', proximo ? `Próximo: ${proximo.nome}` : 'Nenhum evento marcado'],
+        ['green', 'date_range', emUmaSemana, 'Eventos nos próximos 7 dias']
+    ]);
+    cards.classList.add('cards-duas');
+
+    main.replaceChildren(
+        headerInterno(`Olá, ${primeiroNome}!`, 'Acompanhe a programação da igreja'),
+        cards,
+        painelProximosEventos(eventos, {
+            titulo: 'Próximos eventos da igreja',
+            descricao: 'Programação em ordem de data e horário'
+        })
+    );
+}
 
 async function gerenciaMinhaArea() {
     registrarRota('minha-area');
@@ -15,9 +87,11 @@ async function gerenciaMinhaArea() {
         const aviso = document.createElement('section');
         aviso.className = 'panel';
         aviso.innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
-        main.replaceChildren(headerInterno(`Olá, ${primeiroNome}!`, 'Sua área de voluntário'), aviso);
+        main.replaceChildren(headerInterno(`Olá, ${primeiroNome}!`, 'Minha área'), aviso);
         return;
     }
+
+    if (v.classificacao !== 'voluntario') return areaDoParticipante(main, v, primeiroNome);
 
     const e = v.estatisticas;
     const presenca = e.realizadas ? Math.round((e.presentes / e.realizadas) * 100) : null;
@@ -125,6 +199,13 @@ async function gerenciaMinhaArea() {
             ['purple', 'percent', presenca === null ? '—' : `${presenca}%`, 'Presença confirmada']
         ]),
         escalas,
+        // Programação da igreja: secundária, depois das escalas
+        painelProximosEventos(v.eventos || [], {
+            titulo: 'Próximos eventos da igreja',
+            descricao: 'Programação geral — suas escalas estão acima',
+            escalados: new Set(v.proximas.filter(p => !p.recusado).map(p => p.id_evento)),
+            limite: 6
+        }),
         preferencias
     );
 

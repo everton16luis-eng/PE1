@@ -50,7 +50,7 @@ async function gerenciaEscalas(dataInicial = dataDeHoje()) {
             <button type="button" class="primary" id="btnNovaEscala">+ Nova escala</button>
         </div>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead><tr><th>Evento</th><th>Função</th><th>Horário</th><th>Voluntários</th><th>Ação</th></tr></thead>
                 <tbody id="escalasDoDia"></tbody>
             </table>

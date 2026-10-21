@@ -195,9 +195,10 @@ function cabecalhos() {
 }
 
 // Administrador vê tudo; os demais só as áreas marcadas no cadastro.
-// "portal" (Minha área) é de quem tem o login ligado a um cadastro de voluntário.
+// "portal" (Minha área) é de quem não é da gestão: voluntários, logins ligados a um
+// membro e contas de visualização. O que aparece nela vem da classificação no banco.
 function temPermissao(area) {
-    if (area === 'portal') return usuarioAtual?.perfil === 'VOLUNTARIO' || Boolean(usuarioAtual?.id_membro);
+    if (area === 'portal') return ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.id_membro);
     if (usuarioAtual?.perfil === 'VOLUNTARIO') return false;
     return usuarioAtual?.perfil === 'ADMINISTRADOR' || Boolean(usuarioAtual?.permissoes?.[area]);
 }
@@ -342,6 +343,35 @@ function cardsEstatisticas(itens) {
 //  "corresponde(linha, filtro)" decide se a linha aparece no filtro escolhido.
 //  Com "exigirInteracao", nenhum registro aparece (nem fica na página) até a
 //  pessoa pesquisar um nome ou clicar em um dos filtros.
+// Tabelas com a classe "tabela-cartoes" viram cartões em telas menores (CSS).
+// Aqui cada célula recebe o título da sua coluna (data-label), mostrado no cartão;
+// a 1ª coluna vira o título do cartão e a coluna de ações ocupa a largura toda.
+// Um observador cobre as linhas que entram depois (filtros, troca de dia...).
+const COLUNA_DE_ACOES = /^(ação|ações|classificação)$/i;
+
+function rotularTabela(tabela) {
+    const titulos = [...tabela.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    tabela.querySelectorAll('tbody tr').forEach(linha => {
+        [...linha.cells].forEach((celula, i) => {
+            if (celula.dataset.label !== undefined || celula.colSpan > 1 || titulos[i] === undefined) return;
+            celula.dataset.label = titulos[i];
+            if (COLUNA_DE_ACOES.test(titulos[i])) celula.classList.add('celula-acoes');
+            else if (i === 0) celula.classList.add('celula-titulo');
+        });
+    });
+}
+
+new MutationObserver(mudancas => {
+    const tabelas = new Set();
+    mudancas.forEach(mudanca => mudanca.addedNodes.forEach(no => {
+        if (no.nodeType !== Node.ELEMENT_NODE) return;
+        const propria = no.closest('table.tabela-cartoes');
+        if (propria) tabelas.add(propria);
+        no.querySelectorAll('table.tabela-cartoes').forEach(t => tabelas.add(t));
+    }));
+    tabelas.forEach(rotularTabela);
+}).observe(document.documentElement, { childList: true, subtree: true });
+
 function configurarFiltros(container, corresponde, { exigirInteracao = false } = {}) {
     const busca = container.querySelector('.search');
     const botoes = [...container.querySelectorAll('.filtro')];
@@ -533,6 +563,9 @@ function headerInterno(nome, descricao) {
                 <strong></strong>
                 <small><a href="#" class="sair">Sair</a></small>
             </div>
+            <button type="button" class="sair sair-mobile" aria-label="Sair do sistema" title="Sair">
+                <span class="material-icons">logout</span>
+            </button>
         </div>
     `;
     header.querySelector('h1').innerText = nome;
@@ -541,10 +574,10 @@ function headerInterno(nome, descricao) {
     const nomeUsuario = usuarioAtual?.nome || 'Administrador';
     header.querySelector('.avatar').textContent = nomeUsuario.charAt(0).toUpperCase();
     header.querySelector('.profile-info strong').textContent = nomeUsuario;
-    header.querySelector('.sair').addEventListener('click', (event) => {
+    header.querySelectorAll('.sair').forEach(botao => botao.addEventListener('click', (event) => {
         event.preventDefault();
         sairDoSistema();
-    });
+    }));
 
     return header;
 }
@@ -588,28 +621,66 @@ function atualizarCards(dados) {
     return sectionCards;
 }
 
-//  Linhas da tabela "Escalas da Semana"
-function linhasEscalas(escalas) {
-    if (!escalas.length) {
-        return '<tr><td colspan="5" class="vazio">Nenhuma escala cadastrada para esta semana.</td></tr>';
+//  "Escalas da Semana": um item por evento, com os detalhes (funções e
+//  voluntários) só ao expandir
+const TIPOS_DE_EVENTO = { culto: 'Culto', 'culto-jovens': 'Culto de Jovens', 'culto-infantil': 'Culto Infantil', evento: 'Evento', reuniao: 'Reunião' };
+
+function eventosDaSemana(eventos) {
+    if (!eventos.length) {
+        return '<p class="vazio">Nenhuma escala cadastrada para esta semana.</p>';
     }
 
-    return escalas.map(item => {
-        const pendentes = Number(item.pendentes) || 0;
-        const confirmados = Number(item.confirmados) || 0;
-        const status = pendentes > 0
-            ? `<b class="pending">${pendentes} pendente${pendentes > 1 ? 's' : ''}</b>${item.recusados ? ` <b class="badge inactive">${item.recusados} recusou</b>` : ''}`
-            : `<b class="ok">${confirmados} confirmado${confirmados !== 1 ? 's' : ''}</b>`;
+    const situacao = v => v.confirmado
+        ? '<span class="material-icons" aria-hidden="true">check_circle</span>'
+        : v.recusado
+            ? '<span class="material-icons" aria-hidden="true">cancel</span>'
+            : '<span class="material-icons" aria-hidden="true">schedule</span>';
+    const rotulo = v => (v.confirmado ? 'confirmado' : v.recusado ? `recusou${v.motivo_recusa ? ': ' + v.motivo_recusa : ''}` : 'aguardando resposta');
 
+    return eventos.map((ev, i) => {
+        const tipo = TIPOS_DE_EVENTO[ev.tipo_evento] ? ev.tipo_evento : 'evento';
+        const horario = ev.hora_inicio ? `${formatarHora(ev.hora_inicio)}${ev.hora_fim ? '–' + formatarHora(ev.hora_fim) : ''}` : '';
+        const id = `evento-semana-${i}`;
         return `
-            <tr>
-                <td>${formatarData(item.data_escala)}</td>
-                <td>${escapar(item.evento)}</td>
-                <td>${escapar(item.funcao)}</td>
-                <td>${formatarHora(item.horario)}</td>
-                <td>${status}</td>
-            </tr>
-        `;
+            <div class="evento-semana tipo-${tipo}">
+                <button type="button" class="evento-cabecalho" aria-expanded="false" aria-controls="${id}">
+                    <span class="evento-dia">${escapar(dataComSemana(ev.data).replace(',', '').replace(/\/\d{4}$/, ''))}</span>
+                    <span class="evento-info">
+                        <strong>${escapar(ev.nome)}</strong>
+                        <small>${horario ? horario + ' • ' : ''}${TIPOS_DE_EVENTO[tipo]} • ${ev.funcoes.length} função(ões)</small>
+                    </span>
+                    <span class="evento-resumo">
+                        <span class="badge ok" title="Confirmados / vagas">${ev.confirmados}/${ev.vagas} confirmados</span>
+                        ${ev.pendentes ? `<span class="badge pending">${ev.pendentes} pendente(s)</span>` : ''}
+                        ${ev.recusados ? `<span class="badge inactive">${ev.recusados} recusa(s)</span>` : ''}
+                        ${ev.faltam ? `<span class="badge inactive">faltam ${ev.faltam}</span>` : ''}
+                    </span>
+                    <span class="material-icons evento-seta" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="evento-detalhes" id="${id}" hidden>
+                    ${ev.funcoes.map(f => {
+                        const escalados = f.voluntarios.filter(v => !v.recusado).length;
+                        return `
+                            <div class="funcao-semana">
+                                <div class="funcao-titulo">
+                                    <strong>${escapar(f.funcao || 'Função')}</strong>
+                                    <small>Chegada ${formatarHora(f.horario) || '—'} • ${escalados} de ${f.qtd_voluntarios ?? '—'} voluntário(s)</small>
+                                </div>
+                                <ul class="voluntarios-semana">
+                                    ${f.voluntarios.map(v => `
+                                        <li class="${v.confirmado ? 'confirmado' : v.recusado ? 'recusado' : 'aguardando'}" title="${escapar(rotulo(v))}">
+                                            ${situacao(v)}<span>${escapar(v.nome)}</span><span class="sr-only"> (${escapar(rotulo(v))})</span>
+                                        </li>`).join('') || '<li class="aguardando">Ninguém escalado</li>'}
+                                </ul>
+                            </div>`;
+                    }).join('')}
+                    <p class="legenda-semana">
+                        <span class="confirmado"><span class="material-icons" aria-hidden="true">check_circle</span>confirmado</span>
+                        <span class="aguardando"><span class="material-icons" aria-hidden="true">schedule</span>aguardando</span>
+                        <span class="recusado"><span class="material-icons" aria-hidden="true">cancel</span>recusou</span>
+                    </p>
+                </div>
+            </div>`;
     }).join('');
 }
 
@@ -665,31 +736,18 @@ async function renderizarEscalas() {
     sectionEscalas.innerHTML = `
         <article class="panel schedule-panel">
             <div class="panel-header">
-                <h2>Escalas da Semana</h2>
-                <button type="button">Ver todas</button>
+                <div><h2>Escalas da Semana</h2><p>Toque em um evento para ver funções e voluntários</p></div>
+                ${temPermissao('escalas') ? '<button type="button" id="btnVerEscalas">Ver todas</button>' : ''}
             </div>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Evento</th>
-                            <th>Função</th>
-                            <th>Horário</th>
-                            <th>Voluntários</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-escalas">
-                        ${linhasEscalas(escalas)}
-                    </tbody>
-                </table>
+            <div class="eventos-semana" id="lista-escalas">
+                ${eventosDaSemana(escalas)}
             </div>
         </article>
 
         <article class="panel confirmations">
             <div class="panel-header">
                 <h2>Confirmações Pendentes</h2>
-                <button type="button">Ver todas</button>
+                ${temPermissao('relatorios') || temPermissao('escalas') ? '<button type="button" id="btnVerPendentes">Ver todas</button>' : ''}
             </div>
             ${listaConfirmacoes(confirmacoes)}
         </article>
@@ -697,7 +755,7 @@ async function renderizarEscalas() {
         <article class="panel chart-panel">
             <div class="panel-header">
                 <h2>Confirmações do Mês</h2>
-                <button type="button">Ver relatórios</button>
+                ${temPermissao('relatorios') ? '<button type="button" id="btnVerRelatorios">Ver relatórios</button>' : ''}
             </div>
             <div class="chart-content">
                 ${graficoConfirmacoes(grafico)}
@@ -731,6 +789,36 @@ async function renderizarEscalas() {
 
         linha.append(data, nome, horario);
         proximosEventos.appendChild(linha);
+    });
+
+    // Expandir/recolher os detalhes de cada evento da semana
+    sectionEscalas.querySelector('#lista-escalas').addEventListener('click', event => {
+        const cabecalho = event.target.closest('.evento-cabecalho');
+        if (!cabecalho) return;
+        const aberto = cabecalho.getAttribute('aria-expanded') === 'true';
+        cabecalho.setAttribute('aria-expanded', String(!aberto));
+        cabecalho.closest('.evento-semana').classList.toggle('aberto', !aberto);
+        document.getElementById(cabecalho.getAttribute('aria-controls')).hidden = aberto;
+    });
+
+    sectionEscalas.querySelector('#btnVerEscalas')?.addEventListener('click', () => gerenciaEscalas());
+
+    // "Ver todas" as pendentes: relatório de escalas filtrado (de hoje em diante),
+    // ou a tela de Escalas para quem não tem acesso aos relatórios
+    sectionEscalas.querySelector('#btnVerPendentes')?.addEventListener('click', () => {
+        if (temPermissao('relatorios')) {
+            gerarRelatorio('escalas', { status: 'pendentes', inicio: dataDeHoje() });
+        } else {
+            gerenciaEscalas();
+        }
+    });
+
+    // "Ver relatórios": as escalas do mês que o gráfico resume
+    sectionEscalas.querySelector('#btnVerRelatorios')?.addEventListener('click', () => {
+        const [ano, mes] = dataDeHoje().split('-').map(Number);
+        const ultimoDia = new Date(ano, mes, 0).getDate();
+        const doMes = dia => `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+        gerarRelatorio('escalas', { inicio: doMes(1), fim: doMes(ultimoDia) });
     });
 
     return sectionEscalas;
@@ -981,8 +1069,10 @@ async function gerenciaEvento() {
                     </div>
                 </div>
 
+                <p class="mensagem-lista" id="mensagem-eventos" role="status"></p>
+                <!-- No celular a tabela vira cartões (classe tabela-cartoes) -->
                 <div class="table-responsive">
-                    <table>
+                    <table class="tabela-cartoes">
                         <thead>
                             <tr>
                                 <th>Evento</th>
@@ -1010,23 +1100,117 @@ async function gerenciaEvento() {
         listaFuncoes.add(new Option(item.nome, item.nome));
     });
 
-    listaEventos.innerHTML = eventosDisponiveis.length
-        ? eventosDisponiveis.map(evento => `
-            <tr>
-                <td>${escapar(evento.nome)}</td>
-                <td>${formatarData(evento.data_evento)}</td>
-                <td>${formatarHora(evento.hora_inicio)}</td>
-                <td>${formatarHora(evento.hora_fim)}</td>
-                <td>${escapar(evento.tipo_evento)}</td>
-                <td>
-                    <div class="acoes">
-                        <button type="button" class="btn-editar">Editar</button>
-                        <button type="button" class="btn-remover">Remover</button>
+    // ---------- Gerenciar eventos: lista, edição e remoção
+    let eventosCarregados = eventosDisponiveis;
+    const nomeDoTipo = tipo => (typeof TIPOS_EVENTO !== 'undefined' && TIPOS_EVENTO[tipo]) || tipo || '—';
+
+    function desenharListaEventos() {
+        listaEventos.innerHTML = eventosCarregados.length
+            ? eventosCarregados.map(evento => `
+                <tr>
+                    <td data-label="Evento"><strong>${escapar(evento.nome)}</strong></td>
+                    <td data-label="Data">${formatarDataSimples(evento.data_evento)}</td>
+                    <td data-label="Início">${formatarHora(evento.hora_inicio) || '—'}</td>
+                    <td data-label="Término">${formatarHora(evento.hora_fim) || '—'}</td>
+                    <td data-label="Tipo">${escapar(nomeDoTipo(evento.tipo_evento))}</td>
+                    <td data-label="Ações">
+                        <div class="acoes">
+                            <button type="button" class="btn-editar" data-editar-evento="${evento.id_evento}" aria-label="Editar ${escapar(evento.nome)}">
+                                <span class="material-icons">edit</span>Editar</button>
+                            <button type="button" class="btn-remover" data-remover-evento="${evento.id_evento}" aria-label="Remover ${escapar(evento.nome)}">
+                                <span class="material-icons">delete</span>Remover</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="6" class="vazio">Nenhum evento cadastrado.</td></tr>';
+    }
+
+    async function recarregarEventos(mensagem) {
+        eventosCarregados = await dadosTodosEventos();
+        desenharListaEventos();
+        const aviso = document.getElementById('mensagem-eventos');
+        aviso.textContent = mensagem || '';
+        aviso.classList.remove('erro');
+    }
+
+    function editarEvento(evento) {
+        const { modal, fechar } = abrirModal('Editar evento', evento.nome, `
+            <form novalidate>
+                <div class="form-grid">
+                    <div class="form-group full"><label for="edNome">Nome do evento</label><input type="text" id="edNome" maxlength="150" required></div>
+                    <div class="form-group"><label for="edData">Data</label><input type="date" id="edData" required></div>
+                    <div class="form-group">
+                        <label for="edTipo">Tipo de culto / evento</label>
+                        <select id="edTipo" required>
+                            ${Object.entries(TIPOS_EVENTO).map(([valor, nome]) => `<option value="${valor}">${nome}</option>`).join('')}
+                        </select>
                     </div>
-                </td>
-            </tr>
-        `).join('')
-        : '<tr><td colspan="6" class="vazio">Nenhum evento cadastrado.</td></tr>';
+                    <div class="form-group"><label for="edInicio">Horário de início</label><input type="time" id="edInicio"></div>
+                    <div class="form-group"><label for="edFim">Horário de término</label><input type="time" id="edFim"></div>
+                </div>
+                ${evento.total_escalas ? `<p class="subtitulo">As ${evento.total_escalas} escala(s) deste evento acompanham a nova data.</p>` : ''}
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
+                    <button type="submit" class="primary"><span class="material-icons">save</span>Salvar</button>
+                </div>
+            </form>`);
+        const form = modal.querySelector('form');
+        const campo = id => modal.querySelector('#' + id);
+        campo('edNome').value = evento.nome;
+        campo('edData').value = String(evento.data_evento).slice(0, 10);
+        campo('edTipo').value = TIPOS_EVENTO[evento.tipo_evento] ? evento.tipo_evento : 'evento';
+        campo('edInicio').value = formatarHora(evento.hora_inicio);
+        campo('edFim').value = formatarHora(evento.hora_fim);
+        modal.querySelector('[data-cancelar]').addEventListener('click', fechar);
+
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            if (campo('edInicio').value && campo('edFim').value && campo('edFim').value <= campo('edInicio').value) {
+                return mensagemFormulario(form, 'O horário de término deve ser depois do início.');
+            }
+            try {
+                await enviarDados(`eventos/${evento.id_evento}`, 'PUT', {
+                    nome: campo('edNome').value,
+                    data_evento: campo('edData').value,
+                    tipo_evento: campo('edTipo').value,
+                    hora_inicio: campo('edInicio').value,
+                    hora_fim: campo('edFim').value
+                });
+                fechar();
+                await recarregarEventos('Evento atualizado.');
+            } catch (erro) {
+                mensagemFormulario(form, erro.message);
+            }
+        });
+    }
+
+    async function removerEvento(evento) {
+        const aviso = evento.total_escalas
+            ? `\n\nAtenção: ${evento.total_escalas} escala(s) deste evento e os voluntários escalados nelas também serão removidos.`
+            : '';
+        if (!confirm(`Remover o evento "${evento.nome}" de ${formatarDataSimples(evento.data_evento)}?${aviso}\n\nEsta ação não pode ser desfeita.`)) return;
+        try {
+            await enviarDados(`eventos/${evento.id_evento}`, 'DELETE');
+            await recarregarEventos(`Evento "${evento.nome}" removido.`);
+        } catch (erro) {
+            const campo = document.getElementById('mensagem-eventos');
+            campo.textContent = erro.message;
+            campo.classList.add('erro');
+        }
+    }
+
+    listaEventos.addEventListener('click', event => {
+        const editar = event.target.closest('[data-editar-evento]');
+        const remover = event.target.closest('[data-remover-evento]');
+        const id = Number((editar || remover)?.dataset.editarEvento || (editar || remover)?.dataset.removerEvento);
+        const evento = eventosCarregados.find(ev => ev.id_evento === id);
+        if (!evento) return;
+        if (editar) editarEvento(evento);
+        if (remover) removerEvento(evento);
+    });
+
+    desenharListaEventos();
 
     const funcoes = [];
 
@@ -1253,6 +1437,13 @@ async function gerenciaEvento() {
     iniciarAbasEventos();
 }
 
+// A turma NEXT fica sempre por último; as demais mantêm a ordem recebida.
+// A regra usa o nome da turma (não a posição em que o banco devolveu).
+function turmaNextPorUltimo(lista) {
+    const ehNext = turma => /^next\b/.test(normalizarTexto(turma.nome));
+    return [...lista.filter(t => !ehNext(t)), ...lista.filter(ehNext)];
+}
+
 async function gerenciaPresenca() {
     registrarRota('presenca');
     marcarMenuAtivo('gerenciaPresenca');
@@ -1268,7 +1459,7 @@ async function gerenciaPresenca() {
     hoje.setMinutes(hoje.getMinutes() - hoje.getTimezoneOffset());
     const dataHoje = hoje.toISOString().slice(0, 10);
 
-    let turmas = turmasIniciais;
+    let turmas = turmaNextPorUltimo(turmasIniciais);
     let registros = [];
     let saidaPendente = null;
 
@@ -1475,7 +1666,7 @@ async function gerenciaPresenca() {
 
         try {
             await enviarDados('presenca/turmas', 'POST', { nome });
-            turmas = await buscarDados('presenca/turmas', turmas);
+            turmas = turmaNextPorUltimo(await buscarDados('presenca/turmas', turmas));
             campoNome.value = '';
             mensagem(`Turma "${nome}" cadastrada.`);
             renderizar();

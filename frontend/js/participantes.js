@@ -9,6 +9,9 @@ async function gerenciaParticipantes() {
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 
+    // Classificar (promover a membro, apto ao voluntariado, ativar/inativar) é do administrador
+    const podeClassificar = usuarioAtual?.perfil === 'ADMINISTRADOR';
+
     const lista = document.createElement('section');
     lista.className = 'panel';
     lista.innerHTML = `
@@ -17,7 +20,7 @@ async function gerenciaParticipantes() {
                 <h2>Lista de Participantes</h2>
                 <p class="contador"></p>
             </div>
-            <button type="button" class="primary" id="btnNovoParticipante">+ Novo participante</button>
+            <button type="button" class="primary" id="btnNovoParticipante">+ Novo cadastro</button>
         </div>
         <div class="toolbar">
             <input class="search" type="search" placeholder="Buscar participante..." aria-label="Buscar participante">
@@ -25,10 +28,11 @@ async function gerenciaParticipantes() {
             <button type="button" class="filtro" data-filtro="visitante">Visitantes</button>
             <button type="button" class="filtro" data-filtro="membro">Membros</button>
         </div>
+        <p class="mensagem-lista" role="status"></p>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead>
-                    <tr><th>Participante</th><th>Telefone</th><th>Tipo</th><th>Entrada / visita</th><th>Status</th></tr>
+                    <tr><th>Participante</th><th>Telefone</th><th>Tipo</th><th>Entrada / visita</th><th>Status</th>${podeClassificar ? '<th>Classificação</th>' : ''}</tr>
                 </thead>
                 <tbody>
                     ${dados.participantes.map(p => {
@@ -37,6 +41,16 @@ async function gerenciaParticipantes() {
                         const status = !p.ativo
                             ? '<span class="badge inactive">Inativo</span>'
                             : recente ? '<span class="badge pending">Acompanhar</span>' : '<span class="badge ok">Ativo</span>';
+                        const voluntariado = p.tipo !== 'membro' ? ''
+                            : p.voluntario ? ' <span class="badge ok">Voluntário</span>'
+                            : p.apto ? ' <span class="badge pending">Apto ao voluntariado</span>' : '';
+                        const acoes = p.tipo === 'visitante'
+                            ? `<button type="button" class="action-btn com-texto" data-promover="${p.id}" data-nome="${escapar(p.nome)}">
+                                   <span class="material-icons">how_to_reg</span>Tornar membro</button>`
+                            : `<button type="button" class="action-btn com-texto" data-apto="${p.id}" data-valor="${!p.apto}" ${p.ativo ? '' : 'disabled'}>
+                                   <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>
+                               <button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
+                                   <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
                         return `
                             <tr data-filtro="${p.tipo}">
                                 <td>
@@ -49,11 +63,12 @@ async function gerenciaParticipantes() {
                                     </div>
                                 </td>
                                 <td>${escapar(p.telefone || '—')}</td>
-                                <td>${p.tipo === 'membro' ? 'Membro' : 'Visitante'}</td>
+                                <td>${p.tipo === 'membro' ? 'Membro' : 'Visitante'}${voluntariado}</td>
                                 <td>${formatarDataSimples(p.data) || '—'}</td>
                                 <td>${status}</td>
+                                ${podeClassificar ? `<td class="acoes-classificacao">${acoes}</td>` : ''}
                             </tr>`;
-                    }).join('') || '<tr><td colspan="5" class="vazio">Nenhum participante cadastrado.</td></tr>'}
+                    }).join('') || `<tr><td colspan="${podeClassificar ? 6 : 5}" class="vazio">Nenhum participante cadastrado.</td></tr>`}
                 </tbody>
             </table>
         </div>
@@ -72,37 +87,98 @@ async function gerenciaParticipantes() {
 
     configurarFiltros(lista, (linha, filtro) => linha.dataset.filtro === filtro, { exigirInteracao: true });
     lista.querySelector('#btnNovoParticipante').addEventListener('click', novoParticipante);
+
+    const avisar = (texto, erro = false) => {
+        const campo = lista.querySelector('.mensagem-lista');
+        campo.textContent = texto;
+        campo.classList.toggle('erro', erro);
+    };
+
+    // Ações de classificação (somente administrador)
+    lista.addEventListener('click', async event => {
+        const promover = event.target.closest('[data-promover]');
+        const apto = event.target.closest('[data-apto]');
+        const ativo = event.target.closest('[data-ativo]');
+
+        if (promover) {
+            promoverVisitante(Number(promover.dataset.promover), promover.dataset.nome);
+            return;
+        }
+        if (!apto && !ativo) return;
+
+        const botao = apto || ativo;
+        const valor = botao.dataset.valor === 'true';
+        const corpo = apto ? { apto_voluntario: valor } : { ativo: valor };
+        if (ativo && !valor && !confirm('Inativar este membro? Ele também deixa de ser apto ao voluntariado.')) return;
+
+        botao.disabled = true;
+        try {
+            await enviarDados(`participantes/membros/${botao.dataset.apto || botao.dataset.ativo}`, 'PATCH', corpo);
+            gerenciaParticipantes();
+        } catch (erro) {
+            botao.disabled = false;
+            avisar(erro.message, true);
+        }
+    });
+}
+
+// Administrador: promove um visitante a membro (modal)
+function promoverVisitante(idVisitante, nome) {
+    const { modal, fechar } = abrirModal('Tornar membro', `${nome} passará a ser membro da igreja.`, `
+        <form novalidate>
+            <div class="form-grid">
+                <div class="form-group"><label for="pmEntrada">Data de entrada na igreja</label><input type="date" id="pmEntrada" required></div>
+                <div class="form-group"><label for="pmBatismo">Data do batismo (se houver)</label><input type="date" id="pmBatismo"></div>
+                <div class="form-group">
+                    <label for="pmCelula">Participa de célula?</label>
+                    <select id="pmCelula"><option value="">Não informado</option><option value="sim">Sim</option><option value="nao">Não</option></select>
+                </div>
+            </div>
+            <p class="subtitulo">Os dados do cadastro de visitante (contato, nascimento, endereço) são copiados para o membro.
+               A elegibilidade ao voluntariado é definida depois, em "Marcar apto".</p>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
+                <button type="submit" class="primary"><span class="material-icons">how_to_reg</span>Confirmar</button>
+            </div>
+        </form>`);
+
+    const form = modal.querySelector('form');
+    modal.querySelector('#pmEntrada').value = dataDeHoje();
+    modal.querySelector('[data-cancelar]').addEventListener('click', fechar);
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const celula = modal.querySelector('#pmCelula').value;
+        try {
+            await enviarDados(`participantes/visitantes/${idVisitante}/membro`, 'POST', {
+                data_entrada_igreja: modal.querySelector('#pmEntrada').value,
+                data_batismo: modal.querySelector('#pmBatismo').value,
+                participa_celula: celula === '' ? null : celula === 'sim'
+            });
+            fechar();
+            alert(`${nome} agora é membro.`);
+            gerenciaParticipantes();
+        } catch (erro) {
+            mensagemFormulario(form, erro.message);
+        }
+    });
 }
 
 async function novoParticipante() {
     registrarRota('participantes/novo');
-    const funcoes = await buscarDados('funcoes', []);
     const main = document.getElementById('main');
 
     const section = document.createElement('section');
     section.className = 'grid';
     section.innerHTML = `
         <article class="panel">
-            <div class="panel-header"><h2>Cadastro de Participante</h2></div>
+            <div class="panel-header"><h2>Cadastro de Pessoa</h2></div>
             <form id="formParticipante" novalidate>
                 <div class="form-grid">
-                    <div class="field full">
-                        <label for="tipoParticipante">Tipo de cadastro</label>
-                        <select id="tipoParticipante">
-                            <option value="membro">Membro</option>
-                            <option value="visitante">Visitante</option>
-                        </select>
-                    </div>
-                    <div class="field full"><label for="pNome">Nome completo</label><input id="pNome" placeholder="Ex.: João da Silva" required></div>
-                    <div class="field"><label for="pTelefone">Telefone</label><input id="pTelefone" type="tel" placeholder="(47) 99999-9999"></div>
-
-                    <!-- Só para visitante -->
-                    <div class="field so-visitante"><label for="pDataVisita">Data da visita</label><input id="pDataVisita" type="date"></div>
-
-                    <!-- Só para membro -->
-                    <div class="field so-membro"><label for="pEmail">E-mail</label><input id="pEmail" type="email" placeholder="email@exemplo.com"></div>
-                    <div class="field so-membro"><label for="pNascimento">Data de nascimento</label><input id="pNascimento" type="date"></div>
-                    <div class="field so-membro">
+                    <div class="field full"><label for="pNome">Nome completo *</label><input id="pNome" maxlength="150" placeholder="Ex.: João da Silva" required></div>
+                    <div class="field"><label for="pTelefone">Telefone</label><input id="pTelefone" type="tel" maxlength="20" placeholder="(47) 99999-9999"></div>
+                    <div class="field"><label for="pEmail">E-mail</label><input id="pEmail" type="email" maxlength="150" placeholder="email@exemplo.com"></div>
+                    <div class="field"><label for="pNascimento">Data de nascimento</label><input id="pNascimento" type="date"></div>
+                    <div class="field">
                         <label for="pEstadoCivil">Estado civil</label>
                         <select id="pEstadoCivil">
                             <option value="">Selecione...</option>
@@ -110,23 +186,11 @@ async function novoParticipante() {
                             <option>Viúvo(a)</option><option>União estável</option><option>Outro</option>
                         </select>
                     </div>
-                    <div class="field so-membro"><label for="pEndereco">Endereço</label><input id="pEndereco" placeholder="Av. dos Expedicionários"></div>
-                    <div class="field so-membro"><label for="pNumero">Número</label><input id="pNumero" placeholder="999"></div>
-                    <div class="field so-membro"><label for="pBairro">Bairro</label><input id="pBairro" placeholder="Campo d'Água Verde"></div>
-                    <div class="field so-membro"><label for="pEntrada">Data de entrada na igreja</label><input id="pEntrada" type="date"></div>
-                    <div class="field so-membro"><label for="pBatismo">Data do batismo</label><input id="pBatismo" type="date"></div>
-                    <div class="field so-membro">
-                        <label for="pCelula">Participa de célula?</label>
-                        <select id="pCelula"><option value="">Selecione...</option><option value="sim">Sim</option><option value="nao">Não</option></select>
-                    </div>
-                    <div class="field so-membro">
-                        <label for="pFuncao">Função como voluntário</label>
-                        <select id="pFuncao">
-                            <option value="">Não é voluntário</option>
-                            ${funcoes.map(f => `<option value="${f.id_funcao}">${escapar(f.nome)}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="field full"><label for="pObservacoes">Observações</label><textarea id="pObservacoes" placeholder="Informações adicionais..."></textarea></div>
+                    <div class="field"><label for="pEndereco">Endereço</label><input id="pEndereco" maxlength="150" placeholder="Av. dos Expedicionários"></div>
+                    <div class="field"><label for="pNumero">Número</label><input id="pNumero" maxlength="20" placeholder="999"></div>
+                    <div class="field"><label for="pBairro">Bairro</label><input id="pBairro" maxlength="80" placeholder="Campo d'Água Verde"></div>
+                    <div class="field"><label for="pDataVisita">Data da primeira visita</label><input id="pDataVisita" type="date"></div>
+                    <div class="field full"><label for="pObservacoes">Observações</label><textarea id="pObservacoes" maxlength="2000" placeholder="Ex.: convidado por..., como conheceu a igreja"></textarea></div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-cancel" id="cancelarParticipante">Cancelar</button>
@@ -135,33 +199,25 @@ async function novoParticipante() {
             </form>
         </article>
         <article class="panel">
-            <div class="panel-header"><h2>Orientações</h2></div>
+            <div class="panel-header"><h2>Como funciona</h2></div>
             <div class="list">
-                <div class="list-row"><div class="mini-avatar">1</div><div class="info"><strong>Dados pessoais</strong><small>Preencha nome, contato e informações básicas.</small></div></div>
-                <div class="list-row"><div class="mini-avatar">2</div><div class="info"><strong>Vida na igreja</strong><small>Registre entrada, batismo e participação.</small></div></div>
-                <div class="list-row"><div class="mini-avatar">3</div><div class="info"><strong>Voluntariado</strong><small>Escolha uma função para já registrar o membro como voluntário.</small></div></div>
-                <div class="list-row"><div class="mini-avatar">4</div><div class="info"><strong>Visitantes</strong><small>Para quem está conhecendo a igreja, basta nome, telefone e data da visita.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">1</div><div class="info"><strong>Todo cadastro entra como visitante</strong><small>Preencha os dados da pessoa; ela aparece na lista como visitante.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">2</div><div class="info"><strong>Tornar membro</strong><small>Um administrador promove o visitante a membro na lista de participantes.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">3</div><div class="info"><strong>Voluntariado</strong><small>O administrador marca o membro como apto; depois ele pode ser cadastrado em Voluntários.</small></div></div>
+                <div class="list-row"><div class="mini-avatar">4</div><div class="info"><strong>Acesso ao sistema</strong><small>Cadastrar uma pessoa não cria login nem permissões. Contas são criadas em Usuários.</small></div></div>
             </div>
         </article>
     `;
 
     main.replaceChildren(
-        headerComVoltar('Cadastro de Participante', 'Cadastre um novo membro ou visitante', gerenciaParticipantes),
+        headerComVoltar('Novo cadastro', 'Toda pessoa cadastrada entra como visitante', gerenciaParticipantes),
         section
     );
 
     const form = section.querySelector('#formParticipante');
-    const tipo = section.querySelector('#tipoParticipante');
     const $ = id => section.querySelector('#' + id);
     $('pDataVisita').value = dataDeHoje();
-
-    function alternarCampos() {
-        const visitante = tipo.value === 'visitante';
-        section.querySelectorAll('.so-membro').forEach(c => c.classList.toggle('campo-oculto', visitante));
-        section.querySelectorAll('.so-visitante').forEach(c => c.classList.toggle('campo-oculto', !visitante));
-    }
-    tipo.addEventListener('change', alternarCampos);
-    alternarCampos();
+    $('pNascimento').max = dataDeHoje();
 
     $('cancelarParticipante').addEventListener('click', () => abrirSubstituindo(gerenciaParticipantes));
 
@@ -172,31 +228,33 @@ async function novoParticipante() {
             $('pNome').focus();
             return;
         }
+        if ($('pEmail').value && !$('pEmail').checkValidity()) {
+            mensagemFormulario(form, 'Informe um e-mail válido.');
+            $('pEmail').focus();
+            return;
+        }
 
-        const dados = tipo.value === 'visitante'
-            ? { tipo: 'visitante', nome: $('pNome').value, telefone: $('pTelefone').value, data_visita: $('pDataVisita').value, observacoes: $('pObservacoes').value }
-            : {
-                tipo: 'membro',
-                nome: $('pNome').value,
-                telefone: $('pTelefone').value,
-                email: $('pEmail').value,
-                data_nascimento: $('pNascimento').value,
-                estado_civil: $('pEstadoCivil').value,
-                endereco: $('pEndereco').value,
-                numero: $('pNumero').value,
-                bairro: $('pBairro').value,
-                data_entrada_igreja: $('pEntrada').value,
-                data_batismo: $('pBatismo').value,
-                participa_celula: $('pCelula').value === '' ? null : $('pCelula').value === 'sim',
-                id_funcao: $('pFuncao').value,
-                observacoes: $('pObservacoes').value
-            };
+        const dados = {
+            nome: $('pNome').value,
+            telefone: $('pTelefone').value,
+            email: $('pEmail').value,
+            data_nascimento: $('pNascimento').value,
+            estado_civil: $('pEstadoCivil').value,
+            endereco: $('pEndereco').value,
+            numero: $('pNumero').value,
+            bairro: $('pBairro').value,
+            data_visita: $('pDataVisita').value,
+            observacoes: $('pObservacoes').value
+        };
 
+        const botao = form.querySelector('button[type="submit"]');
+        botao.disabled = true;
         try {
             await enviarDados('participantes', 'POST', dados);
-            alert(`${dados.nome.trim()} cadastrado(a) com sucesso!`);
+            alert(`${dados.nome.trim()} foi cadastrado(a) como visitante.`);
             abrirSubstituindo(gerenciaParticipantes);
         } catch (erro) {
+            botao.disabled = false;
             mensagemFormulario(form, erro.message);
         }
     });

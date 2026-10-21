@@ -169,9 +169,9 @@ describe('Dados gravados literalmente (sem executar)', () => {
 
     test('script HTML é guardado como texto (a tela é que escapa)', async () => {
         const nome = '<img src=x onerror="alert(1)">';
-        const r = await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { tipo: 'membro', nome } });
+        const r = await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { nome } });
         assert.equal(r.status, 201);
-        assert.equal(r.corpo.nome_completo, nome);
+        assert.equal(r.corpo.nome, nome);
     });
 });
 

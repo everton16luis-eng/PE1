@@ -23,7 +23,7 @@ async function gerenciaFuncoes() {
             <button type="button" class="filtro" data-filtro="vagas">Com vagas</button>
         </div>
         <div class="table-responsive">
-            <table>
+            <table class="tabela-cartoes">
                 <thead>
                     <tr><th>Função</th><th>Descrição</th><th>Por escala</th><th>Voluntários</th><th>Vagas abertas</th><th>Status</th><th>Ação</th></tr>
                 </thead>

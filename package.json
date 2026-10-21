@@ -10,10 +10,11 @@
     "db:presenca": "node backend/database/executar.js backend/database/presenca.sql",
     "db:paginas": "node backend/database/executar.js backend/database/paginas.sql",
     "db:seed": "node backend/database/seed.js && node backend/database/executar.js backend/database/seed-paginas.sql && node backend/database/seed-voluntarios.js",
-    "db:setup": "npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:seed",
+    "db:setup": "npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:cadastro && npm run db:seed",
     "test:seguranca": "node tests/preparar-banco.js && node --test tests/seguranca-acesso.test.js tests/sql-injection.test.js",
     "test:layout": "node tests/preparar-banco.js && node --test tests/layout.test.js",
-    "db:voluntario": "node backend/database/executar.js backend/database/voluntario.sql"
+    "db:voluntario": "node backend/database/executar.js backend/database/voluntario.sql",
+    "db:cadastro": "node backend/database/executar.js backend/database/cadastro.sql"
   },
   "keywords": [],
   "author": "",

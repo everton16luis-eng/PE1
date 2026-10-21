@@ -282,8 +282,7 @@ describe('Voltar e avançar do navegador', () => {
         const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
         await abrirPagina(pagina, 'gerenciaParticipantes', TELAS.desktop);
         await pagina.click('#btnNovoParticipante');
-        await esperarTitulo(pagina, 'Cadastro de Participante');
-        await pagina.selectOption('#tipoParticipante', 'visitante');
+        await esperarTitulo(pagina, 'Novo cadastro');
         await pagina.fill('#pNome', 'Visitante Navegação');
         await pagina.click('#formParticipante button[type="submit"]');
         await esperarTitulo(pagina, 'Participantes');
@@ -389,6 +388,134 @@ describe('Ficha e portal do voluntário', () => {
     }
 });
 
+describe('Melhorias de usabilidade', () => {
+    test('Dashboard: eventos da semana começam recolhidos e expandem sob demanda', async () => {
+        for (const tela of [TELAS.celular, TELAS.desktop]) {
+            const { pagina, contexto, erros } = await abrirLogado(admin, tela);
+            const eventos = await pagina.$$('.evento-semana');
+            if (!eventos.length) { await contexto.close(); continue; } // semana sem escalas no banco de testes
+            assert.equal(await pagina.$$eval('.evento-detalhes:not([hidden])', d => d.length), 0, 'nada deveria abrir sozinho');
+            assert.equal(await pagina.$$eval('.funcao-semana', f => f.filter(x => x.offsetParent).length), 0, 'funções não deveriam aparecer fechadas');
+
+            const cabecalho = await eventos[0].$('.evento-cabecalho');
+            await cabecalho.click();
+            assert.equal(await cabecalho.getAttribute('aria-expanded'), 'true');
+            assert.ok(await eventos[0].$$eval('.funcao-semana', f => f.filter(x => x.offsetParent).length) > 0, 'funções deveriam aparecer ao expandir');
+            await cabecalho.click();
+            assert.equal(await cabecalho.getAttribute('aria-expanded'), 'false');
+            assert.ok(await rolagemHorizontal(pagina) <= 0);
+            assert.deepEqual(erros, []);
+            await contexto.close();
+        }
+    });
+
+    test('Eventos no celular: Editar e Remover visíveis, grandes e funcionando', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.celular);
+        await abrirPagina(pagina, 'gerenciaEvento', TELAS.celular);
+        await pagina.click('#tab-gerenciar');
+        const linha = await pagina.$('#lista-eventos tr');
+        await linha.scrollIntoViewIfNeeded();
+        for (const seletor of ['.btn-editar', '.btn-remover']) {
+            const caixa = await (await linha.$(seletor)).boundingBox();
+            assert.ok(caixa.x >= 0 && caixa.x + caixa.width <= TELAS.celular.width, `${seletor} fora da tela`);
+            assert.ok(caixa.height >= 44, `${seletor} pequeno para toque (${caixa.height}px)`);
+        }
+        assert.ok(await rolagemHorizontal(pagina) <= 0);
+
+        await (await linha.$('.btn-editar')).click();
+        await pagina.waitForSelector('.modal #edNome');
+        assert.ok((await pagina.inputValue('#edNome')).length > 0);
+        await pagina.click('.modal [data-cancelar]');
+
+        // Remover pede confirmação; cancelando, nada muda
+        let mensagem = '';
+        pagina.removeAllListeners('dialog');
+        pagina.once('dialog', dialogo => { mensagem = dialogo.message(); dialogo.dismiss(); });
+        const antes = await pagina.$$eval('#lista-eventos tr', l => l.length);
+        await (await linha.$('.btn-remover')).click();
+        await pagina.waitForTimeout(300);
+        assert.match(mensagem, /Remover o evento/);
+        assert.equal(await pagina.$$eval('#lista-eventos tr', l => l.length), antes);
+        await contexto.close();
+    });
+
+    test('Relatórios: botão Visualizar com o mesmo padrão do Gerar relatório', async () => {
+        for (const tela of [TELAS.desktop, TELAS.celular]) {
+            const { pagina, contexto } = await abrirLogado(admin, tela);
+            await pagina.goto(`${urlBase}/#/relatorios/gerar`);
+            await pagina.waitForSelector('#btnVisualizar');
+            const estilo = seletor => pagina.$eval(seletor, b => {
+                const cs = getComputedStyle(b);
+                const icone = b.querySelector('.material-icons');
+                return { display: cs.display, fonte: cs.fontSize, largura: b.getBoundingClientRect().width, icone: icone && getComputedStyle(icone).fontSize };
+            });
+            const visualizar = await estilo('#btnVisualizar');
+            const gerar = await estilo('#formRelatorio button[type="submit"]');
+            assert.equal(visualizar.display, 'flex');
+            assert.equal(visualizar.fonte, gerar.fonte);
+            assert.equal(visualizar.icone, gerar.icone);
+            if (tela === TELAS.celular) assert.equal(Math.round(visualizar.largura), Math.round(gerar.largura), 'no celular os botões ocupam a largura');
+            await contexto.close();
+        }
+    });
+
+    test('Sair no celular: botão visível no cabeçalho e funcionando', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.celular);
+        assert.equal(await pagina.isVisible('.sair-mobile'), true);
+        await pagina.click('.sair-mobile');
+        await pagina.waitForSelector('#formLogin');
+        await contexto.close();
+
+        const desktop = await abrirLogado(admin, TELAS.desktop);
+        assert.equal(await desktop.pagina.isVisible('.sair-mobile'), false, 'no computador vale o link "Sair"');
+        await desktop.contexto.close();
+    });
+
+    test('Usuários não lista contas do portal do voluntário', async () => {
+        const v = await voluntarioComEscalas(8);
+        const portal = await criarUsuario({ perfil: 'VOLUNTARIO', permissoes: NENHUMA, id_membro: v.id_membro });
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        await abrirPagina(pagina, 'gerenciaUsuarios', TELAS.desktop);
+        const texto = await pagina.textContent('#main');
+        assert.ok(!texto.includes(portal.email), 'conta do portal apareceu em Usuários');
+        assert.ok(!texto.includes('Voluntário'), 'perfil Voluntário apareceu em Usuários');
+        await pagina.click('#btnNovoUsuario');
+        const opcoes = await pagina.$$eval('#uPerfil option', o => o.map(x => x.value));
+        assert.ok(!opcoes.includes('VOLUNTARIO'));
+        await contexto.close();
+    });
+
+    test('Lista de presença: NEXT é a última turma', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        await abrirPagina(pagina, 'gerenciaPresenca', TELAS.desktop);
+        const turmas = await pagina.$$eval('.turma h2', h => h.map(x => x.textContent.trim()));
+        assert.match(turmas.at(-1), /^next/i);
+        await pagina.fill('#busca', 'a');
+        const opcoes = await pagina.$$eval('[data-turma-membro]:first-of-type option', o => o.map(x => x.textContent.trim()));
+        assert.match(opcoes.at(-1), /^next/i);
+        await contexto.close();
+    });
+
+    test('Cadastro: formulário sem escolha de tipo; classificação só para administrador', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        await abrirPagina(pagina, 'gerenciaParticipantes', TELAS.desktop);
+        await pagina.click('.filtro[data-filtro="visitante"]');
+        assert.ok(await pagina.$$eval('[data-promover]', b => b.length) > 0, 'administrador deveria ver "Tornar membro"');
+        await pagina.click('#btnNovoParticipante');
+        await pagina.waitForSelector('#formParticipante');
+        assert.equal(await pagina.$('#tipoParticipante'), null);
+        assert.equal(await pagina.$('#pFuncao'), null);
+        await contexto.close();
+
+        const secretaria = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, participantes: true } });
+        const sec = await abrirLogado(secretaria, TELAS.desktop);
+        await abrirPagina(sec.pagina, 'gerenciaParticipantes', TELAS.desktop);
+        await sec.pagina.click('.filtro[data-filtro="todos"]');
+        assert.equal(await sec.pagina.$$eval('[data-promover], [data-apto], [data-ativo]', b => b.length), 0, 'secretaria não classifica');
+        await sec.contexto.close();
+    });
+});
+
 describe('Segurança na tela', () => {
     test('nome com HTML/script aparece como texto (sem XSS)', async () => {
         const ataque = '<img src=x onerror="window.__xss=1">XSS-Teste';
@@ -428,6 +555,136 @@ describe('Segurança na tela', () => {
         await pagina.goto(urlBase);
         await pagina.waitForSelector('#formLogin');
         assert.equal(await pagina.$('#sidebar'), null);
+        await contexto.close();
+    });
+});
+
+describe('Minha área, dashboard e listas responsivas', () => {
+    test('Minha área do membro: próximos eventos, sem escalas e sem rolagem lateral', async () => {
+        const m = (await pool.query(
+            `SELECT id_membro FROM membros m
+             WHERE ativo AND NOT EXISTS (SELECT 1 FROM voluntarios v WHERE v.id_membro = m.id_membro)
+               AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_membro = m.id_membro)
+             LIMIT 1`)).rows[0];
+        const membro = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA, id_membro: m.id_membro });
+        for (const tela of [TELAS.celular, TELAS.desktop]) {
+            const { pagina, contexto, erros } = await abrirLogado(membro, tela);
+            await abrirPagina(pagina, 'gerenciaMinhaArea', tela);
+            await pagina.waitForSelector('.painel-agenda');
+            const titulos = await pagina.$$eval('#main h2', h => h.map(x => x.textContent.trim()));
+            assert.ok(titulos.includes('Próximos eventos da igreja'));
+            assert.ok(!titulos.includes('Minhas próximas escalas'), 'membro não tem escalas');
+            assert.ok(await pagina.$$eval('.agenda-evento', e => e.length) > 0);
+            assert.ok(await rolagemHorizontal(pagina) <= 0);
+            assert.deepEqual(erros, []);
+            await contexto.close();
+        }
+    });
+
+    test('Minha área do voluntário: escalas primeiro, eventos depois', async () => {
+        const v = await voluntarioComEscalas(9);
+        const login = await criarUsuario({ perfil: 'VOLUNTARIO', permissoes: NENHUMA, id_membro: v.id_membro });
+        const { pagina, contexto, erros } = await abrirLogado(login, TELAS.celular);
+        await pagina.waitForSelector('.painel-agenda');
+        const titulos = await pagina.$$eval('#main h2', h => h.map(x => x.textContent.trim()));
+        assert.equal(titulos[0], 'Minhas próximas escalas');
+        assert.ok(titulos.indexOf('Próximos eventos da igreja') > 0);
+        assert.ok(await pagina.$$eval('.agenda-evento:not([hidden])', e => e.length) <= 6, 'lista secundária deveria vir compacta');
+        assert.ok(await rolagemHorizontal(pagina) <= 0);
+        assert.deepEqual(erros, []);
+        await contexto.close();
+    });
+
+    test('Dashboard: tag "Recusou" sem risco/sublinhado', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        const decoracao = await pagina.evaluate(() => {
+            const lista = document.createElement('ul');
+            lista.className = 'voluntarios-semana';
+            lista.innerHTML = '<li class="recusado"><span>Fulano</span></li>';
+            document.querySelector('#lista-escalas').appendChild(lista);
+            const li = lista.firstElementChild;
+            return [getComputedStyle(li).textDecorationLine, getComputedStyle(li.firstElementChild).textDecorationLine, getComputedStyle(li).color];
+        });
+        assert.deepEqual(decoracao.slice(0, 2), ['none', 'none']);
+        assert.equal(decoracao[2], 'rgb(176, 59, 59)', 'a cor de recusa deve continuar');
+        await contexto.close();
+    });
+
+    test('Dashboard: "Ver todas" e "Ver relatórios" abrem o relatório de escalas filtrado', async () => {
+        const { pagina, contexto, erros } = await abrirLogado(admin, TELAS.desktop);
+        await pagina.click('#btnVerPendentes');
+        await pagina.waitForSelector('#gTipo');
+        assert.equal(await pagina.inputValue('#gTipo'), 'escalas');
+        assert.equal(await pagina.inputValue('.filtro-grupo[data-tipo="escalas"] [data-filtro="status"]'), 'pendentes');
+        assert.ok(await pagina.inputValue('#gInicio'));
+        await pagina.waitForSelector('#previewTabela th');
+        const colunas = await pagina.$$eval('#previewTabela th', t => t.map(x => x.textContent));
+        assert.ok(colunas.includes('Voluntário'), 'a prévia precisa mostrar quem está pendente');
+
+        await pagina.goBack();
+        await pagina.waitForSelector('#btnVerRelatorios');
+        await pagina.click('#btnVerRelatorios');
+        await pagina.waitForSelector('#gTipo');
+        const [inicio, fim] = [await pagina.inputValue('#gInicio'), await pagina.inputValue('#gFim')];
+        assert.match(inicio, /^\d{4}-\d{2}-01$/);
+        assert.equal(inicio.slice(0, 7), fim.slice(0, 7), 'período = mês atual');
+        assert.deepEqual(erros, []);
+        await contexto.close();
+
+        // Sem permissão de relatórios nem de escalas: os botões nem aparecem
+        const restrito = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, criancas: true } });
+        const r = await abrirLogado(restrito, TELAS.desktop);
+        assert.equal(await r.pagina.$('#btnVerPendentes'), null);
+        assert.equal(await r.pagina.$('#btnVerRelatorios'), null);
+        await r.contexto.close();
+    });
+
+    const LISTAS = [
+        ['gerenciaParticipantes', 'todos'], ['gerenciaVoluntarios', 'todos'], ['gerenciaEscalas', null],
+        ['gerenciaFuncoes', 'todos'], ['gerenciaCriancas', 'todos'], ['gerenciaRelatorios', null]
+    ];
+    for (const [nomeTela, tela] of [['celular', TELAS.celular], ['tablet', TELAS.tablet]]) {
+        test(`listas administrativas em cartões, sem cortes (${nomeTela})`, async () => {
+            const { pagina, contexto, erros } = await abrirLogado(admin, tela);
+            for (const [menu, filtro] of LISTAS) {
+                await abrirPagina(pagina, menu, tela);
+                assert.ok(await pagina.$('table.tabela-cartoes'), `${menu}: lista sem o modo cartão`);
+
+                // Vazia (antes de pesquisar) e preenchida (depois do filtro)
+                for (const estado of filtro ? ['vazia', 'preenchida'] : ['preenchida']) {
+                    if (estado === 'preenchida' && filtro) await pagina.click(`.filtro[data-filtro="${filtro}"]`);
+                    const medida = await pagina.evaluate(() => {
+                        const painel = document.querySelector('table.tabela-cartoes').closest('.panel').getBoundingClientRect();
+                        const fora = [...document.querySelectorAll('table.tabela-cartoes tbody *')]
+                            .filter(el => { const r = el.getBoundingClientRect(); return r.width && (r.left < painel.left - 1 || r.right > painel.right + 1); })
+                            .map(el => el.tagName + ' ' + el.textContent.trim().slice(0, 20));
+                        const linhas = [...document.querySelectorAll('table.tabela-cartoes tbody tr')];
+                        const botoes = [...document.querySelectorAll('table.tabela-cartoes tbody button')].map(b => b.getBoundingClientRect().height);
+                        return {
+                            fora: fora.slice(0, 3),
+                            linhas: linhas.length,
+                            semRotulo: linhas.flatMap(l => [...l.cells]).filter(c => c.colSpan === 1 && !c.dataset.label).length,
+                            botaoPequeno: botoes.filter(h => h && h < 44).length
+                        };
+                    });
+                    assert.deepEqual(medida.fora, [], `${menu} (${estado}): conteúdo fora do painel`);
+                    assert.ok(medida.linhas > 0, `${menu} (${estado}): lista sem linhas nem mensagem`);
+                    assert.equal(medida.semRotulo, 0, `${menu}: células sem rótulo no cartão`);
+                    assert.equal(medida.botaoPequeno, 0, `${menu}: botão de ação menor que 44px`);
+                    assert.ok(await rolagemHorizontal(pagina) <= 0, `${menu}: rolagem lateral`);
+                }
+            }
+            assert.deepEqual(erros, []);
+            await contexto.close();
+        });
+    }
+
+    test('listas continuam em tabela no computador', async () => {
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        await abrirPagina(pagina, 'gerenciaVoluntarios', TELAS.desktop);
+        await pagina.click('.filtro[data-filtro="todos"]');
+        assert.equal(await pagina.$eval('table.tabela-cartoes tbody tr', tr => getComputedStyle(tr).display), 'table-row');
+        assert.equal(await pagina.isVisible('table.tabela-cartoes thead th'), true);
         await contexto.close();
     });
 });

@@ -32,8 +32,14 @@ const usuariosModel = {
         return result.rows[0].total;
     },
 
+    // Página Usuários: só contas de gestão. Logins do portal do voluntário
+    // (perfil VOLUNTARIO) são administrados pela ficha do voluntário.
     listar: async () => {
-        const result = await pool.query(`SELECT ${CAMPOS_PUBLICOS} FROM usuarios ORDER BY ativo DESC, nome ASC`);
+        const result = await pool.query(
+            `SELECT ${CAMPOS_PUBLICOS} FROM usuarios
+             WHERE perfil <> 'VOLUNTARIO'
+             ORDER BY ativo DESC, nome ASC`
+        );
         return result.rows;
     },
 
@@ -43,7 +49,8 @@ const usuariosModel = {
                     COUNT(*) FILTER (WHERE ativo)::int AS ativos,
                     COUNT(*) FILTER (WHERE perfil = 'ADMINISTRADOR')::int AS administradores,
                     COUNT(*) FILTER (WHERE NOT ativo AND ultimo_acesso IS NULL)::int AS pendentes
-             FROM usuarios`
+             FROM usuarios
+             WHERE perfil <> 'VOLUNTARIO'`
         );
         return result.rows[0];
     },

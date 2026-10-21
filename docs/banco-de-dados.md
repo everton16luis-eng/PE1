@@ -35,7 +35,7 @@ erDiagram
 | Tabela | Descrição | Colunas importantes |
 |---|---|---|
 | `membros` | Membros da igreja (inclui crianças cadastradas como membros) | `nome_completo`, `data_nascimento`, `telefone`, `email`, `endereco`, `estado_civil`, `data_entrada_igreja`, `informacoes_batismo`, `ativo`, `apto_voluntario`, `voluntario`, `participa_celula`, `observacoes` |
-| `visitantes` | Visitantes | `nome`, `telefone`, `data_visita`, `observacoes` |
+| `visitantes` | Visitantes — **todo cadastro novo começa aqui** | `nome`, `telefone`, `email`, `data_nascimento`, `estado_civil`, `endereco`, `data_visita`, `observacoes`, `id_membro` (preenchido quando o administrador o promove a membro; único), `promovido_em` |
 
 ### Voluntariado e escalas
 
@@ -112,6 +112,7 @@ Ficam em `backend/database/` e são executadas por `executar.js` (sempre em UTF-
 | `npm run db:presenca` | `presenca.sql` | `cadastroturmas`, `turmas` (presença) e 3 turmas iniciais |
 | `npm run db:paginas` | `paginas.sql` | Colunas novas em `membros`, `voluntarios`, `funcoes`, `cadastroturmas`, `criancas`, `usuarios`; novos perfis; permissões padrão; `relatorios_gerados`; índices |
 | `npm run db:voluntario` | `voluntario.sql` | `usuarios.id_membro`, colunas de recusa em `escala_participantes`, `voluntario_ausencias` |
+| `npm run db:cadastro` | `cadastro.sql` | Campos pessoais em `visitantes` (`email`, `data_nascimento`, `estado_civil`, `endereco`) e a ligação `id_membro`/`promovido_em` usada quando o administrador promove o visitante a membro |
 
 Para rodar um `.sql` avulso:
 

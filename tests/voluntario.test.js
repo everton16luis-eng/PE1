@@ -57,8 +57,13 @@ describe('Portal: o voluntário só enxerga o portal', () => {
         assert.ok(Array.isArray(r.corpo.proximas[0].colegas));
     });
 
-    test('login sem cadastro de voluntário recebe aviso (404)', async () => {
-        assert.equal((await api('/api/portal', { token: admin.token })).status, 404);
+    test('login sem cadastro de voluntário vê só os eventos (sem escalas) e não responde escalas', async () => {
+        const r = await api('/api/portal', { token: admin.token });
+        assert.equal(r.status, 200);
+        assert.equal(r.corpo.classificacao, 'visitante');
+        assert.ok(Array.isArray(r.corpo.eventos));
+        assert.equal(r.corpo.proximas, undefined);
+        assert.equal((await api('/api/portal/preferencias', { metodo: 'PUT', token: admin.token, corpo: { disponibilidade: ['domingo'] } })).status, 404);
     });
 });
 

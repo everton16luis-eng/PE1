@@ -138,7 +138,7 @@ const voluntariosModel = {
                  WHERE ep.id_voluntario = $1`,
                 [id]),
             pool.query(
-                `SELECT es.id_escala, es.data_escala, es.horario, e.nome AS evento, e.hora_inicio, e.hora_fim,
+                `SELECT es.id_escala, es.id_evento, es.data_escala, es.horario, e.nome AS evento, e.hora_inicio, e.hora_fim,
                         f.nome AS funcao, ep.confirmado, ep.recusado, ep.motivo_recusa, es.observacoes,
                         COALESCE((SELECT json_agg(json_build_object('nome', m2.nome_completo, 'funcao', f2.nome) ORDER BY f2.nome, m2.nome_completo)
                                   FROM escala_participantes ep2

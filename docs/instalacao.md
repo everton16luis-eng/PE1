@@ -65,11 +65,12 @@ Isso executa, em ordem:
 1. `db:presenca` — tabelas da lista de presença (`cadastroturmas`, `turmas`).
 2. `db:paginas` — colunas e tabelas das páginas de gestão, novos perfis, `relatorios_gerados`.
 3. `db:voluntario` — ligação login ↔ membro, recusas e ausências do voluntário.
-4. `db:seed` — ~6 meses de histórico + 2 meses de agenda; complementos; logins do portal.
+4. `db:cadastro` — dados pessoais do visitante e ligação visitante → membro.
+5. `db:seed` — ~6 meses de histórico + 2 meses de agenda; complementos; logins do portal.
 
 Todas as migrações **só acrescentam** estruturas e podem ser rodadas mais de uma vez. O seed não roda duas vezes no mesmo banco (verifica o usuário `admin@novocaminho.org`). Detalhes em [Banco de dados](banco-de-dados.md).
 
-> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`) e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
+> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`) e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
 
 ## 4. Rodar
 
@@ -96,7 +97,7 @@ Os testes criam e usam um banco separado (`igreja_sistema_teste`), cópia do pri
 | Backup falha em Configurações | `pg_dump` não encontrado | Instale as ferramentas do PostgreSQL ou defina `PG_DUMP_PATH` |
 | Textos como "Recep‡Æo" no banco | Script SQL rodado no terminal do Windows (CP850) | Rode os scripts com `node backend/database/executar.js arquivo.sql` (sempre UTF-8). O seed corrige os textos já afetados |
 | Testes de layout falham ao abrir o navegador | Chrome/Edge não instalado | Instale um dos dois |
-| `relation "turmas" does not exist` | Migrações não aplicadas | `npm run db:presenca && npm run db:paginas && npm run db:voluntario` |
+| `relation "turmas" does not exist` | Migrações não aplicadas | `npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:cadastro` |
 
 ## Restaurar um backup
 
