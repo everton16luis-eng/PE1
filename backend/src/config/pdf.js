@@ -74,7 +74,16 @@ function quebrarTexto(texto, largura, tamanho, negrito = false) {
 const escaparPdf = texto => paraWinAnsi(texto).replace(/[\\()]/g, c => '\\' + c);
 const cor = hex => [1, 3, 5].map(i => (parseInt(hex.slice(i, i + 2), 16) / 255).toFixed(3)).join(' ');
 
-const CORES = { texto: '#18243a', suave: '#78849a', destaque: '#965b39', linha: '#dddddd', fundo: '#f5f6f9' };
+// Cores pensadas para IMPRESSÃO: tons claros (cinza #78849a, linhas #ddd)
+// ficavam apagados no papel, sobretudo em impressora a laser e em P&B.
+// Texto em preto, apoio em cinza-escuro e linhas/fundos visíveis.
+const CORES = {
+    texto: '#000000',     // conteúdo principal
+    suave: '#333d4d',     // rótulos, período, observações e rodapé
+    destaque: '#7a4528',  // terracota escurecida (títulos e números)
+    linha: '#8a94a6',     // divisórias da tabela
+    fundo: '#e4e8ee'      // cabeçalho da tabela e cartões de resumo
+};
 
 class DocumentoPdf {
     constructor({ titulo = 'Relatório', autor = '', paisagem = false, rodape = '' } = {}) {
@@ -181,7 +190,7 @@ class DocumentoPdf {
 
     // Tabela com cabeçalho repetido a cada página.
     // colunas: [{ titulo, peso }] (peso = proporção da largura); linhas: [[texto, ...]]
-    tabela(colunas, linhas, { tamanho = 8.5, vazio = 'Nenhum registro.' } = {}) {
+    tabela(colunas, linhas, { tamanho = 9, vazio = 'Nenhum registro.' } = {}) {
         const pesoTotal = colunas.reduce((soma, c) => soma + (c.peso || 1), 0);
         const larguras = colunas.map(c => this.larguraUtil * (c.peso || 1) / pesoTotal);
         const altLinha = tamanho * 1.3;
@@ -196,6 +205,8 @@ class DocumentoPdf {
                 x += larguras[i];
             });
             this.y -= altura;
+            // Linha firme separando o cabeçalho do conteúdo (visível mesmo se o fundo não sair na impressão)
+            this.linhaHorizontal(this.y, { corLinha: CORES.texto, espessura: 0.8 });
         };
 
         desenharCabecalho();
@@ -213,7 +224,7 @@ class DocumentoPdf {
                 x += larguras[i];
             });
             this.y -= altura;
-            this.linhaHorizontal(this.y, { espessura: 0.4 });
+            this.linhaHorizontal(this.y, { espessura: 0.6 });
         }
         this.y -= 6;
     }
@@ -265,4 +276,4 @@ class DocumentoPdf {
     }
 }
 
-module.exports = { DocumentoPdf, quebrarTexto, larguraTexto };
+module.exports = { DocumentoPdf, quebrarTexto, larguraTexto, CORES };

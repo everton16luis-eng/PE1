@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { DocumentoPdf } = require('./pdf');
+const { DocumentoPdf, CORES } = require('./pdf');
 
 const PASTA_ARQUIVOS = path.resolve(process.env.PASTA_ARQUIVOS || path.join(__dirname, '../../../arquivos'));
 const SUBPASTA = 'relatorios';
@@ -102,8 +102,8 @@ function montarTabela(relatorio, formato, meta) {
     const pdf = new DocumentoPdf({ titulo, autor: meta.usuario, paisagem: cabecalho.length > 5, rodape: `${meta.nomeIgreja} — ${titulo}` });
     if (opcoes.cabecalho) pdf.cabecalho(meta.nomeIgreja);
     pdf.titulo(titulo);
-    if (opcoes.periodo) pdf.paragrafo(periodoTexto(meta.inicio, meta.fim), { tamanho: 9, corTexto: '#78849a' });
-    if (opcoes.dataGeracao) pdf.paragrafo(`Gerado em ${dataHoraBr(meta.geradoEm)} por ${meta.usuario}`, { tamanho: 9, corTexto: '#78849a' });
+    if (opcoes.periodo) pdf.paragrafo(periodoTexto(meta.inicio, meta.fim), { tamanho: 9, corTexto: CORES.suave });
+    if (opcoes.dataGeracao) pdf.paragrafo(`Gerado em ${dataHoraBr(meta.geradoEm)} por ${meta.usuario}`, { tamanho: 9, corTexto: CORES.suave });
     if (opcoes.resumo) pdf.numeros([[linhas.length, 'Registros'], [cabecalho.length, 'Colunas']], 4);
     if (opcoes.observacoes) pdf.paragrafo(opcoes.observacoes, { tamanho: 9 });
     pdf.tabela(relatorio.colunas.map(c => ({ titulo: c.titulo })), linhas, { vazio: 'Nenhum registro com esses filtros.' });
@@ -121,11 +121,11 @@ function montarRelatorioEvento({ evento, funcoes, resumo }, meta) {
     const situacaoEvento = evento.realizado ? 'Realizado' : evento.em_andamento ? 'Em andamento' : 'Próximo (ainda não realizado)';
 
     pdf.cabecalho(meta.nomeIgreja);
-    pdf.paragrafo('RELATÓRIO DO EVENTO', { tamanho: 9, negrito: true, corTexto: '#965b39', depois: 0 });
+    pdf.paragrafo('RELATÓRIO DO EVENTO', { tamanho: 9, negrito: true, corTexto: CORES.destaque, depois: 0 });
     pdf.titulo(evento.nome);
     pdf.paragrafo(`${dataComSemana(evento.data_evento)}${evento.hora_inicio ? ` • ${evento.hora_inicio}${evento.hora_fim ? ' às ' + evento.hora_fim : ''}` : ''}`, { tamanho: 11 });
     pdf.paragrafo(`Documento gerado em ${dataHoraBr(meta.geradoEm)} por ${meta.usuario}. Reflete os dados registrados no sistema nesse momento.`,
-        { tamanho: 8.5, corTexto: '#78849a' });
+        { tamanho: 9, corTexto: CORES.suave });
 
     pdf.secao('Informações gerais');
     pdf.campos([
@@ -154,7 +154,7 @@ function montarRelatorioEvento({ evento, funcoes, resumo }, meta) {
         ...(resumo.indefinidos ? [[resumo.indefinidos, 'Situação não reconhecida']] : [])
     ], 4);
     pdf.paragrafo('Vagas = voluntários previstos em cada função. Quem recusou continua listado, mas não ocupa vaga; '
-        + 'vaga não preenchida = vaga sem voluntário confirmado ou aguardando resposta.', { tamanho: 8, corTexto: '#78849a' });
+        + 'vaga não preenchida = vaga sem voluntário confirmado ou aguardando resposta.', { tamanho: 9, corTexto: CORES.suave });
 
     pdf.secao('Situação por função');
     pdf.tabela(
@@ -166,18 +166,18 @@ function montarRelatorioEvento({ evento, funcoes, resumo }, meta) {
     );
 
     pdf.secao('Voluntários por função');
-    if (!funcoes.length) pdf.paragrafo('Nenhuma função (escala) vinculada a este evento.', { tamanho: 9, corTexto: '#78849a' });
+    if (!funcoes.length) pdf.paragrafo('Nenhuma função (escala) vinculada a este evento.', { tamanho: 9, corTexto: CORES.suave });
     for (const f of funcoes) {
         pdf.espaco(60);
         pdf.paragrafo(`${f.funcao || 'Função não informada'} — chegada ${f.horario || '—'} — ${f.vagas} vaga(s)`, { tamanho: 10.5, negrito: true, depois: 1 });
-        if (f.observacoes) pdf.paragrafo(`Observações: ${f.observacoes}`, { tamanho: 8.5, corTexto: '#78849a', depois: 2 });
+        if (f.observacoes) pdf.paragrafo(`Observações: ${f.observacoes}`, { tamanho: 9, corTexto: CORES.suave, depois: 2 });
         pdf.tabela(
             [{ titulo: 'Voluntário', peso: 2.2 }, { titulo: 'Situação', peso: 1.4 }, { titulo: 'Resposta em', peso: 1.1 }, { titulo: 'Observação', peso: 2.3 }],
             f.participantes.map(p => [p.nome, ROTULO_SITUACAO[p.situacao], p.situacao !== 'pendente' ? dataHoraBr(p.respondido_em) || '—' : '—',
                 p.recusado && p.motivo_recusa ? `Motivo da recusa: ${p.motivo_recusa}` : '']),
             { vazio: 'Nenhum voluntário atribuído.' }
         );
-        if (f.vagas_nao_preenchidas) pdf.paragrafo(`${f.vagas_nao_preenchidas} vaga(s) não preenchida(s) nesta função.`, { tamanho: 8.5, negrito: true, corTexto: '#b03b3b' });
+        if (f.vagas_nao_preenchidas) pdf.paragrafo(`${f.vagas_nao_preenchidas} vaga(s) não preenchida(s) nesta função.`, { tamanho: 9, negrito: true, corTexto: '#9b1c1c' });
     }
 
     // Separação pelas respostas (uma linha por atribuição: voluntário + função)
