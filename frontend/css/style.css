@@ -761,7 +761,8 @@ tr:last-child td {
 }
 
 .acoes .btn-editar,
-.acoes .btn-remover {
+.acoes .btn-remover,
+.acoes .btn-detalhes {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -773,8 +774,16 @@ tr:last-child td {
 }
 
 .acoes .btn-editar .material-icons,
-.acoes .btn-remover .material-icons {
+.acoes .btn-remover .material-icons,
+.acoes .btn-detalhes .material-icons {
     font-size: 16px;
+}
+
+/* "Ver detalhes" (Eventos realizados): ação de consulta, em tom claro */
+.acoes .btn-detalhes {
+    color: #34527d;
+    background: #eef3fb;
+    border: 1px solid #d6e2f5;
 }
 
 /* =========================================================
@@ -1612,9 +1621,15 @@ dialog button {
     }
 
     .tabela-cartoes .acoes .btn-editar,
-    .tabela-cartoes .acoes .btn-remover {
+    .tabela-cartoes .acoes .btn-remover,
+    .tabela-cartoes .acoes .btn-detalhes {
         min-height: 44px;
         font-size: 14px;
+    }
+
+    /* Ação única no cartão ocupa a largura toda */
+    .tabela-cartoes .acoes > :only-child {
+        grid-column: 1 / -1;
     }
 
     /* Lista vazia / "pesquise para exibir": mensagem centralizada, sem cartão */

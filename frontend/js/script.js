@@ -1274,7 +1274,7 @@ async function gerenciaEvento() {
                         : 'Sem escalas'}</td>
                     <td data-label="Ações">
                         <div class="acoes">
-                            <button type="button" data-detalhes-evento="${evento.id_evento}" aria-label="Ver detalhes de ${escapar(evento.nome)}">
+                            <button type="button" class="btn-detalhes" data-detalhes-evento="${evento.id_evento}" aria-label="Ver detalhes de ${escapar(evento.nome)}">
                                 <span class="material-icons">visibility</span>Ver detalhes</button>
                         </div>
                     </td>
