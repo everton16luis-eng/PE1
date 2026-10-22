@@ -2853,3 +2853,304 @@ small.motivo {
         white-space: nowrap;
     }
 }
+
+/* =========================================================
+   EVENTOS REALIZADOS, GERENCIAR ESCALA E RELATÓRIOS SALVOS
+========================================================= */
+
+.panel[hidden],
+.abas-escalas + .panel[hidden] {
+    display: none !important;
+}
+
+.abas-escalas .contador-aba {
+    color: #a65338;
+    font-weight: bold;
+}
+
+.modal.modal-largo {
+    max-width: 900px;
+}
+
+/* Detalhes do evento (somente leitura) */
+.detalhes-evento .dados-evento {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px 16px;
+    margin: 0 0 16px;
+}
+
+.detalhes-evento .dados-evento dt {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.detalhes-evento .dados-evento dd {
+    margin: 2px 0 0;
+    font-weight: 600;
+}
+
+.resumo-evento {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.resumo-evento > div {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f7f8fb;
+}
+
+.resumo-evento strong {
+    display: block;
+    font-size: 20px;
+    color: #965b39;
+}
+
+.resumo-evento .ok strong { color: #22955e; }
+.resumo-evento .pending strong { color: #c98a24; }
+.resumo-evento .inactive strong { color: #c34e4e; }
+
+.resumo-evento small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.funcao-evento {
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+}
+
+.funcao-evento header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.funcao-evento header small {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.voluntarios-evento {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.voluntarios-evento li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 6px 0;
+    font-size: 14px;
+}
+
+.voluntarios-evento li > span:first-child {
+    flex: 1 1 180px;
+}
+
+.voluntarios-evento li small {
+    flex-basis: 100%;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.voluntarios-evento .vaga-aberta {
+    color: #c34e4e;
+    font-weight: 600;
+}
+
+.titulo-previa {
+    margin: 0 0 12px;
+}
+
+/* Gerenciar escala: substituição do voluntário */
+.modal .list-row {
+    flex-wrap: wrap;
+}
+
+.list-row.linha-destacada {
+    border-radius: 10px;
+    background: #fff7e8;
+}
+
+.list-row .substituicao {
+    flex-basis: 100%;
+    display: grid;
+    gap: 6px;
+    padding: 8px 0 4px;
+}
+
+.list-row .substituicao[hidden] {
+    display: none;
+}
+
+.list-row .substituicao small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.list-row .substituicao select {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+/* Participantes: linha recém-atualizada */
+tr.linha-atualizada td {
+    background: #eefaf3;
+    transition: background .6s;
+}
+
+/* Visualização do relatório salvo */
+.modal-documento .visualizador-relatorio {
+    width: 100%;
+    height: 65vh;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.botao-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+@media (max-width: 700px) {
+    .modal.modal-largo {
+        padding: 18px;
+    }
+
+    .modal-documento .visualizador-relatorio {
+        height: 55vh;
+    }
+
+    .resumo-evento {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Confirmações pendentes agrupadas por evento (Escalas) */
+.pendentes-funcao {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pendentes-funcao li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 10px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: #fff8ee;
+}
+
+.pendente-nome {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: #a35d0d;
+    font-size: 13px;
+}
+
+.pendente-nome strong {
+    color: var(--text);
+}
+
+.pendente-nome small {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.pendente-nome .material-icons {
+    font-size: 18px;
+}
+
+.pendentes-funcao .action-btn.com-texto {
+    margin: 0;
+}
+
+@media (max-width: 700px) {
+    .pendentes-funcao .action-btn.com-texto {
+        flex: 1 1 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+}
+
+.pendentes-funcao .action-btn.com-texto {
+    border-color: #e3c6b4;
+    color: #a65338;
+    font-weight: 600;
+}
+
+.pendentes-funcao .action-btn.com-texto:hover {
+    background: #fbeee6;
+}
+
+/* Abas de Escalas: no celular dividem a largura, sem rolagem lateral */
+@media (max-width: 700px) {
+    .abas-escalas .aba-botao {
+        flex: 1 1 0;
+        padding: 12px 8px;
+        white-space: normal;
+        text-align: center;
+    }
+}
+
+/* Gerenciar escala: linha de substituição com botões do mesmo tamanho */
+.list-row .substituicao label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.list-row .substituicao .acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.list-row .substituicao .acoes select {
+    flex: 1 1 240px;
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.list-row .substituicao .acoes button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 16px;
+    font-size: 13px;
+}
+
+@media (max-width: 700px) {
+    .list-row .substituicao .acoes select {
+        flex-basis: 100%;
+    }
+
+    .list-row .substituicao .acoes button {
+        flex: 1 1 0;
+        min-height: 44px;
+    }
+}

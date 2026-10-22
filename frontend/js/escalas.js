@@ -10,12 +10,36 @@ function tituloDoDia(data) {
     return `${dia} de ${NOMES_MESES[mes - 1]} de ${ano}`;
 }
 
-async function gerenciaEscalas(dataInicial = dataDeHoje()) {
-    registrarRota('escalas', [dataInicial]);
+// visao: 'calendario' (padrão) ou 'pendentes' (todas as atribuições aguardando confirmação,
+// aberta pelo botão "Confirmações pendentes" do Dashboard)
+async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario') {
+    registrarRota('escalas', [dataInicial, visao]);
     marcarMenuAtivo('gerenciaEscalas');
     const main = document.getElementById('main');
     let [ano, mes] = dataInicial.split('-').map(Number); // mes de 1 a 12
     let diaSelecionado = dataInicial;
+
+    const abas = document.createElement('div');
+    abas.className = 'abas-menu abas-escalas';
+    abas.setAttribute('role', 'tablist');
+    abas.setAttribute('aria-label', 'Escalas');
+    abas.innerHTML = `
+        <button type="button" class="aba-botao" role="tab" data-visao="calendario">Calendário</button>
+        <button type="button" class="aba-botao" role="tab" data-visao="pendentes">Confirmações pendentes <span class="contador-aba"></span></button>
+    `;
+
+    const pendentesPanel = document.createElement('section');
+    pendentesPanel.className = 'panel';
+    pendentesPanel.innerHTML = `
+        <div class="panel-header">
+            <div><h2>Confirmações pendentes</h2><p class="contador">Voluntários escalados que ainda não confirmaram nem recusaram (de hoje em diante).</p></div>
+        </div>
+        <div class="toolbar">
+            <input class="search" id="buscaPendentes" type="search" placeholder="Buscar por evento, função ou voluntário..." aria-label="Buscar confirmações pendentes">
+        </div>
+        <p class="mensagem-lista" id="mensagemPendentes" role="status"></p>
+        <div class="eventos-semana pendentes-por-evento" id="listaPendentes"><p class="vazio">Carregando...</p></div>
+    `;
 
     const calendarioPanel = document.createElement('section');
     calendarioPanel.className = 'panel';
@@ -57,10 +81,143 @@ async function gerenciaEscalas(dataInicial = dataDeHoje()) {
         </div>
     `;
 
-    main.replaceChildren(headerInterno('Escalas', 'Organize as funções e voluntários por data'), calendarioPanel, diaPanel);
+    main.replaceChildren(headerInterno('Escalas', 'Organize as funções e voluntários por data'), abas, calendarioPanel, diaPanel, pendentesPanel);
 
     const $ = id => main.querySelector('#' + id);
-    let escalasCarregadas = [];
+    let pendentes = [];
+
+    // ---------- Confirmações pendentes
+    async function carregarPendentes(mensagem = '') {
+        try {
+            pendentes = await enviarDados('escalas/pendentes', 'GET');
+            $('mensagemPendentes').textContent = mensagem;
+            $('mensagemPendentes').classList.remove('erro');
+        } catch (erro) {
+            pendentes = [];
+            $('mensagemPendentes').textContent = erro.message;
+            $('mensagemPendentes').classList.add('erro');
+        }
+        abas.querySelector('.contador-aba').textContent = pendentes.length ? `(${pendentes.length})` : '';
+        desenharPendentes();
+    }
+
+    // Pendências agrupadas por evento (como "Escalas da Semana" no Dashboard):
+    // um cartão por evento, do mais próximo ao mais distante, com as funções e
+    // quem ainda não respondeu. Os eventos abertos continuam abertos ao redesenhar.
+    const eventosAbertos = new Set();
+    const chaveDoEvento = p => p.id_evento ? `evento-${p.id_evento}` : `sem-evento-${p.data_escala}`;
+
+    function agruparPorEvento(lista) {
+        const eventos = new Map();
+        for (const p of lista) {
+            const chave = chaveDoEvento(p);
+            if (!eventos.has(chave)) {
+                eventos.set(chave, { chave, nome: p.evento || 'Escala sem evento', data: p.data_escala, hora_inicio: p.hora_inicio,
+                                     hora_fim: p.hora_fim, tipo_evento: p.tipo_evento, funcoes: new Map(), total: 0 });
+            }
+            const evento = eventos.get(chave);
+            if (!evento.funcoes.has(p.id_escala)) {
+                evento.funcoes.set(p.id_escala, { id_escala: p.id_escala, funcao: p.funcao || 'Função', horario: p.horario, pessoas: [] });
+            }
+            evento.funcoes.get(p.id_escala).pessoas.push(p);
+            evento.total++;
+        }
+        return [...eventos.values()];
+    }
+
+    function desenharPendentes() {
+        const termo = normalizarTexto($('buscaPendentes').value);
+        const visiveis = pendentes.filter(p => !termo
+            || normalizarTexto(`${p.voluntario} ${p.evento} ${p.funcao} ${formatarDataSimples(p.data_escala)}`).includes(termo));
+        const eventos = agruparPorEvento(visiveis);
+
+        $('listaPendentes').innerHTML = eventos.map(ev => {
+            const tipo = TIPOS_DE_EVENTO[ev.tipo_evento] ? ev.tipo_evento : 'evento';
+            const horario = ev.hora_inicio ? `${formatarHora(ev.hora_inicio)}${ev.hora_fim ? '–' + formatarHora(ev.hora_fim) : ''}` : '';
+            const aberto = Boolean(termo) || eventosAbertos.has(ev.chave);
+            const id = `pendentes-${ev.chave}`;
+            return `
+                <div class="evento-semana tipo-${tipo} ${aberto ? 'aberto' : ''}" data-chave="${ev.chave}">
+                    <button type="button" class="evento-cabecalho" aria-expanded="${aberto}" aria-controls="${id}">
+                        <span class="evento-dia">${escapar(dataComSemana(ev.data).replace(',', '').replace(/\/\d{4}$/, ''))}</span>
+                        <span class="evento-info">
+                            <strong>${escapar(ev.nome)}</strong>
+                            <small>${horario ? horario + ' • ' : ''}${TIPOS_DE_EVENTO[tipo]} • ${ev.funcoes.size} função(ões) com pendência</small>
+                        </span>
+                        <span class="evento-resumo">
+                            <span class="badge pending">${ev.total} aguardando confirmação</span>
+                            ${diasAte(ev.data) === 'Hoje' || diasAte(ev.data) === 'Amanhã' ? `<span class="badge inactive">${diasAte(ev.data)}</span>` : ''}
+                        </span>
+                        <span class="material-icons evento-seta" aria-hidden="true">expand_more</span>
+                    </button>
+                    <div class="evento-detalhes" id="${id}" ${aberto ? '' : 'hidden'}>
+                        ${[...ev.funcoes.values()].map(f => `
+                            <div class="funcao-semana">
+                                <div class="funcao-titulo">
+                                    <strong>${escapar(f.funcao)}</strong>
+                                    <small>Chegada ${escapar(f.horario || '—')} • ${f.pessoas.length} aguardando</small>
+                                </div>
+                                <ul class="pendentes-funcao">
+                                    ${f.pessoas.map(p => `
+                                        <li>
+                                            <span class="pendente-nome">
+                                                <span class="material-icons" aria-hidden="true">schedule</span>
+                                                <span><strong>${escapar(p.voluntario)}</strong>${p.telefone ? `<small>${escapar(p.telefone)}</small>` : ''}</span>
+                                            </span>
+                                            <button type="button" class="action-btn com-texto" data-gerenciar="${p.id_escala}" data-voluntario="${p.id_voluntario}">
+                                                <span class="material-icons">manage_accounts</span>Gerenciar escala</button>
+                                        </li>`).join('')}
+                                </ul>
+                            </div>`).join('')}
+                    </div>
+                </div>`;
+        }).join('')
+            || `<p class="vazio">${pendentes.length ? 'Nenhuma pendência encontrada com essa pesquisa.' : 'Nenhuma confirmação pendente. Todos os voluntários escalados já responderam.'}</p>`;
+
+        const totalEventos = agruparPorEvento(pendentes).length;
+        pendentesPanel.querySelector('.contador').textContent = pendentes.length
+            ? `${pendentes.length} voluntário(s) aguardando confirmação em ${totalEventos} evento(s) (de hoje em diante)${termo ? ` • ${visiveis.length} na pesquisa` : ''}. Toque em um evento para ver quem falta responder.`
+            : 'Voluntários escalados que ainda não confirmaram nem recusaram (de hoje em diante).';
+    }
+
+    function mostrarVisao(nova) {
+        visao = nova === 'pendentes' ? 'pendentes' : 'calendario';
+        abas.querySelectorAll('[data-visao]').forEach(botao => {
+            const ativa = botao.dataset.visao === visao;
+            botao.classList.toggle('ativa', ativa);
+            botao.setAttribute('aria-selected', String(ativa));
+        });
+        pendentesPanel.hidden = visao !== 'pendentes';
+        calendarioPanel.hidden = diaPanel.hidden = visao === 'pendentes';
+        if (history.state?.rota === 'escalas') history.replaceState({ ...history.state, args: [diaSelecionado, visao] }, '', location.hash);
+    }
+
+    abas.addEventListener('click', event => {
+        const botao = event.target.closest('[data-visao]');
+        if (!botao) return;
+        mostrarVisao(botao.dataset.visao);
+        if (visao === 'pendentes') carregarPendentes();
+    });
+    $('buscaPendentes').addEventListener('input', desenharPendentes);
+    $('listaPendentes').addEventListener('click', event => {
+        // Expandir/recolher o evento
+        const cabecalho = event.target.closest('.evento-cabecalho');
+        if (cabecalho) {
+            const cartao = cabecalho.closest('.evento-semana');
+            const aberto = cabecalho.getAttribute('aria-expanded') === 'true';
+            cabecalho.setAttribute('aria-expanded', String(!aberto));
+            cartao.classList.toggle('aberto', !aberto);
+            document.getElementById(cabecalho.getAttribute('aria-controls')).hidden = aberto;
+            eventosAbertos[aberto ? 'delete' : 'add'](cartao.dataset.chave);
+            return;
+        }
+        const botao = event.target.closest('[data-gerenciar]');
+        if (!botao) return;
+        gerenciarEscala(Number(botao.dataset.gerenciar), {
+            destacar: Number(botao.dataset.voluntario),
+            aoAlterar: () => carregarPendentes('Escala atualizada.')
+        });
+    });
 
     async function desenharCalendario() {
         $('mesAtual').textContent = `${NOMES_MESES[mes - 1]} ${ano}`;
@@ -98,12 +255,11 @@ async function gerenciaEscalas(dataInicial = dataDeHoje()) {
     async function carregarDia(data) {
         diaSelecionado = data;
         // Guarda o dia escolhido para o Voltar/recarregar reabrir no mesmo dia
-        if (history.state?.rota === 'escalas') history.replaceState({ rota: 'escalas', args: [data] }, '', location.hash);
+        if (history.state?.rota === 'escalas') history.replaceState({ ...history.state, rota: 'escalas', args: [data, visao] }, '', location.hash);
         main.querySelectorAll('.calendar .dia').forEach(c => c.classList.toggle('selecionado', c.dataset.data === data));
         $('tituloDia').textContent = tituloDoDia(data);
 
         const dados = await buscarDados(`escalas/dia?data=${data}`, { eventos: [], escalas: [] });
-        escalasCarregadas = dados.escalas;
         $('eventosDia').textContent = dados.eventos.length
             ? dados.eventos.map(e => `${e.nome} (${formatarHora(e.hora_inicio)}–${formatarHora(e.hora_fim)})`).join(' • ')
             : 'Nenhum evento neste dia';
@@ -130,53 +286,10 @@ async function gerenciaEscalas(dataInicial = dataDeHoje()) {
         }).join('') || '<tr><td colspan="5" class="vazio">Nenhuma escala neste dia.</td></tr>';
     }
 
+    // Detalhes / gerenciamento: ao fechar, o calendário e o dia mostram a situação nova
     function verDetalhes(idEscala) {
-        const escala = escalasCarregadas.find(e => e.id_escala === idEscala);
-        if (!escala) return;
-
-        const { modal, fechar } = abrirModal(
-            `${escala.funcao} — ${escala.evento || ''}`,
-            `${tituloDoDia(diaSelecionado)} • chegada às ${formatarHora(escala.horario)} • ${escala.participantes.length} de ${escala.qtd_voluntarios} voluntário(s)`,
-            `<div class="list">${escala.participantes.map(p => `
-                <div class="list-row">
-                    <div class="mini-avatar">${escapar(p.nome.charAt(0))}</div>
-                    <div class="info">
-                        <strong>${temPermissao('voluntarios') ? `<a href="#" class="link-ficha" data-ficha="${p.id_voluntario}">${escapar(p.nome)}</a>` : escapar(p.nome)}</strong>
-                        <small>${p.confirmado ? 'Presença confirmada' : p.recusado ? `Recusou: ${escapar(p.motivo_recusa || 'sem motivo')}` : 'Aguardando confirmação'}</small>
-                        ${p.ausente ? '<span class="badge pending">Informou ausência nesta data</span>' : ''}
-                    </div>
-                    <label class="switch" title="Confirmado">
-                        <input type="checkbox" data-voluntario="${p.id_voluntario}" ${p.confirmado ? 'checked' : ''} aria-label="Confirmar ${escapar(p.nome)}">
-                        <span class="slider"></span>
-                    </label>
-                </div>`).join('') || '<p class="vazio">Ninguém escalado.</p>'}</div>
-             ${escala.observacoes ? `<p class="subtitulo" style="margin-top:14px;">${escapar(escala.observacoes)}</p>` : ''}
-             <div class="form-actions"><button type="button" class="primary" data-fechar>Concluir</button></div>`
-        );
-
-        // Nome do voluntário abre a ficha dele
-        modal.addEventListener('click', event => {
-            const link = event.target.closest('[data-ficha]');
-            if (!link) return;
-            event.preventDefault();
-            fechar();
-            fichaVoluntario(Number(link.dataset.ficha));
-        });
-
-        modal.addEventListener('change', async event => {
-            const caixa = event.target.closest('[data-voluntario]');
-            if (!caixa) return;
-            try {
-                await enviarDados(`escalas/${idEscala}/participantes/${caixa.dataset.voluntario}`, 'PATCH', { confirmado: caixa.checked });
-                caixa.closest('.list-row').querySelector('small').textContent = caixa.checked ? 'Presença confirmada' : 'Aguardando confirmação';
-            } catch (erro) {
-                caixa.checked = !caixa.checked;
-                alert(erro.message);
-            }
-        });
-        modal.querySelector('[data-fechar]').addEventListener('click', async () => {
-            fechar();
-            await Promise.all([desenharCalendario(), carregarDia(diaSelecionado)]);
+        gerenciarEscala(idEscala, {
+            aoFechar: () => Promise.all([desenharCalendario(), carregarDia(diaSelecionado)])
         });
     }
 
@@ -219,8 +332,143 @@ async function gerenciaEscalas(dataInicial = dataDeHoje()) {
     });
     $('btnNovaEscala').addEventListener('click', () => novaEscala(diaSelecionado));
 
-    await desenharCalendario();
-    await carregarDia(diaSelecionado);
+    mostrarVisao(visao);
+    await Promise.all([carregarPendentes(), desenharCalendario().then(() => carregarDia(diaSelecionado))]);
+}
+
+// "Gerenciar escala": voluntários de uma escala com a resposta de cada um, confirmação
+// manual e substituição de quem foi escalado (por outro voluntário ativo e apto na
+// mesma função). Os dados vêm sempre do backend (GET escalas/:id).
+// destacar = id do voluntário que motivou a abertura (ex.: pendência do Dashboard)
+// aoAlterar = chamado depois de cada confirmação/substituição; aoFechar = ao concluir.
+async function gerenciarEscala(idEscala, { destacar = null, aoAlterar = null, aoFechar = null } = {}) {
+    const { modal, fechar } = abrirModal('Gerenciar escala', 'Carregando...', '<p class="vazio">Carregando...</p>');
+    modal.classList.add('modal-largo');
+    const corpo = modal.querySelector('.modal-corpo');
+    let escala;
+
+    function desenhar() {
+        const editavel = !escala.realizado;
+        const ocupadas = escala.participantes.length - escala.recusados;
+        modal.querySelector('.modal-header h2').textContent = `${escala.funcao || 'Função'} — ${escala.evento || 'Escala sem evento'}`;
+        modal.querySelector('.modal-header p').textContent =
+            `${tituloDoDia(escala.data_escala)} • chegada às ${formatarHora(escala.horario)} • ${ocupadas} de ${escala.qtd_voluntarios} vaga(s) ocupada(s)`;
+        corpo.innerHTML = `
+            ${escala.realizado ? '<p class="subtitulo">Este evento já foi realizado: não é possível substituir voluntários (a confirmação de presença continua disponível).</p>' : ''}
+            <div class="list">${escala.participantes.map(p => `
+                <div class="list-row ${p.id_voluntario === destacar ? 'linha-destacada' : ''}" data-linha="${p.id_voluntario}">
+                    <div class="mini-avatar">${escapar(p.nome.charAt(0))}</div>
+                    <div class="info">
+                        <strong>${temPermissao('voluntarios') ? `<a href="#" class="link-ficha" data-ficha="${p.id_voluntario}">${escapar(p.nome)}</a>` : escapar(p.nome)}</strong>
+                        <small>${p.confirmado ? 'Presença confirmada' : p.recusado ? `Recusou: ${escapar(p.motivo_recusa || 'sem motivo')}` : 'Aguardando confirmação'}</small>
+                        ${p.ausente ? '<span class="badge pending">Informou ausência nesta data</span>' : ''}
+                    </div>
+                    ${editavel ? `<button type="button" class="action-btn com-texto" data-substituir="${p.id_voluntario}">
+                        <span class="material-icons">swap_horiz</span>Substituir</button>` : ''}
+                    <label class="switch" title="Confirmado">
+                        <input type="checkbox" data-voluntario="${p.id_voluntario}" ${p.confirmado ? 'checked' : ''} aria-label="Confirmar ${escapar(p.nome)}">
+                        <span class="slider"></span>
+                    </label>
+                    <div class="substituicao" data-caixa-substituir="${p.id_voluntario}" hidden></div>
+                </div>`).join('') || '<p class="vazio">Ninguém escalado.</p>'}</div>
+            ${escala.observacoes ? `<p class="subtitulo" style="margin-top:14px;">${escapar(escala.observacoes)}</p>` : ''}
+            <p class="mensagem-lista" data-mensagem role="status"></p>
+            <div class="form-actions"><button type="button" class="primary" data-fechar>Concluir</button></div>`;
+    }
+
+    const avisar = (texto, erro = false) => {
+        const campo = corpo.querySelector('[data-mensagem]');
+        if (!campo) return;
+        campo.textContent = texto;
+        campo.classList.toggle('erro', erro);
+    };
+
+    try {
+        escala = await enviarDados(`escalas/${idEscala}`, 'GET');
+        desenhar();
+    } catch (erro) {
+        corpo.innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
+        return;
+    }
+
+    // Abre a escolha do substituto: voluntários da mesma função, menos quem já está na escala
+    async function abrirSubstituicao(idAtual) {
+        const caixa = corpo.querySelector(`[data-caixa-substituir="${idAtual}"]`);
+        if (!caixa.hidden) { caixa.hidden = true; return; }
+        corpo.querySelectorAll('[data-caixa-substituir]').forEach(c => { c.hidden = true; });
+        caixa.hidden = false;
+        caixa.innerHTML = '<small>Carregando voluntários da função...</small>';
+        const naEscala = new Set(escala.participantes.map(p => p.id_voluntario));
+        const candidatos = escala.id_funcao
+            ? (await buscarDados(`escalas/voluntarios?funcao=${escala.id_funcao}&data=${escala.data_escala}`, [])).filter(v => !naEscala.has(v.id_voluntario))
+            : [];
+        const atual = escala.participantes.find(p => p.id_voluntario === idAtual);
+        caixa.innerHTML = candidatos.length ? `
+            <label for="substituto-${idAtual}">Quem assume a vaga de ${escapar(atual?.nome || '')}?</label>
+            <div class="acoes">
+                <select id="substituto-${idAtual}" class="seletor">
+                    <option value="">Selecione um voluntário</option>
+                    ${candidatos.map(v => `<option value="${v.id_voluntario}">${escapar(v.nome)}${v.ausente ? ' — ausente nesta data' : v.disponivel ? '' : ' — indisponível neste dia'}</option>`).join('')}
+                </select>
+                <button type="button" class="primary" data-confirmar-substituicao="${idAtual}">Confirmar troca</button>
+                <button type="button" class="btn-cancel" data-cancelar-substituicao>Cancelar</button>
+            </div>
+            <small>A confirmação volta para "aguardando resposta" do novo voluntário.</small>`
+            : '<small>Nenhum outro voluntário ativo e apto nesta função para assumir a vaga.</small>';
+    }
+
+    async function confirmarSubstituicao(idAtual, botao) {
+        const select = corpo.querySelector(`#substituto-${idAtual}`);
+        if (!select.value) return avisar('Escolha o voluntário que vai assumir a vaga.', true);
+        botao.disabled = true;
+        try {
+            const anterior = escala.participantes.find(p => p.id_voluntario === idAtual)?.nome;
+            const novoId = Number(select.value);
+            escala = await enviarDados(`escalas/${idEscala}/participantes/${idAtual}/substituir`, 'POST', { id_voluntario: novoId });
+            destacar = novoId;
+            desenhar();
+            const novo = escala.participantes.find(p => p.id_voluntario === novoId)?.nome;
+            avisar(`${anterior || 'Voluntário'} foi substituído(a) por ${novo || 'outro voluntário'}.`);
+            if (aoAlterar) await aoAlterar();
+        } catch (erro) {
+            botao.disabled = false;
+            avisar(erro.message, true);
+        }
+    }
+
+    corpo.addEventListener('click', event => {
+        const link = event.target.closest('[data-ficha]');
+        if (link) {
+            event.preventDefault();
+            fechar();
+            fichaVoluntario(Number(link.dataset.ficha));
+            return;
+        }
+        const substituir = event.target.closest('[data-substituir]');
+        if (substituir) return abrirSubstituicao(Number(substituir.dataset.substituir));
+        const confirmar = event.target.closest('[data-confirmar-substituicao]');
+        if (confirmar) return confirmarSubstituicao(Number(confirmar.dataset.confirmarSubstituicao), confirmar);
+        const cancelar = event.target.closest('[data-cancelar-substituicao]');
+        if (cancelar) cancelar.closest('[data-caixa-substituir]').hidden = true;
+        if (event.target.closest('[data-fechar]')) {
+            fechar();
+            if (aoFechar) aoFechar();
+        }
+    });
+
+    corpo.addEventListener('change', async event => {
+        const caixa = event.target.closest('[data-voluntario]');
+        if (!caixa) return;
+        try {
+            await enviarDados(`escalas/${idEscala}/participantes/${caixa.dataset.voluntario}`, 'PATCH', { confirmado: caixa.checked });
+            escala = await enviarDados(`escalas/${idEscala}`, 'GET');
+            caixa.closest('.list-row').querySelector('small').textContent = caixa.checked ? 'Presença confirmada' : 'Aguardando confirmação';
+            if (aoAlterar) await aoAlterar();
+        } catch (erro) {
+            caixa.checked = !caixa.checked;
+            avisar(erro.message, true);
+        }
+    });
 }
 
 async function novaEscala(dataSugerida = dataDeHoje()) {

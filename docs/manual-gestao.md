@@ -11,7 +11,7 @@ Para secretaria, líderes de departamento e administradores. O que aparece no se
 3. Marque **Lembrar de mim** só no seu próprio aparelho. Sem essa opção, a sessão termina ao fechar a aba.
 4. Para sair, clique em **Sair**, embaixo do seu nome, no canto superior direito.
 
-**Ainda não tem acesso?** Use a aba **Registro**. O cadastro fica pendente até um administrador liberá-lo em **Usuários**.
+**Ainda não tem acesso?** Use a aba **Registro**. A conta já pode entrar na hora, mas só vê a **Minha área** (próximos eventos). Um administrador dá acesso às áreas de gestão em **Usuários**.
 
 **Esqueceu a senha?** Peça a um administrador que defina uma nova em Usuários.
 
@@ -27,7 +27,7 @@ Para secretaria, líderes de departamento e administradores. O que aparece no se
 
 Mostra os totais (visitantes, membros, voluntários e escalas do mês), as escalas desta semana, quem ainda não confirmou presença, o gráfico de confirmações do mês e os próximos eventos. Na parte de baixo há atalhos para cadastros e relatórios.
 
-- **Confirmações Pendentes → Ver todas:** abre o relatório de escalas filtrado por **pendentes**, de hoje em diante (as mais próximas primeiro). Sem acesso a Relatórios, abre a tela de Escalas.
+- **Confirmações Pendentes → Ver todas:** abre **Escalas** na aba **Confirmações pendentes**: cada voluntário que ainda não respondeu, com evento, data, função e o botão **Gerenciar escala** (confirmar ou **substituir** o voluntário). Sem acesso a Escalas, abre o relatório de escalas pendentes.
 - **Confirmações do Mês → Ver relatórios:** abre o relatório de escalas do mês atual (os mesmos dados do gráfico).
 - **Escalas da semana:** cada evento aparece resumido (nome, dia, horário e tipo, com uma cor por tipo) e com os totais de confirmados, aguardando e recusados. Toque no evento para abrir os detalhes: funções, quantidade prevista, voluntários escalados e a situação de cada um.
 - **"Recusou"** na escala da semana: algum voluntário avisou que não poderá ir. Abra **Escalas** para providenciar um substituto.
@@ -108,7 +108,7 @@ Disponível para quem tem a permissão de Usuários.
 - **Lista:** pessoas com login de gestão (Administrador, Gestor, Secretaria, Financeiro e Visualização), inclusive inativas e pendentes. Voluntários não aparecem aqui só por servirem: função de escala não é acesso ao sistema.
 - **Novo usuário:** escolha **a pessoa do cadastro** que vai receber o acesso (só aparecem as que ainda não têm login; se ela não estiver lá, cadastre primeiro em Participantes), depois e-mail, senha, perfil, status e **permissões por área**.
 - **Editar:** o nome é o do cadastro da pessoa; aqui mudam e-mail, telefone de login, senha (em branco mantém a atual), perfil, status e permissões. Tirar o acesso não apaga a pessoa.
-- **Pendentes:** cadastros feitos pela tela de login. Edite e mude o status para **Ativo** para liberar.
+- **Cadastros pela tela de login:** já entram ativos, como usuário padrão (sem áreas). Para dar acesso de gestão, edite o usuário e marque o perfil e as áreas.
 - **Regras:**
   - só administradores mexem em contas de administrador;
   - ninguém altera as próprias permissões;

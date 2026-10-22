@@ -610,16 +610,18 @@ describe('Minha área, dashboard e listas responsivas', () => {
         await contexto.close();
     });
 
-    test('Dashboard: "Ver todas" e "Ver relatórios" abrem o relatório de escalas filtrado', async () => {
+    test('Dashboard: "Ver todas" abre as confirmações pendentes em Escalas; "Ver relatórios" abre o relatório do mês', async () => {
         const { pagina, contexto, erros } = await abrirLogado(admin, TELAS.desktop);
         await pagina.click('#btnVerPendentes');
-        await pagina.waitForSelector('#gTipo');
-        assert.equal(await pagina.inputValue('#gTipo'), 'escalas');
-        assert.equal(await pagina.inputValue('.filtro-grupo[data-tipo="escalas"] [data-filtro="status"]'), 'pendentes');
-        assert.ok(await pagina.inputValue('#gInicio'));
-        await pagina.waitForSelector('#previewTabela th');
-        const colunas = await pagina.$$eval('#previewTabela th', t => t.map(x => x.textContent));
-        assert.ok(colunas.includes('Voluntário'), 'a prévia precisa mostrar quem está pendente');
+        await pagina.waitForSelector('#listaPendentes');
+        assert.match(await pagina.evaluate(() => location.hash), /^#\/escalas/);
+        assert.equal(await pagina.getAttribute('.abas-escalas [data-visao="pendentes"]', 'aria-selected'), 'true');
+        await pagina.waitForFunction(() => !/Carregando/.test(document.querySelector('#listaPendentes').textContent));
+        // Agrupado por evento: cartões recolhidos que mostram quem falta ao abrir
+        await pagina.click('#listaPendentes .evento-semana .evento-cabecalho');
+        assert.equal(await pagina.getAttribute('#listaPendentes .evento-semana .evento-cabecalho', 'aria-expanded'), 'true');
+        assert.ok(await pagina.isVisible('#listaPendentes .evento-semana [data-gerenciar]'), 'cada pendência precisa do botão Gerenciar escala');
+        assert.ok(await pagina.textContent('#listaPendentes .evento-semana .pendente-nome'), 'a lista precisa mostrar quem está pendente');
 
         await pagina.goBack();
         await pagina.waitForSelector('#btnVerRelatorios');

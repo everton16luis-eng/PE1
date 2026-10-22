@@ -4,9 +4,7 @@ const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha, gerarToken } = require('../config/seguranca');
 const Limite = require('../config/limiteLogin');
-
-const PERMISSOES_ADMIN = { participantes: true, voluntarios: true, escalas: true, criancas: true, relatorios: true, usuarios: true };
-const PERMISSOES_VISUALIZACAO = { participantes: false, voluntarios: false, escalas: true, criancas: false, relatorios: false, usuarios: false };
+const { PERMISSOES_ADMIN, PERMISSOES_PADRAO, ehEquipeDeGestao } = require('../config/acesso');
 
 exports.login = async (req, res) => {
     try {
@@ -31,7 +29,7 @@ exports.login = async (req, res) => {
         }
         Limite.registrarSucesso(req.ip, login);
         if (!usuario.ativo) {
-            return res.status(403).json({ erro: 'Seu acesso ainda não foi liberado por um administrador.' });
+            return res.status(403).json({ erro: 'Seu acesso está bloqueado. Fale com a secretaria da igreja.' });
         }
 
         await Usuarios.registrarAcesso(usuario.id_usuario);
@@ -42,7 +40,10 @@ exports.login = async (req, res) => {
     }
 }
 
-// Cadastro pela tela de login: fica pendente até um administrador liberar.
+// Cadastro pela tela de login: a conta já nasce ATIVA, como usuário padrão
+// (sem nenhuma área de gestão: só a Minha área). Perfil e permissões são
+// definidos aqui, nunca pelo navegador — campos como "perfil" ou "permissoes"
+// no corpo são ignorados. Promover alguém é tarefa do administrador (Usuários).
 // Se ainda não existe nenhum administrador ativo, o primeiro cadastro vira administrador.
 exports.registro = async (req, res) => {
     try {
@@ -69,8 +70,8 @@ exports.registro = async (req, res) => {
                 telefone,
                 senha_hash: gerarHashSenha(senha),
                 perfil: primeiroAcesso ? 'ADMINISTRADOR' : 'VISUALIZACAO',
-                ativo: primeiroAcesso,
-                permissoes: primeiroAcesso ? PERMISSOES_ADMIN : PERMISSOES_VISUALIZACAO,
+                ativo: true,
+                permissoes: primeiroAcesso ? PERMISSOES_ADMIN : PERMISSOES_PADRAO,
                 observacoes: primeiroAcesso ? 'Primeiro administrador do sistema' : 'Cadastro feito pela tela de login',
                 id_membro: pessoa.id_membro
             }, cliente);
@@ -85,7 +86,7 @@ exports.registro = async (req, res) => {
         res.status(201).json({
             mensagem: primeiroAcesso
                 ? 'Administrador criado. Você já pode entrar.'
-                : 'Cadastro enviado. Aguarde um administrador liberar seu acesso.'
+                : 'Cadastro concluído. Você já pode entrar.'
         });
     } catch (error) {
         console.error('Erro ao registrar usuário', error);
@@ -95,9 +96,15 @@ exports.registro = async (req, res) => {
 }
 
 // Dados do login + se a pessoa tem ficha de voluntário (dá direito à Minha área,
-// mesmo para quem também tem um perfil de gestão)
+// mesmo para quem também tem um perfil de gestão) + se é da equipe de gestão
+// (calculado aqui, pela mesma regra que protege a API)
 exports.me = async (req, res) => {
-    const usuario = await Usuarios.buscarPorId(req.usuario.id_usuario);
-    const ficha = await pool.query('SELECT 1 FROM voluntarios WHERE id_membro = $1', [usuario.id_membro]);
-    res.json({ ...usuario, voluntario: ficha.rowCount > 0 });
+    try {
+        const usuario = await Usuarios.buscarPorId(req.usuario.id_usuario);
+        const ficha = await pool.query('SELECT 1 FROM voluntarios WHERE id_membro = $1', [usuario.id_membro]);
+        res.json({ ...usuario, voluntario: ficha.rowCount > 0, gestao: ehEquipeDeGestao(usuario) });
+    } catch (error) {
+        console.error('Erro ao carregar o usuário logado', error);
+        responderErro(res, error);
+    }
 }

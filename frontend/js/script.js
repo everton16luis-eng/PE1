@@ -45,7 +45,7 @@ let substituirProximaRota = false;
 
 // rota -> [função da página, permissão necessária, rota de volta se faltar dado]
 const ROTAS = {
-    'dashboard': [gerenciaDashboard, null],
+    'dashboard': [gerenciaDashboard, 'gestao'],
     'eventos': [gerenciaEvento, 'escalas'],
     'presenca': [gerenciaPresenca, 'criancas'],
     'participantes': [gerenciaParticipantes, 'participantes'],
@@ -64,10 +64,11 @@ const ROTAS = {
     'turmas': [gerenciaTurmas, 'criancas'],
     'relatorios': [gerenciaRelatorios, 'relatorios'],
     'relatorios/gerar': [gerarRelatorio, 'relatorios'],
+    'relatorios/evento': [gerarRelatorioEvento, 'relatorios'],
     'usuarios': [gerenciaUsuarios, 'usuarios'],
     'usuarios/novo': [formularioUsuario, 'usuarios'],
     'usuarios/editar': [formularioUsuario, 'usuarios', 'usuarios'],
-    'configuracoes': [gerenciaConfiguracoes, null]
+    'configuracoes': [gerenciaConfiguracoes, 'gestao']
 };
 
 function rotaDaUrl() {
@@ -195,15 +196,22 @@ function cabecalhos() {
 }
 
 // Administrador vê tudo; os demais só as áreas marcadas no cadastro.
-// "portal" (Minha área): logins de portal e de visualização, e quem tem ficha de
-// voluntário mesmo com perfil de gestão. O que aparece nela vem da classificação no banco.
+// "gestao": equipe de gestão (Dashboard, Configurações) — quem decide é o backend
+// (/auth/me → gestao), pela mesma regra que protege a API; a tela só acompanha.
+// "portal" (Minha área): logins de portal e de visualização, quem não é da gestão
+// (usuário padrão) e quem tem ficha de voluntário mesmo com perfil de gestão.
+// O que aparece nela vem da classificação no banco.
 function temPermissao(area) {
-    if (area === 'portal') return ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.voluntario);
-    if (usuarioAtual?.perfil === 'VOLUNTARIO') return false;
+    if (area === 'portal') {
+        return !usuarioAtual?.gestao || ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.voluntario);
+    }
+    if (!usuarioAtual?.gestao) return false;
+    if (area === 'gestao') return true;
     return usuarioAtual?.perfil === 'ADMINISTRADOR' || Boolean(usuarioAtual?.permissoes?.[area]);
 }
 
-const somenteVoluntario = () => usuarioAtual?.perfil === 'VOLUNTARIO';
+// Voluntário e usuário padrão (sem nenhuma área de gestão) só usam a Minha área
+const somenteVoluntario = () => !usuarioAtual?.gestao;
 
 // ===================
 //       DADOS     ===
@@ -510,7 +518,7 @@ function sideBar() {
     // [id, ícone, nome, função da página, permissão necessária]
     const paginas = [
         ['gerenciaMinhaArea', 'badge', 'Minha área', gerenciaMinhaArea, 'portal'],
-        ['gerenciaDashboard', 'dashboard', 'Dashboard', gerenciaDashboard, null],
+        ['gerenciaDashboard', 'dashboard', 'Dashboard', gerenciaDashboard, 'gestao'],
         ['gerenciaEvento', 'event', 'Eventos', gerenciaEvento, 'escalas'],
         ['gerenciaPresenca', 'fact_check', 'Lista de presença', gerenciaPresenca, 'criancas'],
         ['gerenciaParticipantes', 'groups', 'Participantes', gerenciaParticipantes, 'participantes'],
@@ -520,7 +528,7 @@ function sideBar() {
         ['gerenciaCriancas', 'escalator_warning', 'Crianças', gerenciaCriancas, 'criancas'],
         ['gerenciaRelatorios', 'receipt_long', 'Relatórios', gerenciaRelatorios, 'relatorios'],
         ['gerenciaUsuarios', 'manage_accounts', 'Usuários', gerenciaUsuarios, 'usuarios'],
-        ['gerenciaConfiguracoes', 'settings', 'Configurações', gerenciaConfiguracoes, null]
+        ['gerenciaConfiguracoes', 'settings', 'Configurações', gerenciaConfiguracoes, 'gestao']
     ];
 
     const nav = sideBar.querySelector('nav');
@@ -684,6 +692,77 @@ function eventosDaSemana(eventos) {
     }).join('');
 }
 
+//  Detalhes de um evento (resposta de GET eventos/:id ou relatorios/evento/:id),
+//  somente leitura: dados gravados, resumo, funções com voluntários e respostas.
+//  Os totais e a situação de cada voluntário vêm calculados do backend.
+const SITUACOES_PARTICIPANTE = {
+    confirmado: ['ok', 'Confirmado'],
+    recusado: ['inactive', 'Recusou'],
+    pendente: ['pending', 'Pendente de resposta'],
+    indefinido: ['inactive', 'Situação não reconhecida']
+};
+
+function dataHoraCurta(valor) {
+    if (!valor) return '';
+    const [data, hora] = String(valor).split('T');
+    return `${formatarDataSimples(data)}${hora ? ' ' + hora.slice(0, 5) : ''}`;
+}
+
+function htmlDetalhesEvento({ evento, funcoes, resumo }) {
+    const horario = evento.hora_inicio
+        ? `${evento.hora_inicio}${evento.hora_fim ? ' às ' + evento.hora_fim : ''}`
+        : 'Não informado';
+    const situacaoEvento = evento.realizado ? 'Realizado' : evento.em_andamento ? 'Acontecendo agora' : 'Próximo';
+    const item = (rotulo, valor) => `<div><dt>${rotulo}</dt><dd>${valor}</dd></div>`;
+    const numero = (valor, rotulo, cor = '') => `<div class="${cor}"><strong>${valor}</strong><small>${rotulo}</small></div>`;
+
+    return `
+        <div class="detalhes-evento">
+            <dl class="dados-evento">
+                ${item('Data', escapar(dataComSemana(evento.data_evento)))}
+                ${item('Horário', escapar(horario))}
+                ${item('Tipo', escapar(TIPOS_DE_EVENTO[evento.tipo_evento] || evento.tipo_evento || 'Não informado'))}
+                ${item('Situação', situacaoEvento)}
+                ${evento.criado_em ? item('Registro criado em', escapar(dataHoraCurta(evento.criado_em))) : ''}
+            </dl>
+
+            <div class="resumo-evento">
+                ${numero(resumo.funcoes, 'Funções')}
+                ${numero(resumo.vagas, 'Vagas previstas')}
+                ${numero(resumo.atribuicoes, 'Voluntários atribuídos')}
+                ${numero(resumo.confirmados, 'Confirmados', 'ok')}
+                ${numero(resumo.recusados, 'Recusaram', 'inactive')}
+                ${numero(resumo.pendentes, 'Pendentes de resposta', 'pending')}
+                ${numero(resumo.vagas_nao_preenchidas, 'Vagas não preenchidas', 'inactive')}
+            </div>
+
+            ${funcoes.length ? funcoes.map(f => `
+                <section class="funcao-evento">
+                    <header>
+                        <div>
+                            <strong>${escapar(f.funcao || 'Função não informada')}</strong>
+                            <small>Chegada ${escapar(f.horario || '—')} • ${f.confirmados + f.pendentes + f.indefinidos} de ${f.vagas} vaga(s) ocupada(s)</small>
+                        </div>
+                        <span class="badge ${f.situacao === 'completa' ? 'ok' : 'pending'}">${f.situacao === 'completa' ? 'Completa' : 'Com pendências'}</span>
+                    </header>
+                    ${f.observacoes ? `<p class="subtitulo">${escapar(f.observacoes)}</p>` : ''}
+                    <ul class="voluntarios-evento">
+                        ${f.participantes.map(p => {
+                            const [cor, rotulo] = SITUACOES_PARTICIPANTE[p.situacao];
+                            return `<li>
+                                <span>${escapar(p.nome)}</span>
+                                <span class="badge ${cor}">${rotulo}</span>
+                                ${p.respondido_em && p.situacao !== 'pendente' ? `<small>Resposta em ${escapar(dataHoraCurta(p.respondido_em))}</small>` : ''}
+                                ${p.recusado && p.motivo_recusa ? `<small>Motivo: ${escapar(p.motivo_recusa)}</small>` : ''}
+                            </li>`;
+                        }).join('') || '<li><span>Ninguém atribuído</span></li>'}
+                        ${f.vagas_nao_preenchidas ? `<li class="vaga-aberta"><span>${f.vagas_nao_preenchidas} vaga(s) não preenchida(s)</span></li>` : ''}
+                    </ul>
+                </section>`).join('')
+            : '<p class="vazio">Nenhuma função (escala) vinculada a este evento.</p>'}
+        </div>`;
+}
+
 //  Lista "Confirmações Pendentes"
 function listaConfirmacoes(confirmacoes) {
     if (!confirmacoes.length) {
@@ -803,13 +882,13 @@ async function renderizarEscalas() {
 
     sectionEscalas.querySelector('#btnVerEscalas')?.addEventListener('click', () => gerenciaEscalas());
 
-    // "Ver todas" as pendentes: relatório de escalas filtrado (de hoje em diante),
-    // ou a tela de Escalas para quem não tem acesso aos relatórios
+    // "Ver todas" as pendentes: página Escalas já na visão "Confirmações pendentes"
+    // (cada atribuição com "Gerenciar escala"); sem acesso a Escalas, o relatório filtrado
     sectionEscalas.querySelector('#btnVerPendentes')?.addEventListener('click', () => {
-        if (temPermissao('relatorios')) {
-            gerarRelatorio('escalas', { status: 'pendentes', inicio: dataDeHoje() });
+        if (temPermissao('escalas')) {
+            gerenciaEscalas(dataDeHoje(), 'pendentes');
         } else {
-            gerenciaEscalas();
+            gerarRelatorio('escalas', { status: 'pendentes', inicio: dataDeHoje() });
         }
     });
 
@@ -925,7 +1004,11 @@ async function gerenciaEvento() {
             </button>
             <button type="button" id="tab-gerenciar" class="aba-botao" role="tab"
                 aria-selected="false" aria-controls="aba-gerenciar" data-aba="aba-gerenciar" tabindex="-1">
-                Gerenciar eventos
+                Próximos eventos
+            </button>
+            <button type="button" id="tab-realizados" class="aba-botao" role="tab"
+                aria-selected="false" aria-controls="aba-realizados" data-aba="aba-realizados" tabindex="-1">
+                Eventos realizados
             </button>
         </div>
 
@@ -1064,11 +1147,14 @@ async function gerenciaEvento() {
                 <div class="section-title">
                     <span class="material-icons">event_note</span>
                     <div>
-                        <h3>Gerenciar eventos</h3>
-                        <p>Consulte e gerencie os eventos cadastrados.</p>
+                        <h3>Próximos eventos</h3>
+                        <p>Eventos que ainda não terminaram (incluindo os que estão acontecendo agora), do mais próximo ao mais distante.</p>
                     </div>
                 </div>
 
+                <div class="toolbar">
+                    <input class="search" id="busca-proximos" type="search" placeholder="Buscar evento..." aria-label="Buscar nos próximos eventos">
+                </div>
                 <p class="mensagem-lista" id="mensagem-eventos" role="status"></p>
                 <!-- No celular a tabela vira cartões (classe tabela-cartoes) -->
                 <div class="table-responsive">
@@ -1088,6 +1174,37 @@ async function gerenciaEvento() {
                 </div>
             </section>
         </div>
+
+        <div id="aba-realizados" role="tabpanel" aria-labelledby="tab-realizados" hidden>
+            <section class="panel">
+                <div class="section-title">
+                    <span class="material-icons">history</span>
+                    <div>
+                        <h3>Eventos realizados</h3>
+                        <p>Histórico dos eventos que já terminaram, do mais recente para o mais antigo. Somente consulta.</p>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <input class="search" id="busca-realizados" type="search" placeholder="Buscar evento realizado..." aria-label="Buscar nos eventos realizados">
+                </div>
+                <div class="table-responsive">
+                    <table class="tabela-cartoes">
+                        <thead>
+                            <tr>
+                                <th>Evento</th>
+                                <th>Data</th>
+                                <th>Horário</th>
+                                <th>Tipo</th>
+                                <th>Voluntários</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-realizados"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
     </div>
     `;
     main.prepend(header);
@@ -1100,15 +1217,29 @@ async function gerenciaEvento() {
         listaFuncoes.add(new Option(item.nome, item.nome));
     });
 
-    // ---------- Gerenciar eventos: lista, edição e remoção
+    // ---------- Próximos eventos (lista, edição e remoção) e Eventos realizados (só consulta).
+    // A separação é automática: o backend diz se o evento já terminou (data + horário de término).
     let eventosCarregados = eventosDisponiveis;
     const nomeDoTipo = tipo => (typeof TIPOS_EVENTO !== 'undefined' && TIPOS_EVENTO[tipo]) || tipo || '—';
+    const listaRealizados = document.getElementById('lista-realizados');
+    const buscaProximos = document.getElementById('busca-proximos');
+    const buscaRealizados = document.getElementById('busca-realizados');
+    const chaveDoEvento = ev => `${String(ev.data_evento).slice(0, 10)} ${formatarHora(ev.hora_inicio) || '99:99'}`;
+    const correspondeBusca = (ev, campo) => {
+        const termo = normalizarTexto(campo.value);
+        return !termo || normalizarTexto(`${ev.nome} ${nomeDoTipo(ev.tipo_evento)} ${formatarDataSimples(ev.data_evento)}`).includes(termo);
+    };
 
     function desenharListaEventos() {
-        listaEventos.innerHTML = eventosCarregados.length
-            ? eventosCarregados.map(evento => `
+        desenharRealizados();
+        const proximos = eventosCarregados
+            .filter(ev => !ev.realizado)
+            .sort((a, b) => chaveDoEvento(a).localeCompare(chaveDoEvento(b)) || a.id_evento - b.id_evento);
+        const visiveis = proximos.filter(ev => correspondeBusca(ev, buscaProximos));
+        listaEventos.innerHTML = visiveis.length
+            ? visiveis.map(evento => `
                 <tr>
-                    <td data-label="Evento"><strong>${escapar(evento.nome)}</strong></td>
+                    <td data-label="Evento"><strong>${escapar(evento.nome)}</strong>${evento.em_andamento ? ' <span class="badge ok">Acontecendo agora</span>' : ''}</td>
                     <td data-label="Data">${formatarDataSimples(evento.data_evento)}</td>
                     <td data-label="Início">${formatarHora(evento.hora_inicio) || '—'}</td>
                     <td data-label="Término">${formatarHora(evento.hora_fim) || '—'}</td>
@@ -1123,8 +1254,62 @@ async function gerenciaEvento() {
                     </td>
                 </tr>
             `).join('')
-            : '<tr><td colspan="6" class="vazio">Nenhum evento cadastrado.</td></tr>';
+            : `<tr><td colspan="6" class="vazio">${proximos.length ? 'Nenhum evento encontrado com essa pesquisa.' : 'Nenhum evento programado.'}</td></tr>`;
     }
+
+    function desenharRealizados() {
+        const realizados = eventosCarregados
+            .filter(ev => ev.realizado)
+            .sort((a, b) => chaveDoEvento(b).localeCompare(chaveDoEvento(a)) || b.id_evento - a.id_evento);
+        const visiveis = realizados.filter(ev => correspondeBusca(ev, buscaRealizados));
+        listaRealizados.innerHTML = visiveis.length
+            ? visiveis.map(evento => `
+                <tr>
+                    <td data-label="Evento"><strong>${escapar(evento.nome)}</strong></td>
+                    <td data-label="Data">${formatarDataSimples(evento.data_evento)}</td>
+                    <td data-label="Horário">${formatarHora(evento.hora_inicio) || '—'}${evento.hora_fim ? ' às ' + formatarHora(evento.hora_fim) : ''}</td>
+                    <td data-label="Tipo">${escapar(nomeDoTipo(evento.tipo_evento))}</td>
+                    <td data-label="Voluntários">${evento.total_escalas
+                        ? `${evento.total_escalas} função(ões) • ${evento.total_confirmados}/${evento.total_voluntarios} confirmado(s)`
+                        : 'Sem escalas'}</td>
+                    <td data-label="Ações">
+                        <div class="acoes">
+                            <button type="button" data-detalhes-evento="${evento.id_evento}" aria-label="Ver detalhes de ${escapar(evento.nome)}">
+                                <span class="material-icons">visibility</span>Ver detalhes</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('')
+            : `<tr><td colspan="6" class="vazio">${realizados.length ? 'Nenhum evento encontrado com essa pesquisa.' : 'Nenhum evento realizado ainda.'}</td></tr>`;
+    }
+
+    // Detalhes de um evento realizado: somente leitura (sem editar, remover ou trocar voluntários)
+    async function verEventoRealizado(evento) {
+        const { modal } = abrirModal(evento.nome, 'Evento realizado — somente consulta', '<p class="vazio">Carregando...</p>');
+        modal.classList.add('modal-largo');
+        try {
+            const detalhes = await enviarDados(`eventos/${evento.id_evento}`, 'GET');
+            modal.querySelector('.modal-corpo').innerHTML = htmlDetalhesEvento(detalhes)
+                + (temPermissao('relatorios')
+                    ? `<div class="form-actions"><button type="button" class="primary" data-relatorio-evento>
+                           <span class="material-icons">picture_as_pdf</span>Gerar relatório do evento</button></div>`
+                    : '');
+            modal.querySelector('[data-relatorio-evento]')?.addEventListener('click', () => {
+                document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+                gerarRelatorioEvento(evento.id_evento);
+            });
+        } catch (erro) {
+            modal.querySelector('.modal-corpo').innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
+        }
+    }
+
+    listaRealizados.addEventListener('click', event => {
+        const botao = event.target.closest('[data-detalhes-evento]');
+        const evento = botao && eventosCarregados.find(ev => ev.id_evento === Number(botao.dataset.detalhesEvento));
+        if (evento) verEventoRealizado(evento);
+    });
+    buscaProximos.addEventListener('input', desenharListaEventos);
+    buscaRealizados.addEventListener('input', desenharRealizados);
 
     async function recarregarEventos(mensagem) {
         eventosCarregados = await dadosTodosEventos();
@@ -1399,27 +1584,16 @@ async function gerenciaEvento() {
         }
 
         try {
-            const response = await fetch(`${API_URL}/novoEvento`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    nome: nomeEvento.value.trim(),
-                    data_evento: dataEvento.value,
-                    criado_em: new Date().toISOString(),
-                    hora_inicio: horaInicio.value,
-                    hora_fim: horaFim.value,
-                    tipo_evento: tipoEvento.value
-                })
+            // Com o token do login (a rota exige a permissão "escalas")
+            await enviarDados('novoEvento', 'POST', {
+                nome: nomeEvento.value.trim(),
+                data_evento: dataEvento.value,
+                criado_em: new Date().toISOString(),
+                hora_inicio: horaInicio.value,
+                hora_fim: horaFim.value,
+                tipo_evento: tipoEvento.value
             });
-            const resultado = await response.json();
 
-            if (!response.ok) {
-                throw new Error(resultado.erro || 'Erro ao criar evento');
-            }
-
-            console.log('Evento criado:', resultado);
             alert('Evento criado com sucesso!');
             gerenciaEvento();
         } catch (erro) {

@@ -96,6 +96,51 @@ exports.novaEscala = async (req, res) => {
     }
 }
 
+// Confirmações pendentes (destino do botão do Dashboard): uma linha por atribuição
+exports.getPendentes = async (req, res) => {
+    try {
+        res.json(await Escalas.pendentes());
+    } catch (error) {
+        console.error('Erro ao carregar confirmações pendentes', error);
+        responderErro(res, error);
+    }
+}
+
+// Uma escala com os voluntários ("Gerenciar escala")
+exports.getEscala = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'Escala inválida.' });
+        const escala = await Escalas.buscarEscala(id);
+        if (!escala) return res.status(404).json({ erro: 'Escala não encontrada.' });
+        res.json(escala);
+    } catch (error) {
+        console.error('Erro ao carregar escala', error);
+        responderErro(res, error);
+    }
+}
+
+// Substitui o voluntário de uma vaga por outro elegível para a mesma função
+exports.substituirParticipante = async (req, res) => {
+    try {
+        const idEscala = Number(req.params.id);
+        const idAnterior = Number(req.params.idVoluntario);
+        const idNovo = Number(req.body.id_voluntario);
+        if (![idEscala, idAnterior].every(n => Number.isInteger(n) && n > 0)) return res.status(400).json({ erro: 'Escala inválida.' });
+        if (!Number.isInteger(idNovo) || idNovo <= 0) return res.status(400).json({ erro: 'Escolha o voluntário que vai assumir a vaga.' });
+        if (idNovo === idAnterior) return res.status(400).json({ erro: 'Escolha um voluntário diferente do atual.' });
+
+        const resultado = await Escalas.substituirParticipante(idEscala, idAnterior, idNovo);
+        if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
+        res.json(await Escalas.buscarEscala(idEscala));
+    } catch (error) {
+        console.error('Erro ao substituir voluntário da escala', error);
+        if (error.code === '23505') return res.status(409).json({ erro: 'O voluntário escolhido já está nesta escala.' });
+        if (error.code === '23503') return res.status(400).json({ erro: 'Voluntário inexistente.' });
+        responderErro(res, error);
+    }
+}
+
 exports.confirmarParticipante = async (req, res) => {
     try {
         const idEscala = Number(req.params.id);

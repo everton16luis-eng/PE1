@@ -10,7 +10,7 @@ flowchart LR
     S --> M1[cabeçalhos de segurança]
     M1 --> A[authRoutes<br/>login/registro]
     M1 --> L[exigirLogin]
-    L --> V[restringirVoluntario]
+    L --> V[restringirAreaDeGestao]
     V --> R[routes/*<br/>+ exigirPermissao]
     R --> C[controllers/*<br/>validação]
     C --> Mo[models/*<br/>SQL parametrizado]
@@ -44,7 +44,8 @@ Apoio em `backend/src/config/`:
 Middlewares em `backend/src/middlewares/autenticacao.js`:
 
 - `exigirLogin` — valida o token, recarrega o usuário do banco (usuário desativado perde o acesso na hora) e guarda em `req.usuario`.
-- `restringirVoluntario` — perfil Voluntário só acessa `/auth/me` e `/portal/*`.
+- `restringirAreaDeGestao` — quem não é da equipe de gestão (perfil Voluntário e usuário padrão sem áreas) só acessa `/auth/me` e `/portal/*`. A regra fica em `config/acesso.js`.
+- `exigirAlgumaPermissao(...areas)` — passa com qualquer uma das áreas (ex.: lista de turmas, usada por Crianças e Relatórios).
 - `exigirPermissao(area)` — administrador sempre passa; os demais precisam da área marcada em `usuarios.permissoes`.
 - `exigirPerfil(...perfis)` — usado em Configurações (só administrador altera).
 
@@ -115,7 +116,7 @@ Exemplo: uma página "Departamentos".
 1. `backend/src/models/departamentosModel.js` — consultas com parâmetros.
 2. `backend/src/controllers/departamentosController.js` — validações e respostas; use `responderErro` no `catch`.
 3. `backend/src/routes/departamentosRoutes.js` — rotas com `exigirPermissao('voluntarios')` (ou a área adequada).
-4. Em `server.js`, `app.use('/api', departamentosRoutes)` **depois** de `exigirLogin` e `restringirVoluntario`.
+4. Em `server.js`, `app.use('/api', departamentosRoutes)` **depois** de `exigirLogin` e `restringirAreaDeGestao`.
 5. Se precisar de tabela/coluna nova, crie um `.sql` em `backend/database/` (só `CREATE ... IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) e um script `db:...` no `package.json`.
 
 **Frontend**

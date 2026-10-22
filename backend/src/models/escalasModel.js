@@ -1,4 +1,39 @@
 const pool = require('../config/db');
+const Eventos = require('./eventosModel');
+
+// Escalas com os voluntários e as respostas (Escalas do dia e "Gerenciar escala").
+// "filtro" é um trecho fixo de WHERE com parâmetros ($1...), nunca valores do usuário.
+async function consultarEscalas(filtro, valores) {
+    const result = await pool.query(
+        `SELECT es.id_escala, es.id_evento, e.nome AS evento, e.hora_inicio, e.hora_fim, e.tipo_evento,
+                to_char(es.data_escala, 'YYYY-MM-DD') AS data_escala, ${Eventos.SITUACAO.realizado} AS realizado,
+                es.id_funcao, f.nome AS funcao, es.horario, es.qtd_voluntarios, es.observacoes,
+                COALESCE(json_agg(json_build_object(
+                    'id_voluntario', ep.id_voluntario,
+                    'nome', m.nome_completo,
+                    'confirmado', ep.confirmado,
+                    'recusado', ep.recusado,
+                    'motivo_recusa', ep.motivo_recusa,
+                    'ausente', EXISTS (SELECT 1 FROM voluntario_ausencias va
+                                       WHERE va.id_voluntario = ep.id_voluntario
+                                         AND es.data_escala BETWEEN va.data_inicio AND va.data_fim)
+                ) ORDER BY m.nome_completo) FILTER (WHERE ep.id_voluntario IS NOT NULL), '[]') AS participantes,
+                COUNT(ep.*) FILTER (WHERE ep.confirmado IS TRUE)::int AS confirmados,
+                COUNT(ep.*) FILTER (WHERE ep.confirmado IS NOT TRUE AND NOT ep.recusado)::int AS pendentes,
+                COUNT(ep.*) FILTER (WHERE ep.recusado)::int AS recusados
+         FROM escalas es
+         LEFT JOIN eventos e ON e.id_evento = es.id_evento
+         LEFT JOIN funcoes f ON f.id_funcao = es.id_funcao
+         LEFT JOIN escala_participantes ep ON ep.id_escala = es.id_escala
+         LEFT JOIN voluntarios v ON v.id_voluntario = ep.id_voluntario
+         LEFT JOIN membros m ON m.id_membro = v.id_membro
+         WHERE ${filtro}
+         GROUP BY es.id_escala, e.id_evento, f.id_funcao
+         ORDER BY e.hora_inicio, es.horario, f.nome`,
+        valores
+    );
+    return result.rows;
+}
 
 const escalasModel = {
 
@@ -37,35 +72,80 @@ const escalasModel = {
         return result.rows;
     },
 
-    escalasDoDia: async (data) => {
+    escalasDoDia: async (data) => consultarEscalas('es.data_escala = $1', [data]),
+
+    // Uma escala (mesmo formato das escalas do dia), com a data e se o evento já terminou
+    buscarEscala: async (id) => (await consultarEscalas('es.id_escala = $1', [id]))[0],
+
+    // Atribuições que ainda aguardam resposta (nem confirmadas nem recusadas) em eventos
+    // que ainda não terminaram — o mesmo critério do card "Confirmações pendentes" do Dashboard
+    pendentes: async () => {
         const result = await pool.query(
-            `SELECT es.id_escala, es.id_evento, e.nome AS evento, e.hora_inicio, e.hora_fim,
-                    es.id_funcao, f.nome AS funcao, es.horario, es.qtd_voluntarios, es.observacoes,
-                    COALESCE(json_agg(json_build_object(
-                        'id_voluntario', ep.id_voluntario,
-                        'nome', m.nome_completo,
-                        'confirmado', ep.confirmado,
-                        'recusado', ep.recusado,
-                        'motivo_recusa', ep.motivo_recusa,
-                        'ausente', EXISTS (SELECT 1 FROM voluntario_ausencias va
-                                           WHERE va.id_voluntario = ep.id_voluntario
-                                             AND es.data_escala BETWEEN va.data_inicio AND va.data_fim)
-                    ) ORDER BY m.nome_completo) FILTER (WHERE ep.id_voluntario IS NOT NULL), '[]') AS participantes,
-                    COUNT(ep.*) FILTER (WHERE ep.confirmado IS TRUE)::int AS confirmados,
-                    COUNT(ep.*) FILTER (WHERE ep.confirmado IS NOT TRUE AND NOT ep.recusado)::int AS pendentes,
-                    COUNT(ep.*) FILTER (WHERE ep.recusado)::int AS recusados
-             FROM escalas es
+            `SELECT es.id_escala, ep.id_voluntario, m.nome_completo AS voluntario, m.telefone,
+                    to_char(es.data_escala, 'YYYY-MM-DD') AS data_escala, to_char(es.horario, 'HH24:MI') AS horario,
+                    es.id_evento, e.nome AS evento, to_char(e.hora_inicio, 'HH24:MI') AS hora_inicio,
+                    to_char(e.hora_fim, 'HH24:MI') AS hora_fim, e.tipo_evento,
+                    es.id_funcao, f.nome AS funcao, es.qtd_voluntarios
+             FROM escala_participantes ep
+             JOIN escalas es ON es.id_escala = ep.id_escala
              LEFT JOIN eventos e ON e.id_evento = es.id_evento
              LEFT JOIN funcoes f ON f.id_funcao = es.id_funcao
-             LEFT JOIN escala_participantes ep ON ep.id_escala = es.id_escala
-             LEFT JOIN voluntarios v ON v.id_voluntario = ep.id_voluntario
-             LEFT JOIN membros m ON m.id_membro = v.id_membro
-             WHERE es.data_escala = $1
-             GROUP BY es.id_escala, e.id_evento, f.id_funcao
-             ORDER BY e.hora_inicio, es.horario, f.nome`,
-            [data]
+             JOIN voluntarios v ON v.id_voluntario = ep.id_voluntario
+             JOIN membros m ON m.id_membro = v.id_membro
+             WHERE ep.confirmado IS NOT TRUE AND ep.recusado IS NOT TRUE
+               AND es.data_escala >= CURRENT_DATE
+               AND NOT COALESCE(${Eventos.SITUACAO.realizado}, FALSE)
+             ORDER BY es.data_escala ASC, e.hora_inicio ASC NULLS LAST, es.horario, f.nome, m.nome_completo`
         );
         return result.rows;
+    },
+
+    // Troca o voluntário de uma vaga: a MESMA linha de escala_participantes passa
+    // a ser do novo voluntário (escala, evento e função continuam os mesmos, então não
+    // surge uma segunda atribuição para a vaga). A resposta do anterior não vale para o
+    // novo: a confirmação volta para "aguardando resposta".
+    // Devolve { erro, status } quando a troca não é permitida.
+    substituirParticipante: async (idEscala, idAnterior, idNovo) => {
+        const cliente = await pool.connect();
+        try {
+            await cliente.query('BEGIN');
+            const escala = (await cliente.query(
+                `SELECT es.id_escala, es.id_funcao, ${Eventos.SITUACAO.realizado} AS realizado
+                 FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
+                 WHERE es.id_escala = $1 FOR UPDATE OF es`,
+                [idEscala]
+            )).rows[0];
+            const falha = async (status, erro) => { await cliente.query('ROLLBACK'); return { status, erro }; };
+
+            if (!escala) return falha(404, 'Escala não encontrada.');
+            if (escala.realizado) return falha(409, 'O evento desta escala já foi realizado. O histórico não pode ser alterado.');
+
+            const atuais = (await cliente.query(
+                'SELECT id_voluntario FROM escala_participantes WHERE id_escala = $1', [idEscala]
+            )).rows.map(r => r.id_voluntario);
+            if (!atuais.includes(idAnterior)) return falha(404, 'Este voluntário não está nesta escala.');
+            if (atuais.includes(idNovo)) return falha(409, 'O voluntário escolhido já está nesta escala.');
+
+            // Mesmos critérios de quem pode ser escalado (pessoa ativa e apta, ficha ativa, atua na função)
+            if ((await escalasModel.voluntariosInelegiveis(escala.id_funcao, [idNovo], cliente)).length) {
+                return falha(400, 'O voluntário escolhido não está ativo e apto para esta função.');
+            }
+
+            const result = await cliente.query(
+                `UPDATE escala_participantes
+                 SET id_voluntario = $3, confirmado = FALSE, recusado = FALSE, motivo_recusa = NULL, respondido_em = NULL
+                 WHERE id_escala = $1 AND id_voluntario = $2
+                 RETURNING *`,
+                [idEscala, idAnterior, idNovo]
+            );
+            await cliente.query('COMMIT');
+            return { participante: result.rows[0] };
+        } catch (error) {
+            await cliente.query('ROLLBACK');
+            throw error;
+        } finally {
+            cliente.release();
+        }
     },
 
     // Voluntários ativos que atuam na função; "disponivel" = o dia da semana bate
@@ -91,8 +171,9 @@ const escalasModel = {
     },
 
     // Ids (entre os informados) que NÃO podem ser escalados nesta função
-    voluntariosInelegiveis: async (idFuncao, ids) => {
-        const result = await pool.query(
+    // ("executor" pode ser o pool ou um cliente dentro de uma transação)
+    voluntariosInelegiveis: async (idFuncao, ids, executor = pool) => {
+        const result = await executor.query(
             `SELECT id FROM unnest($2::int[]) AS id
              WHERE NOT EXISTS (
                  SELECT 1 FROM voluntarios v

@@ -41,6 +41,22 @@ exports.getTodosEventos = async (req, res) => {
     }
 }
 
+// Detalhes de um evento (dados, funções, voluntários e confirmações) — somente leitura
+exports.getDetalhesEvento = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'Evento inválido.' });
+        const detalhes = await Eventos.detalhar(id);
+        if (!detalhes) return res.status(404).json({ erro: 'Evento não encontrado.' });
+        res.json(detalhes);
+    } catch (error) {
+        console.error('Erro ao carregar detalhes do evento', error);
+        responderErro(res, error);
+    }
+}
+
+const MENSAGEM_REALIZADO = 'Este evento já foi realizado. Os dados históricos não podem ser alterados nem removidos.';
+
 exports.novoEvento = async (req, res) => {
     try {
         const { nome, data_evento, criado_em, hora_inicio, hora_fim, tipo_evento } = req.body;
@@ -82,7 +98,11 @@ exports.atualizarEvento = async (req, res) => {
         }
 
         const evento = await Eventos.atualizarEvento(id, dados);
-        if (!evento) return res.status(404).json({ erro: 'Evento não encontrado.' });
+        if (!evento) {
+            const situacao = await Eventos.buscarSituacao(id);
+            if (situacao?.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
+            return res.status(404).json({ erro: 'Evento não encontrado.' });
+        }
         res.json(evento);
     } catch (error) {
         console.error('Erro ao atualizar evento', error);
@@ -97,6 +117,7 @@ exports.removerEvento = async (req, res) => {
 
         const resultado = await Eventos.removerEvento(id);
         if (!resultado) return res.status(404).json({ erro: 'Evento não encontrado.' });
+        if (resultado.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
         res.json({ mensagem: 'Evento removido.', ...resultado });
     } catch (error) {
         console.error('Erro ao remover evento', error);

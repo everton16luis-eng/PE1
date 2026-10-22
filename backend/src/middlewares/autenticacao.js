@@ -1,4 +1,5 @@
 const { lerToken } = require('../config/seguranca');
+const { ehEquipeDeGestao } = require('../config/acesso');
 const pool = require('../config/db');
 
 // Exige um token válido (Authorization: Bearer <token>) e carrega o usuário
@@ -22,10 +23,12 @@ exports.exigirLogin = async (req, res, next) => {
     }
 };
 
-// Perfil Voluntário só acessa o portal (e os próprios dados de login)
-exports.restringirVoluntario = (req, res, next) => {
+// Quem não é da equipe de gestão (perfil Voluntário e usuário padrão, sem
+// nenhuma área liberada) só acessa a Minha área (portal) e os próprios dados
+// de login. Vale para qualquer rota, mesmo chamada direto pela URL.
+exports.restringirAreaDeGestao = (req, res, next) => {
     const liberado = req.path === '/auth/me' || req.path === '/portal' || req.path.startsWith('/portal/');
-    if (req.usuario?.perfil === 'VOLUNTARIO' && !liberado) {
+    if (!liberado && !ehEquipeDeGestao(req.usuario)) {
         return res.status(403).json({ erro: 'Esta área é exclusiva da equipe de gestão.' });
     }
     next();
@@ -43,5 +46,12 @@ exports.exigirPerfil = (...perfis) => (req, res, next) => {
 exports.exigirPermissao = (area) => (req, res, next) => {
     const usuario = req.usuario;
     if (usuario?.perfil === 'ADMINISTRADOR' || usuario?.permissoes?.[area]) return next();
+    return res.status(403).json({ erro: 'Você não tem permissão para acessar esta área.' });
+};
+
+// Libera a rota para quem tem QUALQUER uma das permissões informadas
+exports.exigirAlgumaPermissao = (...areas) => (req, res, next) => {
+    const usuario = req.usuario;
+    if (usuario?.perfil === 'ADMINISTRADOR' || areas.some(area => usuario?.permissoes?.[area])) return next();
     return res.status(403).json({ erro: 'Você não tem permissão para acessar esta área.' });
 };

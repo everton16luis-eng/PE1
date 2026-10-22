@@ -10,7 +10,7 @@
 - **No navegador** o token fica no `sessionStorage` (só a aba) ou no `localStorage` quando "Lembrar de mim" está marcado. "Sair" apaga os dois.
 - **Mensagens de login** são iguais para e-mail inexistente e senha errada (não revela quem tem conta).
 - **Força bruta:** após 10 tentativas erradas para o mesmo login, ou 50 vindas do mesmo IP, em 15 minutos, o login responde **429** até a janela passar (`backend/src/config/limiteLogin.js`).
-- **Registro público** cria usuário `VISUALIZACAO` **inativo**, que só entra depois de liberado por um administrador. Campos como `perfil`, `ativo` e `permissoes` enviados no registro são ignorados.
+- **Registro público** cria usuário `VISUALIZACAO` **ativo**, sem nenhuma área de gestão (usuário padrão): entra na hora, mas só vê a Minha área. Ativação e autorização são separadas — quem dá áreas de gestão é um administrador, em Usuários. Campos como `perfil`, `ativo` e `permissoes` enviados no registro são ignorados.
 
 ## Perfis e permissões
 
@@ -39,7 +39,7 @@ Regras do servidor (o frontend apenas esconde o que o usuário não pode usar):
 
 - **Dashboard, Eventos, Lista de presença e leitura das Configurações** exigem apenas login de gestão.
 - **Alterar Configurações e fazer backup:** só administrador.
-- **Perfil Voluntário** só acessa `/api/auth/me` e `/api/portal/*` (`restringirVoluntario`); todo o resto responde 403. No navegador, qualquer endereço leva à Minha área.
+- **Quem não é da equipe de gestão** (perfil Voluntário e usuário padrão, sem nenhuma área marcada) só acessa `/api/auth/me` e `/api/portal/*` (`restringirAreaDeGestao`, regra em `config/acesso.js`); todo o resto — Dashboard, Configurações, Eventos, listas de apoio — responde 403. No navegador, qualquer endereço leva à Minha área (`/auth/me` devolve `gestao`).
 - **Portal:** o voluntário é identificado pelo login (`usuarios.id_membro`). Nenhuma rota do portal aceita id de voluntário, então um voluntário não consegue ver nem alterar dados de outro. As observações internas da equipe não são enviadas ao portal, e só escalas futuras podem ser respondidas.
 
 ### Contra escalada de privilégio

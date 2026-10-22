@@ -184,13 +184,13 @@ describe('Fluxo de uma pessoa pelos setores', () => {
         assert.ok((await participantes()).some(p => p.id === r.corpo.id));
     });
 
-    test('pedido de acesso pela tela de login cria a pessoa (visitante) e o login pendente', async () => {
+    test('pedido de acesso pela tela de login cria a pessoa (visitante) e o login ativo, sem áreas de gestão', async () => {
         const email = `pedido.${Date.now()}@exemplo.test`;
         const r = await api('/api/auth/registro', { metodo: 'POST', corpo: { nome: 'Pessoa Que Pediu', email, senha: 'Senha@123' } });
         assert.equal(r.status, 201);
         const u = (await pool.query(
             `SELECT u.perfil, u.ativo, m.nome_completo, m.classificacao FROM usuarios u JOIN membros m USING (id_membro) WHERE u.email = $1`, [email])).rows[0];
-        assert.deepEqual(u, { perfil: 'VISUALIZACAO', ativo: false, nome_completo: 'Pessoa Que Pediu', classificacao: 'visitante' });
+        assert.deepEqual(u, { perfil: 'VISUALIZACAO', ativo: true, nome_completo: 'Pessoa Que Pediu', classificacao: 'visitante' });
     });
 });
 

@@ -36,58 +36,24 @@ async function gerenciaParticipantes() {
                     <tr><th>Participante</th><th>Telefone</th><th>Tipo</th><th>Entrada / visita</th><th>Status</th>${podeClassificar ? '<th>Classificação</th>' : ''}</tr>
                 </thead>
                 <tbody>
-                    ${dados.participantes.map(p => {
-                        // Visitante dos últimos 30 dias ainda precisa de acompanhamento
-                        const recente = p.tipo === 'visitante' && (Date.now() - new Date(p.data)) / 86400000 <= 30;
-                        const status = !p.ativo
-                            ? '<span class="badge inactive">Inativo</span>'
-                            : recente ? '<span class="badge pending">Acompanhar</span>' : '<span class="badge ok">Ativo</span>';
-                        const voluntariado = p.tipo !== 'membro' ? ''
-                            : p.voluntario ? ' <span class="badge ok">Voluntário</span>'
-                            : p.apto ? ' <span class="badge pending">Apto ao voluntariado</span>' : '';
-                        // Outras participações da mesma pessoa (criança, login de acesso)
-                        const menor = p.menor ? ` <span class="badge pending" title="Menos de 18 anos — aparece em Crianças">${p.idade < 1 ? 'Bebê' : `${p.idade} anos`}</span>` : '';
-                        const login = p.perfil ? ` <span class="badge acesso" title="Perfil de acesso ao sistema">Login: ${escapar(PERFIS[p.perfil] || p.perfil)}</span>` : '';
-                        const tipo = p.tipo === 'membro' ? 'Membro' : 'Visitante';
-                        // Visitante: tornar membro; membro: aptidão ao voluntariado; todos: ativo/inativo
-                        const ativar = `<button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
-                                   <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
-                        const acoes = (p.tipo === 'visitante'
-                            ? `<button type="button" class="action-btn com-texto" data-promover="${p.id}" data-nome="${escapar(p.nome)}">
-                                   <span class="material-icons">how_to_reg</span>Tornar membro</button>`
-                            : `<button type="button" class="action-btn com-texto" data-apto="${p.id}" data-valor="${!p.apto}" ${p.ativo ? '' : 'disabled'}>
-                                   <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>`) + ativar;
-                        return `
-                            <tr data-filtro="${p.tipo}" data-menor="${p.menor}">
-                                <td>
-                                    <div class="person">
-                                        <div class="mini-avatar">${escapar(p.nome.charAt(0).toUpperCase())}</div>
-                                        <div class="info">
-                                            <strong>${escapar(p.nome)}</strong>
-                                            <small>${escapar(p.email || p.observacoes || '')}</small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>${escapar(p.telefone || '—')}</td>
-                                <td>${tipo}${voluntariado}${menor}${login}</td>
-                                <td>${formatarDataSimples(p.data) || '—'}</td>
-                                <td>${status}</td>
-                                ${podeClassificar ? `<td class="acoes-classificacao">${acoes}</td>` : ''}
-                            </tr>`;
-                    }).join('') || `<tr><td colspan="${podeClassificar ? 6 : 5}" class="vazio">Nenhum participante cadastrado.</td></tr>`}
+                    ${dados.participantes.map(p => `<tr data-filtro="${p.tipo}" data-menor="${p.menor}" data-id="${p.id}">${celulasParticipante(p, podeClassificar)}</tr>`).join('')
+                        || `<tr><td colspan="${podeClassificar ? 6 : 5}" class="vazio">Nenhum participante cadastrado.</td></tr>`}
                 </tbody>
             </table>
         </div>
     `;
 
+    const cards = () => cardsEstatisticas([
+        ['blue', 'groups', r.total_pessoas, 'Total cadastrados'],
+        ['green', 'how_to_reg', r.total_membros, 'Membros'],
+        ['purple', 'waving_hand', r.total_visitantes, 'Visitantes'],
+        ['orange', 'fiber_new', r.novos_visitantes_mes, 'Visitantes novos este mês']
+    ]);
+    let secaoCards = cards();
+
     main.replaceChildren(
         headerInterno('Participantes', 'Cadastro e acompanhamento dos participantes da igreja'),
-        cardsEstatisticas([
-            ['blue', 'groups', r.total_pessoas, 'Total cadastrados'],
-            ['green', 'how_to_reg', r.total_membros, 'Membros'],
-            ['purple', 'waving_hand', r.total_visitantes, 'Visitantes'],
-            ['orange', 'fiber_new', r.novos_visitantes_mes, 'Visitantes novos este mês']
-        ]),
+        secaoCards,
         lista
     );
 
@@ -100,6 +66,27 @@ async function gerenciaParticipantes() {
         campo.classList.toggle('erro', erro);
     };
 
+    // Depois de salvar: busca os dados atualizados no backend e troca só a linha
+    // daquela pessoa (e os totais). A busca, o filtro e a rolagem continuam como estavam,
+    // e a pessoa continua visível na lista.
+    async function atualizarParticipante(id, mensagem) {
+        const atual = await enviarDados('participantes', 'GET');
+        const p = atual.participantes.find(item => item.id === id);
+        const linha = lista.querySelector(`tr[data-id="${id}"]`);
+        if (p && linha) {
+            linha.dataset.filtro = p.tipo;
+            linha.dataset.menor = String(p.menor);
+            linha.innerHTML = celulasParticipante(p, podeClassificar);
+            linha.classList.add('linha-atualizada');
+            setTimeout(() => linha.classList.remove('linha-atualizada'), 2000);
+        }
+        Object.assign(r, atual.resumo || {});
+        const novosCards = cards();
+        secaoCards.replaceWith(novosCards);
+        secaoCards = novosCards;
+        avisar(mensagem);
+    }
+
     // Ações de classificação (somente administrador)
     lista.addEventListener('click', async event => {
         const promover = event.target.closest('[data-promover]');
@@ -107,7 +94,9 @@ async function gerenciaParticipantes() {
         const ativo = event.target.closest('[data-ativo]');
 
         if (promover) {
-            promoverVisitante(Number(promover.dataset.promover), promover.dataset.nome);
+            const id = Number(promover.dataset.promover);
+            promoverVisitante(id, promover.dataset.nome, () => atualizarParticipante(id, `${promover.dataset.nome} agora é membro.`)
+                .catch(erro => avisar(erro.message, true)));
             return;
         }
         if (!apto && !ativo) return;
@@ -117,10 +106,11 @@ async function gerenciaParticipantes() {
         const corpo = apto ? { apto_voluntario: valor } : { ativo: valor };
         if (ativo && !valor && !confirm('Inativar esta pessoa? Ela também deixa de ser apta ao voluntariado (o cadastro continua existindo).')) return;
 
+        const id = Number(botao.dataset.apto || botao.dataset.ativo);
         botao.disabled = true;
         try {
-            await enviarDados(`participantes/${botao.dataset.apto || botao.dataset.ativo}`, 'PATCH', corpo);
-            gerenciaParticipantes();
+            const salvo = await enviarDados(`participantes/${id}`, 'PATCH', corpo);
+            await atualizarParticipante(id, `Cadastro de ${salvo.nome_completo || 'participante'} atualizado.`);
         } catch (erro) {
             botao.disabled = false;
             avisar(erro.message, true);
@@ -128,8 +118,48 @@ async function gerenciaParticipantes() {
     });
 }
 
-// Administrador: promove um visitante a membro (modal)
-function promoverVisitante(idVisitante, nome) {
+// Células de uma linha da lista de participantes (usadas ao montar e ao atualizar a linha)
+function celulasParticipante(p, podeClassificar) {
+    // Visitante dos últimos 30 dias ainda precisa de acompanhamento
+    const recente = p.tipo === 'visitante' && (Date.now() - new Date(p.data)) / 86400000 <= 30;
+    const status = !p.ativo
+        ? '<span class="badge inactive">Inativo</span>'
+        : recente ? '<span class="badge pending">Acompanhar</span>' : '<span class="badge ok">Ativo</span>';
+    const voluntariado = p.tipo !== 'membro' ? ''
+        : p.voluntario ? ' <span class="badge ok">Voluntário</span>'
+        : p.apto ? ' <span class="badge pending">Apto ao voluntariado</span>' : '';
+    // Outras participações da mesma pessoa (criança, login de acesso)
+    const menor = p.menor ? ` <span class="badge pending" title="Menos de 18 anos — aparece em Crianças">${p.idade < 1 ? 'Bebê' : `${p.idade} anos`}</span>` : '';
+    const login = p.perfil ? ` <span class="badge acesso" title="Perfil de acesso ao sistema">Login: ${escapar(PERFIS[p.perfil] || p.perfil)}</span>` : '';
+    const tipo = p.tipo === 'membro' ? 'Membro' : 'Visitante';
+    // Visitante: tornar membro; membro: aptidão ao voluntariado; todos: ativo/inativo
+    const ativar = `<button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
+               <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
+    const acoes = (p.tipo === 'visitante'
+        ? `<button type="button" class="action-btn com-texto" data-promover="${p.id}" data-nome="${escapar(p.nome)}">
+               <span class="material-icons">how_to_reg</span>Tornar membro</button>`
+        : `<button type="button" class="action-btn com-texto" data-apto="${p.id}" data-valor="${!p.apto}" ${p.ativo ? '' : 'disabled'}>
+               <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>`) + ativar;
+    return `
+        <td>
+            <div class="person">
+                <div class="mini-avatar">${escapar(p.nome.charAt(0).toUpperCase())}</div>
+                <div class="info">
+                    <strong>${escapar(p.nome)}</strong>
+                    <small>${escapar(p.email || p.observacoes || '')}</small>
+                </div>
+            </div>
+        </td>
+        <td>${escapar(p.telefone || '—')}</td>
+        <td>${tipo}${voluntariado}${menor}${login}</td>
+        <td>${formatarDataSimples(p.data) || '—'}</td>
+        <td>${status}</td>
+        ${podeClassificar ? `<td class="acoes-classificacao">${acoes}</td>` : ''}`;
+}
+
+// Administrador: promove um visitante a membro (modal).
+// "aoSalvar" é chamado depois do sucesso (a lista atualiza a linha sem recarregar a página).
+function promoverVisitante(idVisitante, nome, aoSalvar) {
     const { modal, fechar } = abrirModal('Tornar membro', `${nome} passará a ser membro da igreja.`, `
         <form novalidate>
             <div class="form-grid">
@@ -161,9 +191,11 @@ function promoverVisitante(idVisitante, nome) {
                 participa_celula: celula === '' ? null : celula === 'sim'
             });
             fechar();
-            alert(`${nome} agora é membro.`);
-            gerenciaParticipantes();
+            // A lista atualiza só a linha da pessoa (mantém busca e filtros)
+            if (aoSalvar) await aoSalvar();
+            else gerenciaParticipantes();
         } catch (erro) {
+            // O modal continua aberto, com o que foi digitado
             mensagemFormulario(form, erro.message);
         }
     });

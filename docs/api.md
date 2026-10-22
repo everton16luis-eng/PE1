@@ -46,7 +46,7 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | POST | `/auth/login` | público | `{ login, senha }` — `login` é e-mail ou telefone. Devolve `{ token, usuario }`. 401 login/senha errados (mesma mensagem para e-mail inexistente); 403 usuário pendente/inativo; 429 após 10 erros para o mesmo login ou 50 do mesmo IP em 15 min |
-| POST | `/auth/registro` | público | `{ nome, email, telefone?, senha }` (senha ≥ 6). Cria usuário `VISUALIZACAO` **inativo**, aguardando liberação. Se não houver administrador ativo, o primeiro cadastro vira administrador ativo. Campos como `perfil`/`ativo` enviados são ignorados |
+| POST | `/auth/registro` | público | `{ nome, email, telefone?, senha }` (senha ≥ 6). Cria usuário `VISUALIZACAO` **ativo**, sem nenhuma área de gestão (usuário padrão: só a Minha área). Se não houver administrador ativo, o primeiro cadastro vira administrador ativo. Campos como `perfil`/`ativo`/`permissoes` enviados são ignorados |
 | GET | `/auth/me` | login ou portal | Dados do usuário logado (`id_usuario`, `nome`, `perfil`, `permissoes`, `id_membro`…) e `voluntario` (a pessoa tem ficha de voluntário: dá direito à Minha área) — nunca inclui o hash da senha |
 
 ## Dashboard
@@ -64,10 +64,11 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/eventos` | login | Todos os eventos, do mais recente ao mais antigo, com `total_escalas` |
-| PUT | `/eventos/:id` | `escalas` | `{ nome, data_evento, tipo_evento, hora_inicio?, hora_fim? }` — fim depois do início; a data das escalas do evento acompanha a nova data |
-| DELETE | `/eventos/:id` | `escalas` | Remove o evento **e as escalas dele** (numa transação). 404 se não existir |
-| GET | `/eventosDisponiveis` | login | Próximos 4 eventos a partir de hoje (por data e horário) |
+| GET | `/eventos` | `escalas` | Todos os eventos, do mais recente ao mais antigo, com `realizado` / `em_andamento` (pelo horário de término real), `total_escalas`, `total_voluntarios`, `total_confirmados` |
+| GET | `/eventos/:id` | `escalas` | Detalhes somente leitura: `{ evento, funcoes: [{ ..., participantes: [{ situacao }] }], resumo }` |
+| PUT | `/eventos/:id` | `escalas` | `{ nome, data_evento, tipo_evento, hora_inicio?, hora_fim? }` — fim depois do início; a data das escalas do evento acompanha a nova data. **409** se o evento já foi realizado |
+| DELETE | `/eventos/:id` | `escalas` | Remove o evento **e as escalas dele** (numa transação). 404 se não existir; **409** se já foi realizado (histórico) |
+| GET | `/eventosDisponiveis` | login | Próximos 4 eventos que ainda não terminaram (por data e horário) |
 | POST | `/novoEvento` | login | `{ nome, data_evento, hora_inicio?, hora_fim?, tipo_evento?, criado_em? }` |
 | GET | `/funcoes` | login | Lista simples de funções (`id_funcao`, `nome`, `descricao`, `qtd_voluntarios`) |
 | GET | `/voluntariosDisponiveis` | login | Membros aptos ainda não marcados como voluntários |
@@ -143,7 +144,10 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 | GET | `/escalas/dia?data=` | `escalas` | `{ eventos, escalas }` — cada escala com `participantes` (`confirmado`, `recusado`, `motivo_recusa`, `ausente`) e totais |
 | GET | `/escalas/voluntarios?funcao=&data=` | `escalas` | Voluntários ativos da função, com `disponivel` (dia da semana e sem ausência), `ausente` e `motivo_ausencia` |
 | POST | `/escalas` | `escalas` | `{ data, horario, id_funcao, qtd_voluntarios, voluntarios: [id], observacoes?, id_evento? }`. Sem `id_evento`, envie `evento: { nome, tipo_evento, hora_inicio, hora_fim }` para criar o evento junto. Não aceita mais voluntários que `qtd_voluntarios`. Todos os voluntários precisam estar **ativos e aptos**, com ficha servindo e a função (400 caso contrário) |
+| GET | `/escalas/pendentes` | `escalas` | Atribuições aguardando resposta (nem confirmadas nem recusadas), de hoje em diante: `id_escala`, `id_voluntario`, `voluntario`, `evento`, `data_escala`, `horario`, `funcao`... |
+| GET | `/escalas/:id` | `escalas` | Uma escala, no formato de `/escalas/dia`, com `data_escala` e `realizado` |
 | PATCH | `/escalas/:id/participantes/:idVoluntario` | `escalas` | `{ confirmado }` — também limpa uma recusa |
+| POST | `/escalas/:id/participantes/:idVoluntario/substituir` | `escalas` | `{ id_voluntario }` — a mesma vaga passa ao novo voluntário (ativo, apto e da função), com a confirmação de volta a "aguardando". 409 se o novo já está na escala ou o evento já foi realizado |
 
 ## Crianças e turmas
 
@@ -160,9 +164,12 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/relatorios` | `relatorios` | `{ resumo, recentes }` (10 últimos gerados) |
+| GET | `/relatorios` | `relatorios` | `{ resumo, recentes }` — histórico (até 200, mais novos primeiro) com `titulo`, `evento`, `tem_arquivo` |
+| GET | `/relatorios/eventos` | `relatorios` | Eventos (futuros e realizados) para o relatório por evento |
+| GET | `/relatorios/evento/:id` | `relatorios` | Dados do relatório do evento (pré-visualização), mesmo formato de `GET /eventos/:id` |
+| POST | `/relatorios/gerar` | `relatorios` | `{ tipo: "evento", id_evento }` (PDF) ou `{ tipo, formato: "pdf"\|"excel"\|"csv", filtros?, opcoes? }`. Gera no servidor, grava o arquivo em `arquivos/relatorios/` e o registro em `relatorios_gerados` (tudo ou nada) |
+| GET | `/relatorios/historico/:id/arquivo` | `relatorios` (`usuarios` também exige `usuarios`) | O arquivo salvo, sem gerar de novo (`?download=1` = anexo). 404 sem arquivo; 409 se o conteúdo não confere com o hash registrado |
 | GET | `/relatorios/:tipo` | `relatorios` (`usuarios` também exige `usuarios`) | `{ tipo, titulo, colunas, linhas, filtros }`. Filtros não reconhecidos são **ignorados** |
-| POST | `/relatorios/historico` | `relatorios` | `{ tipo, formato: "pdf"\|"excel"\|"csv", data_inicial?, data_final?, filtros?, total_registros? }` |
 
 Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos onde há data):
 

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { CRITERIOS } = require('./pessoasModel');
+const { SITUACAO } = require('./eventosModel');
 
 // Monta o "WHERE" de cada relatório com parâmetros ($1, $2...) — nunca concatena valores
 function construtor() {
@@ -189,6 +190,7 @@ const RELATORIOS = {
 
 const relatoriosModel = {
     tipos: Object.keys(RELATORIOS),
+    tituloDe: tipo => RELATORIOS[tipo]?.titulo,
 
     gerar: async (tipo, filtros) => {
         const relatorio = RELATORIOS[tipo];
@@ -212,20 +214,62 @@ const relatoriosModel = {
         return result.rows[0];
     },
 
-    recentes: async () => {
+    // Histórico (mais novos primeiro). O caminho do arquivo não sai daqui:
+    // o navegador só sabe se ele existe (tem_arquivo) e baixa pela rota protegida.
+    recentes: async (limite = 200) => {
         const result = await pool.query(
-            `SELECT r.*, u.nome AS usuario
-             FROM relatorios_gerados r LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
-             ORDER BY r.gerado_em DESC LIMIT 10`
+            `SELECT r.id_relatorio, r.tipo, r.titulo, r.formato, r.filtros, r.total_registros,
+                    to_char(r.data_inicial, 'YYYY-MM-DD') AS data_inicial, to_char(r.data_final, 'YYYY-MM-DD') AS data_final,
+                    r.gerado_em, r.id_evento, r.nome_arquivo, r.tamanho_bytes, (r.arquivo IS NOT NULL) AS tem_arquivo,
+                    e.nome AS evento, to_char(e.data_evento, 'YYYY-MM-DD') AS data_evento,
+                    COALESCE(m.nome_completo, u.nome) AS usuario
+             FROM relatorios_gerados r
+             LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
+             LEFT JOIN membros m ON m.id_membro = u.id_membro
+             LEFT JOIN eventos e ON e.id_evento = r.id_evento
+             ORDER BY r.gerado_em DESC, r.id_relatorio DESC
+             LIMIT $1`,
+            [limite]
         );
         return result.rows;
     },
 
-    registrar: async ({ tipo, data_inicial, data_final, formato, filtros, total_registros, id_usuario }) => {
+    // Eventos para o "Relatório por evento" (todos: futuros e realizados), mais recentes primeiro
+    eventosParaRelatorio: async () => {
         const result = await pool.query(
-            `INSERT INTO relatorios_gerados (tipo, data_inicial, data_final, formato, filtros, total_registros, id_usuario)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [tipo, data_inicial, data_final, formato, filtros, total_registros, id_usuario]
+            `SELECT e.id_evento, e.nome, to_char(e.data_evento, 'YYYY-MM-DD') AS data_evento,
+                    to_char(e.hora_inicio, 'HH24:MI') AS hora_inicio, to_char(e.hora_fim, 'HH24:MI') AS hora_fim,
+                    e.tipo_evento, ${SITUACAO.realizado} AS realizado,
+                    (SELECT COUNT(*) FROM escalas es WHERE es.id_evento = e.id_evento)::int AS total_escalas
+             FROM eventos e
+             ORDER BY e.data_evento DESC, e.hora_inicio DESC NULLS LAST, e.id_evento DESC`
+        );
+        return result.rows;
+    },
+
+    // Cria o registro do histórico (dentro da transação de geração: "executor" é o cliente)
+    registrar: async ({ tipo, titulo, id_evento, data_inicial, data_final, formato, filtros, total_registros, id_usuario }, executor = pool) => {
+        const result = await executor.query(
+            `INSERT INTO relatorios_gerados (tipo, titulo, id_evento, data_inicial, data_final, formato, filtros, total_registros, id_usuario)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [tipo, titulo, id_evento, data_inicial, data_final, formato, filtros, total_registros, id_usuario]
+        );
+        return result.rows[0];
+    },
+
+    // Liga o arquivo gravado ao registro
+    vincularArquivo: async (id, { arquivo, nome_arquivo, tamanho, hash }, executor = pool) => {
+        await executor.query(
+            `UPDATE relatorios_gerados SET arquivo = $2, nome_arquivo = $3, tamanho_bytes = $4, hash_arquivo = $5
+             WHERE id_relatorio = $1`,
+            [id, arquivo, nome_arquivo, tamanho, hash]
+        );
+    },
+
+    buscarRegistro: async (id) => {
+        const result = await pool.query(
+            'SELECT id_relatorio, tipo, formato, arquivo, nome_arquivo, hash_arquivo FROM relatorios_gerados WHERE id_relatorio = $1',
+            [id]
         );
         return result.rows[0];
     }

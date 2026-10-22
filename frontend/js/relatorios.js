@@ -34,93 +34,83 @@ function valorCelula(valor) {
     return String(valor);
 }
 
-// Gera o arquivo/janela no formato escolhido; devolve false se não conseguiu abrir
-function exportarRelatorio(relatorio, formato, opcoes) {
-    const nomeArquivo = `relatorio-${relatorio.tipo}-${dataDeHoje()}`;
-    const cabecalho = relatorio.colunas.map(c => c.titulo);
-    const linhas = relatorio.linhas.map(l => relatorio.colunas.map(c => valorCelula(l[c.chave])));
+// ---------- Arquivos guardados no servidor
+// Todo relatório é gerado no servidor a partir do banco, guardado em arquivo e
+// registrado no histórico. Visualizar e Download entregam esse mesmo arquivo
+// (nada é gerado de novo).
 
-    const baixar = (conteudo, tipoMime, extensao) => {
-        const url = URL.createObjectURL(new Blob([conteudo], { type: tipoMime }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${nomeArquivo}.${extensao}`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-
-    if (formato === 'csv') {
-        // ";" e BOM para o Excel em português abrir com acentos e colunas certas
-        const csv = [cabecalho, ...linhas].map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
-        baixar('﻿' + csv, 'text/csv;charset=utf-8', 'csv');
-        return true;
+// Busca o arquivo de um registro do histórico (com o token do login)
+async function arquivoDoRelatorio(id, download = false) {
+    const resposta = await fetch(`${API_URL}/relatorios/historico/${id}/arquivo${download ? '?download=1' : ''}`, { headers: cabecalhos() });
+    if (resposta.status === 401) {
+        sairDoSistema();
+        throw new Error('Sua sessão expirou. Entre novamente.');
     }
-
-    const titulo = `Relatório de ${relatorio.titulo}`;
-    const tabela = `
-        <table>
-            <thead><tr>${cabecalho.map(c => `<th>${escapar(c)}</th>`).join('')}</tr></thead>
-            <tbody>${linhas.map(l => `<tr>${l.map(v => `<td>${escapar(v)}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>`;
-
-    if (formato === 'excel') {
-        const html = `<html><head><meta charset="UTF-8"></head><body>
-            ${opcoes.cabecalho ? `<h2>Igreja Novo Caminho — ${escapar(titulo)}</h2>` : ''}
-            ${opcoes.periodo ? `<p>${escapar(periodoTexto(opcoes.inicio, opcoes.fim))}</p>` : ''}
-            ${tabela}</body></html>`;
-        baixar('﻿' + html, 'application/vnd.ms-excel;charset=utf-8', 'xls');
-        return true;
+    if (!resposta.ok) {
+        const dados = await resposta.json().catch(() => ({}));
+        throw new Error(dados.erro || 'Não foi possível abrir o arquivo deste relatório.');
     }
-
-    // PDF: abre uma página pronta para "Salvar como PDF" na impressão do navegador
-    const janela = window.open('', '_blank');
-    if (!janela) {
-        alert('Permita pop-ups para gerar o PDF.');
-        return false;
-    }
-    janela.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${escapar(titulo)}</title>
-        <style>
-            body { font-family: Inter, "Segoe UI", Arial, sans-serif; color: #18243a; margin: 28px; }
-            header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #965b39; padding-bottom: 12px; }
-            header img { width: 48px; }
-            h1 { font-size: 20px; margin: 18px 0 4px; }
-            p { color: #78849a; font-size: 12px; margin: 4px 0; }
-            .resumo { display: flex; gap: 12px; margin: 14px 0; }
-            .resumo div { background: #f7f8fb; border-radius: 8px; padding: 10px 16px; font-size: 12px; }
-            .resumo strong { display: block; font-size: 18px; color: #965b39; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }
-            th { text-align: left; background: #f5f6f9; padding: 7px; border-bottom: 1px solid #ddd; }
-            td { padding: 6px 7px; border-bottom: 1px solid #eee; }
-            tr { page-break-inside: avoid; }
-            footer { margin-top: 18px; text-align: center; font-size: 10px; color: #999; }
-        </style></head><body>
-        ${opcoes.cabecalho ? `<header><img src="${location.origin}/img/terracota.png" alt=""><div><strong>Igreja Novo Caminho</strong><p>Sistema de Gestão</p></div></header>` : ''}
-        <h1>${escapar(titulo)}</h1>
-        ${opcoes.periodo ? `<p>${escapar(periodoTexto(opcoes.inicio, opcoes.fim))}</p>` : ''}
-        ${opcoes.resumo ? `<div class="resumo"><div><strong>${relatorio.linhas.length}</strong>Registros</div></div>` : ''}
-        ${opcoes.observacoes ? `<p>${escapar(opcoes.observacoes)}</p>` : ''}
-        ${tabela}
-        ${opcoes.dataGeracao ? `<footer>Gerado em ${new Date().toLocaleString('pt-BR')} por ${escapar(usuarioAtual?.nome || '')}</footer>` : ''}
-        <script>window.onload = () => window.print();<\/script>
-        </body></html>`);
-    janela.document.close();
-    return true;
+    const blob = await resposta.blob();
+    if (!blob.size) throw new Error('O arquivo deste relatório está vazio ou corrompido.');
+    return blob;
 }
 
-// Gera, exporta e registra no histórico
-async function gerarEExportar(tipo, filtros, formato, opcoes) {
-    const relatorio = await dadosRelatorio(tipo, filtros);
-    if (!exportarRelatorio(relatorio, formato, { ...opcoes, inicio: filtros.inicio, fim: filtros.fim })) {
-        throw new Error('O relatório não foi aberto. Permita pop-ups para este site e tente de novo.');
+function nomeDoArquivo(rel) {
+    const extensao = { pdf: 'pdf', excel: 'xls', csv: 'csv' }[rel.formato] || 'pdf';
+    return rel.nome_arquivo || `relatorio-${rel.tipo}-${rel.id_relatorio}.${extensao}`;
+}
+
+async function baixarRelatorioSalvo(rel) {
+    const blob = await arquivoDoRelatorio(rel.id_relatorio, true);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeDoArquivo(rel);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// Mostra o documento salvo numa janela (PDF no visualizador do navegador;
+// Excel e CSV como conteúdo, sem executar nada do arquivo)
+async function visualizarRelatorioSalvo(rel) {
+    const titulo = rel.titulo || `Relatório de ${TIPOS_RELATORIO[rel.tipo]?.nome || rel.tipo}`;
+    const { modal, fechar } = abrirModal(titulo, `Gerado em ${new Date(rel.gerado_em).toLocaleString('pt-BR')} • ${FORMATOS[rel.formato] || rel.formato}`,
+        '<p class="vazio">Carregando o documento salvo...</p>');
+    modal.classList.add('modal-largo', 'modal-documento');
+    const corpo = modal.querySelector('.modal-corpo');
+    let url;
+    const liberar = () => { if (url) setTimeout(() => URL.revokeObjectURL(url), 1000); };
+    modal.closest('.modal-overlay').addEventListener('click', event => { if (event.target.closest('.modal-close') || event.target === event.currentTarget) liberar(); });
+
+    try {
+        const blob = await arquivoDoRelatorio(rel.id_relatorio);
+        const tipo = rel.formato === 'pdf' ? 'application/pdf' : rel.formato === 'excel' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8';
+        url = URL.createObjectURL(new Blob([blob], { type: tipo }));
+        corpo.innerHTML = `
+            <iframe class="visualizador-relatorio" title="${escapar(titulo)}" ${rel.formato === 'pdf' ? '' : 'sandbox=""'}></iframe>
+            <div class="form-actions">
+                <a class="secondary botao-link" href="${url}" target="_blank" rel="noopener">
+                    <span class="material-icons">open_in_new</span>Abrir em nova aba</a>
+                <button type="button" class="primary" data-baixar><span class="material-icons">download</span>Download</button>
+            </div>`;
+        corpo.querySelector('iframe').src = url;
+        corpo.querySelector('[data-baixar]').addEventListener('click', async () => {
+            try { await baixarRelatorioSalvo(rel); } catch (erro) { alert(erro.message); }
+        });
+    } catch (erro) {
+        corpo.innerHTML = `<p class="vazio">${escapar(erro.message)}</p>
+            <div class="form-actions"><button type="button" class="primary" data-fechar>Fechar</button></div>`;
+        corpo.querySelector('[data-fechar]').addEventListener('click', fechar);
     }
-    const { inicio, fim, ...outros } = filtros;
-    await enviarDados('relatorios/historico', 'POST', {
-        tipo, formato, data_inicial: inicio || null, data_final: fim || null,
-        filtros: outros, total_registros: relatorio.linhas.length
-    });
-    return relatorio;
+}
+
+// Gera no servidor (registra no histórico) e baixa o arquivo gerado
+async function gerarEExportar(tipo, filtros, formato, opcoes) {
+    const registro = await enviarDados('relatorios/gerar', 'POST', { tipo, formato, filtros, opcoes });
+    await baixarRelatorioSalvo(registro);
+    return registro;
 }
 
 async function gerenciaRelatorios() {
@@ -137,6 +127,11 @@ async function gerenciaRelatorios() {
         <article class="panel">
             <div class="panel-header"><div><h2>Relatórios disponíveis</h2><p class="panel-description">Selecione um relatório para configurar os filtros.</p></div></div>
             <div class="report-list">
+                <button type="button" class="report" data-relatorio-evento>
+                    <div class="report-icon" style="background:#fbeee6;color:#965b39;"><span class="material-icons">event_note</span></div>
+                    <div class="report-info"><strong>Relatório por evento</strong><small>Tudo sobre um evento: funções, voluntários, confirmações, recusas e vagas</small></div>
+                    <span class="report-arrow">›</span>
+                </button>
                 ${tipos.map(([chave, t]) => `
                     <button type="button" class="report" data-tipo="${chave}">
                         <div class="report-icon" style="background:${t.cor[0]};color:${t.cor[1]};"><span class="material-icons">${t.icone}</span></div>
@@ -186,39 +181,49 @@ async function gerenciaRelatorios() {
     const recentes = document.createElement('section');
     recentes.className = 'panel';
     recentes.style.marginTop = '17px';
+    const descricaoPeriodo = rel => rel.tipo === 'evento'
+        ? (rel.evento ? `${escapar(rel.evento)} • ${formatarDataSimples(rel.data_evento)}` : `Evento removido (${formatarDataSimples(rel.data_inicial)})`)
+        : (rel.data_inicial || rel.data_final ? `${formatarDataSimples(rel.data_inicial) || '…'} - ${formatarDataSimples(rel.data_final) || '…'}` : 'Todos');
     recentes.innerHTML = `
-        <div class="panel-header"><div><h2>Relatórios recentes</h2><p class="panel-description">Últimos relatórios gerados pelo sistema.</p></div></div>
+        <div class="panel-header"><div><h2>Relatórios recentes</h2><p class="panel-description">Histórico dos relatórios gerados (mais novos primeiro). Visualizar e Download abrem o documento salvo, sem gerar de novo.</p></div></div>
+        <div class="toolbar">
+            <input class="search" type="search" placeholder="Buscar por relatório, evento ou usuário..." aria-label="Buscar relatórios gerados">
+        </div>
+        <p class="contador"></p>
         <div class="table-responsive">
             <table class="tabela-cartoes">
-                <thead><tr><th>Relatório</th><th>Período</th><th>Formato</th><th>Registros</th><th>Gerado em</th><th>Ação</th></tr></thead>
+                <thead><tr><th>Relatório</th><th>Período / evento</th><th>Formato</th><th>Registros</th><th>Gerado em</th><th>Ações</th></tr></thead>
                 <tbody>
                     ${dados.recentes.map((rel, i) => `
-                        <tr>
-                            <td><strong>${TIPOS_RELATORIO[rel.tipo]?.nome || rel.tipo}</strong><small style="display:block;color:var(--muted)">${escapar(rel.usuario || '')}</small></td>
-                            <td>${rel.data_inicial || rel.data_final ? `${formatarDataSimples(rel.data_inicial) || '…'} - ${formatarDataSimples(rel.data_final) || '…'}` : 'Todos'}</td>
-                            <td>${FORMATOS[rel.formato]}</td>
+                        <tr data-filtro="${rel.tipo}">
+                            <td><strong>${escapar(rel.titulo || `Relatório de ${TIPOS_RELATORIO[rel.tipo]?.nome || rel.tipo}`)}</strong><small style="display:block;color:var(--muted)">${escapar(rel.usuario || '')}</small></td>
+                            <td>${descricaoPeriodo(rel)}</td>
+                            <td>${FORMATOS[rel.formato] || escapar(rel.formato)}</td>
                             <td>${rel.total_registros ?? '—'}</td>
                             <td>${new Date(rel.gerado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                             <td>
-                                <button type="button" class="action-btn" data-ver="${i}" title="Visualizar" aria-label="Visualizar"><span class="material-icons">visibility</span></button>
-                                <button type="button" class="action-btn" data-baixar="${i}" title="Baixar novamente" aria-label="Baixar novamente"><span class="material-icons">download</span></button>
+                                <div class="acoes">
+                                    <button type="button" class="action-btn com-texto" data-ver="${i}" ${rel.tem_arquivo ? '' : 'disabled'}>
+                                        <span class="material-icons">visibility</span>Visualizar</button>
+                                    <button type="button" class="action-btn com-texto" data-baixar="${i}" ${rel.tem_arquivo ? '' : 'disabled'}>
+                                        <span class="material-icons">download</span>Download</button>
+                                </div>
+                                ${rel.tem_arquivo ? '' : '<small style="display:block;color:var(--muted)">Sem arquivo salvo (gerado antes do histórico de arquivos)</small>'}
                             </td>
-                        </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhum relatório gerado ainda.</td></tr>'}
+                        </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhum relatório gerado ainda. Os relatórios gerados aparecem aqui e ficam disponíveis para consulta.</td></tr>'}
                 </tbody>
             </table>
         </div>
+        <p class="mensagem-lista" data-mensagem-recentes role="status"></p>
     `;
 
     main.replaceChildren(headerInterno('Relatórios', 'Consulte e gere relatórios da organização'), grade, resumo, recentes);
 
     const $ = id => main.querySelector('#' + id);
-    const filtrosDoHistorico = rel => ({
-        ...(rel.filtros || {}),
-        inicio: rel.data_inicial ? String(rel.data_inicial).slice(0, 10) : '',
-        fim: rel.data_final ? String(rel.data_final).slice(0, 10) : ''
-    });
+    configurarFiltros(recentes, () => true);
 
     grade.querySelectorAll('[data-tipo]').forEach(b => b.addEventListener('click', () => gerarRelatorio(b.dataset.tipo)));
+    grade.querySelector('[data-relatorio-evento]').addEventListener('click', () => gerarRelatorioEvento());
     $('btnConfigurar').addEventListener('click', () => gerarRelatorio($('rTipo').value, { inicio: $('rInicio').value, fim: $('rFim').value }));
 
     $('formRapido').addEventListener('submit', async event => {
@@ -237,17 +242,18 @@ async function gerenciaRelatorios() {
     recentes.addEventListener('click', async event => {
         const ver = event.target.closest('[data-ver]');
         const baixar = event.target.closest('[data-baixar]');
-        if (ver) {
-            const rel = dados.recentes[ver.dataset.ver];
-            gerarRelatorio(rel.tipo, filtrosDoHistorico(rel), rel.formato);
-        }
+        const aviso = recentes.querySelector('[data-mensagem-recentes]');
+        if (ver) visualizarRelatorioSalvo(dados.recentes[ver.dataset.ver]);
         if (baixar) {
-            const rel = dados.recentes[baixar.dataset.baixar];
+            baixar.disabled = true;
             try {
-                await gerarEExportar(rel.tipo, filtrosDoHistorico(rel), rel.formato, { cabecalho: true, periodo: true, resumo: true, dataGeracao: true });
-                gerenciaRelatorios();
+                await baixarRelatorioSalvo(dados.recentes[baixar.dataset.baixar]);
+                aviso.textContent = '';
             } catch (erro) {
-                alert(erro.message);
+                aviso.textContent = erro.message;
+                aviso.classList.add('erro');
+            } finally {
+                baixar.disabled = false;
             }
         }
     });
@@ -415,18 +421,130 @@ async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {
         if (filtros.inicio && filtros.fim && filtros.inicio > filtros.fim) return mensagemFormulario(form, 'A data inicial não pode ser maior que a data final.');
 
         try {
-            const relatorio = await gerarEExportar($('gTipo').value, filtros, form.querySelector('input[name="formato"]:checked').value, {
+            const registro = await gerarEExportar($('gTipo').value, filtros, form.querySelector('input[name="formato"]:checked').value, {
                 cabecalho: $('gCabecalho').checked,
                 periodo: $('gPeriodo').checked,
                 resumo: $('gResumo').checked,
                 dataGeracao: $('gDataGeracao').checked,
                 observacoes: $('gObservacoes').value.trim()
             });
-            mensagemFormulario(form, `Relatório de ${relatorio.titulo} gerado com ${relatorio.linhas.length} registro(s).`, false);
+            mensagemFormulario(form, `${registro.titulo} gerado com ${registro.total_registros ?? 0} registro(s). Ele fica salvo em Relatórios recentes.`, false);
         } catch (erro) {
             mensagemFormulario(form, erro.message);
         }
     });
 
     await atualizarPreview();
+}
+
+// =========================================
+// RELATÓRIO POR EVENTO
+// Escolhe qualquer evento (futuro ou realizado), visualiza os dados reais
+// e gera o PDF completo no servidor (fica salvo em Relatórios recentes).
+// =========================================
+
+async function gerarRelatorioEvento(idInicial = null) {
+    registrarRota('relatorios/evento', [idInicial]);
+    marcarMenuAtivo('gerenciaRelatorios');
+    const eventos = await buscarDados('relatorios/eventos', []);
+    const main = document.getElementById('main');
+
+    const rotuloEvento = ev => `${formatarDataSimples(ev.data_evento)}${ev.hora_inicio ? ' ' + ev.hora_inicio : ''} — ${ev.nome}`
+        + ` (${TIPOS_DE_EVENTO[ev.tipo_evento] || ev.tipo_evento || 'sem tipo'})`;
+
+    const selecao = document.createElement('section');
+    selecao.className = 'panel';
+    selecao.innerHTML = `
+        <div class="panel-header"><div><h2>Selecione o evento</h2>
+            <p class="panel-description">Eventos futuros e realizados. Cada um aparece com data e horário para não confundir eventos de mesmo nome.</p></div></div>
+        <form id="formRelatorioEvento" novalidate>
+            <div class="form-grid">
+                <div class="field full">
+                    <label for="reBusca">Buscar evento</label>
+                    <input type="search" id="reBusca" class="search" placeholder="Nome, tipo ou data (dd/mm/aaaa)..." autocomplete="off">
+                </div>
+                <div class="field full">
+                    <label for="reEvento">Evento</label>
+                    <select id="reEvento" required></select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" id="reCancelar">Cancelar</button>
+                <button type="button" class="secondary" id="reVisualizar"><span class="material-icons">visibility</span>Visualizar</button>
+                <button type="submit" class="primary"><span class="material-icons">picture_as_pdf</span>Gerar PDF</button>
+            </div>
+        </form>
+    `;
+
+    const previa = document.createElement('section');
+    previa.className = 'panel';
+    previa.style.marginTop = '17px';
+    previa.innerHTML = `
+        <div class="panel-header"><div><h2>Pré-visualização</h2><p class="panel-description" id="reDescricao">Escolha um evento e clique em Visualizar.</p></div></div>
+        <div id="rePrevia"></div>
+    `;
+
+    main.replaceChildren(headerComVoltar('Relatório por evento', 'Funções, voluntários e confirmações de um evento', gerenciaRelatorios), selecao, previa);
+
+    const $ = id => main.querySelector('#' + id);
+    const form = $('formRelatorioEvento');
+
+    function preencherOpcoes() {
+        const termo = normalizarTexto($('reBusca').value);
+        const atual = $('reEvento').value || (idInicial ? String(idInicial) : '');
+        const visiveis = eventos.filter(ev => !termo || normalizarTexto(rotuloEvento(ev)).includes(termo));
+        const grupo = (titulo, lista) => lista.length
+            ? `<optgroup label="${titulo}">${lista.map(ev => `<option value="${ev.id_evento}">${escapar(rotuloEvento(ev))}</option>`).join('')}</optgroup>` : '';
+        // Próximos: do mais próximo ao mais distante; realizados: do mais recente ao mais antigo
+        const proximos = visiveis.filter(ev => !ev.realizado).reverse();
+        const realizados = visiveis.filter(ev => ev.realizado);
+        $('reEvento').innerHTML = visiveis.length
+            ? '<option value="">Selecione um evento</option>' + grupo('Próximos eventos', proximos) + grupo('Eventos realizados', realizados)
+            : `<option value="">${eventos.length ? 'Nenhum evento encontrado com essa busca' : 'Nenhum evento cadastrado'}</option>`;
+        if (visiveis.some(ev => String(ev.id_evento) === atual)) $('reEvento').value = atual;
+    }
+
+    async function visualizar() {
+        const id = Number($('reEvento').value);
+        if (!id) return mensagemFormulario(form, 'Selecione o evento.');
+        mensagemFormulario(form, '');
+        $('rePrevia').innerHTML = '<p class="vazio">Carregando...</p>';
+        try {
+            const detalhes = await enviarDados(`relatorios/evento/${id}`, 'GET');
+            if (Number($('reEvento').value) !== id) return; // trocou de evento enquanto carregava
+            $('reDescricao').textContent = `${detalhes.evento.nome} — dados registrados agora no sistema`;
+            $('rePrevia').innerHTML = `<h3 class="titulo-previa">${escapar(detalhes.evento.nome)}</h3>${htmlDetalhesEvento(detalhes)}`;
+        } catch (erro) {
+            $('rePrevia').innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
+        }
+    }
+
+    $('reBusca').addEventListener('input', preencherOpcoes);
+    $('reEvento').addEventListener('change', () => {
+        if (history.state?.rota === 'relatorios/evento') history.replaceState({ ...history.state, args: [Number($('reEvento').value) || null] }, '', location.hash);
+        if ($('reEvento').value) visualizar();
+    });
+    $('reVisualizar').addEventListener('click', visualizar);
+    $('reCancelar').addEventListener('click', () => abrirSubstituindo(gerenciaRelatorios));
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const id = Number($('reEvento').value);
+        if (!id) return mensagemFormulario(form, 'Selecione o evento.');
+        const botao = form.querySelector('button[type="submit"]');
+        botao.disabled = true;
+        mensagemFormulario(form, 'Gerando o relatório...', false);
+        try {
+            const registro = await enviarDados('relatorios/gerar', 'POST', { tipo: 'evento', id_evento: id });
+            await baixarRelatorioSalvo(registro);
+            mensagemFormulario(form, `${registro.titulo} gerado. O PDF ficou salvo em Relatórios recentes.`, false);
+        } catch (erro) {
+            mensagemFormulario(form, erro.message);
+        } finally {
+            botao.disabled = false;
+        }
+    });
+
+    preencherOpcoes();
+    if ($('reEvento').value) await visualizar();
 }

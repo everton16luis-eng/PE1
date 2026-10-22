@@ -3,7 +3,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 const express = require('express');
 const cors = require('cors');
 
-const { exigirLogin, restringirVoluntario } = require('./middlewares/autenticacao');
+const { exigirLogin, restringirAreaDeGestao } = require('./middlewares/autenticacao');
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const eventosRoutes = require('./routes/eventoRoutes');
@@ -43,7 +43,7 @@ app.use(express.static(frontEnd, { dotfiles: 'deny' }));
 // Login e cadastro são públicos; o restante da API exige token
 app.use('/api', authRoutes);
 app.use('/api', exigirLogin);
-app.use('/api', restringirVoluntario);
+app.use('/api', restringirAreaDeGestao);
 app.use('/api', require('./routes/portalRoutes'));
 
 app.use('/api', dashboardRoutes);

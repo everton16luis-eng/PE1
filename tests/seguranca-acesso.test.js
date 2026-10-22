@@ -7,13 +7,13 @@ const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const { iniciar, encerrar, api, criarUsuario, pool, SENHA, TODAS, NENHUMA } = require('./apoio');
 
-// Rotas protegidas: [método, caminho, área exigida (null = só login), corpo]
+// Rotas protegidas: [método, caminho, área(s) exigida(s) (null = qualquer login da equipe de gestão), corpo]
 const ROTAS = [
     ['GET', '/api/auth/me', null],
     ['GET', '/api/dashboardPessoas', null],
     ['GET', '/api/escalasSemana', null],
-    ['GET', '/api/eventos', null],
-    ['GET', '/api/presenca/turmas', null],
+    ['GET', '/api/eventos', 'escalas'],
+    ['GET', '/api/presenca/turmas', ['criancas', 'relatorios']],
     ['GET', '/api/configuracoes', null],
     ['GET', '/api/participantes', 'participantes'],
     ['POST', '/api/participantes', 'participantes', {}],
@@ -139,7 +139,7 @@ describe('Login', () => {
 });
 
 describe('Registro pela tela de login', () => {
-    test('não deixa escolher perfil, ativação ou permissões', async () => {
+    test('não deixa escolher perfil ou permissões; a conta nasce ativa, sem áreas de gestão', async () => {
         const email = `registro.${Date.now()}@exemplo.test`;
         const r = await api('/api/auth/registro', {
             metodo: 'POST',
@@ -148,10 +148,27 @@ describe('Registro pela tela de login', () => {
         assert.equal(r.status, 201);
         const salvo = (await pool.query('SELECT perfil, ativo, permissoes FROM usuarios WHERE email = $1', [email])).rows[0];
         assert.equal(salvo.perfil, 'VISUALIZACAO');
-        assert.equal(salvo.ativo, false);
-        assert.equal(salvo.permissoes.usuarios, false);
+        assert.equal(salvo.ativo, true, 'a conta não espera liberação manual');
+        assert.deepEqual(salvo.permissoes, NENHUMA);
+
         const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: 'Senha@123' } });
-        assert.equal(login.status, 403, 'cadastro novo não pode entrar antes da liberação');
+        assert.equal(login.status, 200);
+        const me = await api('/api/auth/me', { token: login.corpo.token });
+        assert.equal(me.corpo.gestao, false);
+        assert.equal((await api('/api/portal', { token: login.corpo.token })).status, 200, 'Minha área continua liberada');
+    });
+
+    test('usuário padrão não acessa nenhuma rota de gestão (nem chamando a API direto)', async () => {
+        const padrao = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA });
+        const rotas = ['/api/dashboardPessoas', '/api/escalasSemana', '/api/confirmacoesPendentes', '/api/graficoConfirmacoes',
+            '/api/configuracoes', '/api/eventos', '/api/eventosDisponiveis', '/api/funcoes', '/api/presenca/turmas',
+            '/api/participantes', '/api/voluntarios', '/api/escalas/calendario?ano=2026&mes=10', '/api/relatorios', '/api/usuarios'];
+        for (const rota of rotas) {
+            assert.equal((await api(rota, { token: padrao.token })).status, 403, rota);
+        }
+        for (const [metodo, rota] of [['POST', '/api/novoEvento'], ['POST', '/api/criarEvento'], ['PUT', '/api/configuracoes'], ['POST', '/api/usuarios']]) {
+            assert.equal((await api(rota, { metodo, token: padrao.token, corpo: {} })).status, 403, `${metodo} ${rota}`);
+        }
     });
 
     test('e-mail repetido → 409', async () => {
@@ -168,7 +185,7 @@ describe('Permissões por área', () => {
             const usuario = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, [area]: true } });
             for (const [metodo, rota, exigida] of ROTAS.filter(([m]) => m === 'GET')) {
                 const r = await api(rota, { metodo, token: usuario.token });
-                if (exigida === null || exigida === area) {
+                if (exigida === null || [].concat(exigida).includes(area)) {
                     assert.equal(r.status, 200, `${rota} deveria liberar para "${area}"`);
                 } else {
                     assert.equal(r.status, 403, `${rota} deveria bloquear para "${area}"`);

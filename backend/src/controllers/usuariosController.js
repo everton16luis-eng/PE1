@@ -2,11 +2,11 @@ const Usuarios = require('../models/usuariosModel');
 const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha } = require('../config/seguranca');
+const { AREAS } = require('../config/acesso');
 
 // Perfis de contas de gestão. O perfil VOLUNTARIO (portal) não é criado nem
 // editado por aqui: a conta precisa estar ligada a um voluntário (ficha).
 const PERFIS = ['ADMINISTRADOR', 'GESTOR', 'SECRETARIA', 'FINANCEIRO', 'VISUALIZACAO'];
-const AREAS = ['participantes', 'voluntarios', 'escalas', 'criancas', 'relatorios', 'usuarios'];
 const MENSAGEM_PORTAL = 'Contas do portal do voluntário são gerenciadas na ficha do voluntário (página Voluntários).';
 
 // Lê e valida o corpo do formulário de usuário
