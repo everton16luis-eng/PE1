@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const Usuarios = require('../models/usuariosModel');
+const Atendimento = require('../models/atendimentoModel');
 const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha, gerarToken } = require('../config/seguranca');
@@ -101,8 +102,11 @@ exports.registro = async (req, res) => {
 exports.me = async (req, res) => {
     try {
         const usuario = await Usuarios.buscarPorId(req.usuario.id_usuario);
-        const ficha = await pool.query('SELECT 1 FROM voluntarios WHERE id_membro = $1', [usuario.id_membro]);
-        res.json({ ...usuario, voluntario: ficha.rowCount > 0, gestao: ehEquipeDeGestao(usuario) });
+        const [ficha, turmas] = await Promise.all([
+            pool.query('SELECT 1 FROM voluntarios WHERE id_membro = $1', [usuario.id_membro]),
+            Atendimento.turmasVinculadas(usuario.id_membro)
+        ]);
+        res.json({ ...usuario, voluntario: ficha.rowCount > 0, gestao: ehEquipeDeGestao(usuario), turmas_vinculadas: turmas.length });
     } catch (error) {
         console.error('Erro ao carregar o usuário logado', error);
         responderErro(res, error);

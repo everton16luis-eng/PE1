@@ -81,6 +81,18 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
 - **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
+## Turmas: recepção das crianças com etiqueta e retirada conferida
+
+- **Página Turmas:** voluntário responsável abre a turma no evento (só com evento em andamento ou nos próximos 30 min), registra entrada conferindo a criança, imprime as etiquetas (criança + responsável, mesmo código e QR), registra a saída validando o código e a pessoa autorizada, e encerra a turma.
+- **Etiquetas com dois códigos vinculados:** o da criança (à vista) só identifica e é recusado na saída; o código de retirada fica só na etiqueta do responsável. QR diferentes em cada etiqueta.
+- **Segurança:** códigos aleatórios por atendimento, de uso único, invalidados pela 2ª via e pelo encerramento; tentativas recusadas auditadas; dados das crianças só com a turma aberta.
+- **Encerramento automático** às 23h59 ou no fim do evento que passa da meia-noite, com recuperação ao iniciar o servidor; saídas regularizadas como automáticas e **alertas** para a administração (prioritário com criança presente), com tratamento registrado.
+- **Gestão:** abas Sessões (com histórico completo), Alertas e Responsáveis (voluntários de cada turma); encerramento administrativo com motivo.
+- **Crianças:** botão **Retirada** (quem pode buscar) e autorização no cadastro.
+- **Eventos:** evento com atendimento de turma não pode ser removido.
+- **Banco:** migração `atendimento-turmas.sql` (`npm run db:atendimento`); `instalacao.sql` atualizado. Dependência nova: `qrcode`.
+- **Testes:** `turmas-atendimento.test.js` (17 testes) e a página Turmas no teste de layout.
+
 ## Acesso pela lista de participantes e troca rápida de página
 
 - **Participantes:** botões **Dar acesso** (abre o Novo usuário com a pessoa escolhida) e **Editar acesso** (quem já tem login de gestão).

@@ -213,7 +213,10 @@ ALTER SEQUENCE public.contas_id_conta_seq OWNED BY public.contas.id_conta;
 CREATE TABLE public.crianca_responsavel (
     id_crianca integer NOT NULL,
     id_responsavel integer NOT NULL,
-    responsavel_principal boolean DEFAULT false
+    responsavel_principal boolean DEFAULT false,
+    autorizado_retirada boolean DEFAULT false NOT NULL,
+    autorizacao_atualizada_em timestamp with time zone,
+    autorizacao_atualizada_por integer
 );
 
 
@@ -780,6 +783,228 @@ ALTER SEQUENCE public.responsaveis_id_responsavel_seq OWNED BY public.responsave
 
 
 --
+-- Name: turma_alertas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_alertas (
+    id_alerta integer NOT NULL,
+    id_sessao integer NOT NULL,
+    motivo character varying(30) NOT NULL,
+    prioritario boolean DEFAULT false NOT NULL,
+    presentes_no_encerramento integer DEFAULT 0 NOT NULL,
+    saidas_regularizadas integer DEFAULT 0 NOT NULL,
+    deveria_encerrar_em timestamp with time zone NOT NULL,
+    encerrada_em timestamp with time zone NOT NULL,
+    processada_em timestamp with time zone DEFAULT now() NOT NULL,
+    status character varying(10) DEFAULT 'pendente'::character varying NOT NULL,
+    tratado_por integer,
+    tratado_em timestamp with time zone,
+    observacao_tratamento text,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT turma_alertas_motivo_check CHECK (((motivo)::text = ANY ((ARRAY['limite_diario'::character varying, 'fim_evento'::character varying, 'sessao_abandonada'::character varying])::text[]))),
+    CONSTRAINT turma_alertas_status_check CHECK (((status)::text = ANY ((ARRAY['pendente'::character varying, 'tratado'::character varying])::text[])))
+);
+
+
+--
+-- Name: turma_alertas_id_alerta_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.turma_alertas_id_alerta_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: turma_alertas_id_alerta_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.turma_alertas_id_alerta_seq OWNED BY public.turma_alertas.id_alerta;
+
+
+--
+-- Name: turma_atendimentos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_atendimentos (
+    id_atendimento integer NOT NULL,
+    id_sessao integer NOT NULL,
+    id_crianca integer NOT NULL,
+    entrada_em timestamp with time zone DEFAULT now() NOT NULL,
+    entrada_por integer NOT NULL,
+    saida_em timestamp with time zone,
+    saida_por integer,
+    tipo_saida character varying(15),
+    id_responsavel_retirada integer,
+    CONSTRAINT turma_atendimentos_check CHECK (((saida_em IS NULL) = (tipo_saida IS NULL))),
+    CONSTRAINT turma_atendimentos_tipo_saida_check CHECK (((tipo_saida)::text = ANY ((ARRAY['manual'::character varying, 'automatica'::character varying, 'administrativa'::character varying])::text[])))
+);
+
+
+--
+-- Name: turma_atendimentos_id_atendimento_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.turma_atendimentos_id_atendimento_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: turma_atendimentos_id_atendimento_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.turma_atendimentos_id_atendimento_seq OWNED BY public.turma_atendimentos.id_atendimento;
+
+
+--
+-- Name: turma_auditoria; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_auditoria (
+    id_registro integer NOT NULL,
+    id_sessao integer,
+    id_atendimento integer,
+    id_codigo integer,
+    acao character varying(40) NOT NULL,
+    detalhe text,
+    id_usuario integer,
+    automatico boolean DEFAULT false NOT NULL,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: turma_auditoria_id_registro_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.turma_auditoria_id_registro_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: turma_auditoria_id_registro_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.turma_auditoria_id_registro_seq OWNED BY public.turma_auditoria.id_registro;
+
+
+--
+-- Name: turma_codigos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_codigos (
+    id_codigo integer NOT NULL,
+    id_atendimento integer NOT NULL,
+    id_sessao integer NOT NULL,
+    codigo character varying(8) NOT NULL,
+    token character varying(64) NOT NULL,
+    id_responsavel integer,
+    status character varying(12) DEFAULT 'ativo'::character varying NOT NULL,
+    emitido_em timestamp with time zone DEFAULT now() NOT NULL,
+    emitido_por integer NOT NULL,
+    segunda_via_de integer,
+    motivo_emissao text,
+    utilizado_em timestamp with time zone,
+    utilizado_por integer,
+    invalidado_em timestamp with time zone,
+    invalidado_por integer,
+    motivo_invalidacao text,
+    codigo_retirada character varying(8) NOT NULL,
+    token_crianca character varying(64) NOT NULL,
+    CONSTRAINT turma_codigos_status_check CHECK (((status)::text = ANY ((ARRAY['ativo'::character varying, 'utilizado'::character varying, 'invalidado'::character varying])::text[])))
+);
+
+
+--
+-- Name: turma_codigos_id_codigo_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.turma_codigos_id_codigo_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: turma_codigos_id_codigo_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.turma_codigos_id_codigo_seq OWNED BY public.turma_codigos.id_codigo;
+
+
+--
+-- Name: turma_sessoes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_sessoes (
+    id_sessao integer NOT NULL,
+    id_turma integer NOT NULL,
+    id_evento integer NOT NULL,
+    status character varying(10) DEFAULT 'aberta'::character varying NOT NULL,
+    aberta_em timestamp with time zone DEFAULT now() NOT NULL,
+    aberta_por integer NOT NULL,
+    encerrada_em timestamp with time zone,
+    encerrada_por integer,
+    processada_em timestamp with time zone,
+    tipo_encerramento character varying(30),
+    motivo_encerramento text,
+    CONSTRAINT turma_sessoes_check CHECK ((((status)::text = 'aberta'::text) = (encerrada_em IS NULL))),
+    CONSTRAINT turma_sessoes_check1 CHECK ((((status)::text = 'aberta'::text) = (tipo_encerramento IS NULL))),
+    CONSTRAINT turma_sessoes_status_check CHECK (((status)::text = ANY ((ARRAY['aberta'::character varying, 'encerrada'::character varying])::text[]))),
+    CONSTRAINT turma_sessoes_tipo_encerramento_check CHECK (((tipo_encerramento)::text = ANY ((ARRAY['manual'::character varying, 'administrativo'::character varying, 'automatico_limite_diario'::character varying, 'automatico_fim_evento'::character varying])::text[])))
+);
+
+
+--
+-- Name: turma_sessoes_id_sessao_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.turma_sessoes_id_sessao_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: turma_sessoes_id_sessao_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.turma_sessoes_id_sessao_seq OWNED BY public.turma_sessoes.id_sessao;
+
+
+--
+-- Name: turma_voluntarios; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.turma_voluntarios (
+    id_turma integer NOT NULL,
+    id_voluntario integer NOT NULL,
+    vinculado_em timestamp with time zone DEFAULT now() NOT NULL,
+    vinculado_por integer
+);
+
+
+--
 -- Name: turmas; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1019,6 +1244,30 @@ CREATE VIEW public.vw_escalas_semana AS
 
 
 --
+-- Name: vw_eventos_janela; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.vw_eventos_janela AS
+ SELECT e.id_evento,
+    e.nome,
+    e.data_evento,
+    e.hora_inicio,
+    e.hora_fim,
+    ((e.data_evento + COALESCE(e.hora_inicio, '00:00:00'::time without time zone)) AT TIME ZONE z.fuso) AS inicio_em,
+    (((e.data_evento + COALESCE(e.hora_fim, '23:59:00'::time without time zone)) +
+        CASE
+            WHEN ((e.hora_inicio IS NOT NULL) AND (e.hora_fim IS NOT NULL) AND (e.hora_fim <= e.hora_inicio)) THEN '1 day'::interval
+            ELSE '00:00:00'::interval
+        END) AT TIME ZONE z.fuso) AS fim_em,
+    ((e.data_evento + '23:59:00'::time without time zone) AT TIME ZONE z.fuso) AS limite_diario_em
+   FROM (public.eventos e
+     CROSS JOIN ( SELECT COALESCE(( SELECT configuracoes_igreja.fuso_horario
+                   FROM public.configuracoes_igreja
+                  ORDER BY configuracoes_igreja.id
+                 LIMIT 1), 'America/Sao_Paulo'::character varying) AS fuso) z);
+
+
+--
 -- Name: vw_resumo_pessoas; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -1174,6 +1423,41 @@ ALTER TABLE ONLY public.relatorios_gerados ALTER COLUMN id_relatorio SET DEFAULT
 --
 
 ALTER TABLE ONLY public.responsaveis ALTER COLUMN id_responsavel SET DEFAULT nextval('public.responsaveis_id_responsavel_seq'::regclass);
+
+
+--
+-- Name: turma_alertas id_alerta; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_alertas ALTER COLUMN id_alerta SET DEFAULT nextval('public.turma_alertas_id_alerta_seq'::regclass);
+
+
+--
+-- Name: turma_atendimentos id_atendimento; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos ALTER COLUMN id_atendimento SET DEFAULT nextval('public.turma_atendimentos_id_atendimento_seq'::regclass);
+
+
+--
+-- Name: turma_auditoria id_registro; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria ALTER COLUMN id_registro SET DEFAULT nextval('public.turma_auditoria_id_registro_seq'::regclass);
+
+
+--
+-- Name: turma_codigos id_codigo; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos ALTER COLUMN id_codigo SET DEFAULT nextval('public.turma_codigos_id_codigo_seq'::regclass);
+
+
+--
+-- Name: turma_sessoes id_sessao; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes ALTER COLUMN id_sessao SET DEFAULT nextval('public.turma_sessoes_id_sessao_seq'::regclass);
 
 
 --
@@ -1412,6 +1696,78 @@ ALTER TABLE ONLY public.responsaveis
 
 
 --
+-- Name: turma_alertas turma_alertas_id_sessao_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_alertas
+    ADD CONSTRAINT turma_alertas_id_sessao_key UNIQUE (id_sessao);
+
+
+--
+-- Name: turma_alertas turma_alertas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_alertas
+    ADD CONSTRAINT turma_alertas_pkey PRIMARY KEY (id_alerta);
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_pkey PRIMARY KEY (id_atendimento);
+
+
+--
+-- Name: turma_auditoria turma_auditoria_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria
+    ADD CONSTRAINT turma_auditoria_pkey PRIMARY KEY (id_registro);
+
+
+--
+-- Name: turma_codigos turma_codigos_id_sessao_codigo_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_id_sessao_codigo_key UNIQUE (id_sessao, codigo);
+
+
+--
+-- Name: turma_codigos turma_codigos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_pkey PRIMARY KEY (id_codigo);
+
+
+--
+-- Name: turma_codigos turma_codigos_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_token_key UNIQUE (token);
+
+
+--
+-- Name: turma_sessoes turma_sessoes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes
+    ADD CONSTRAINT turma_sessoes_pkey PRIMARY KEY (id_sessao);
+
+
+--
+-- Name: turma_voluntarios turma_voluntarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_voluntarios
+    ADD CONSTRAINT turma_voluntarios_pkey PRIMARY KEY (id_turma, id_voluntario);
+
+
+--
 -- Name: turmas turmas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1473,6 +1829,13 @@ ALTER TABLE ONLY public.voluntario_funcoes
 
 ALTER TABLE ONLY public.voluntarios
     ADD CONSTRAINT voluntarios_pkey PRIMARY KEY (id_voluntario);
+
+
+--
+-- Name: idx_atendimentos_sessao; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_atendimentos_sessao ON public.turma_atendimentos USING btree (id_sessao);
 
 
 --
@@ -1574,6 +1937,20 @@ CREATE INDEX idx_relatorios_gerados_evento ON public.relatorios_gerados USING bt
 
 
 --
+-- Name: idx_turma_alertas_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_turma_alertas_status ON public.turma_alertas USING btree (status, criado_em DESC);
+
+
+--
+-- Name: idx_turma_auditoria_sessao; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_turma_auditoria_sessao ON public.turma_auditoria USING btree (id_sessao, criado_em);
+
+
+--
 -- Name: idx_turmas_data; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1581,10 +1958,52 @@ CREATE INDEX idx_turmas_data ON public.turmas USING btree (data);
 
 
 --
+-- Name: uq_atendimento_presente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_atendimento_presente ON public.turma_atendimentos USING btree (id_sessao, id_crianca) WHERE (saida_em IS NULL);
+
+
+--
+-- Name: uq_codigo_ativo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_codigo_ativo ON public.turma_codigos USING btree (id_atendimento) WHERE ((status)::text = 'ativo'::text);
+
+
+--
+-- Name: uq_codigo_retirada_sessao; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_codigo_retirada_sessao ON public.turma_codigos USING btree (id_sessao, codigo_retirada);
+
+
+--
 -- Name: uq_criancas_id_membro; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uq_criancas_id_membro ON public.criancas USING btree (id_membro);
+
+
+--
+-- Name: uq_token_crianca; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_token_crianca ON public.turma_codigos USING btree (token_crianca);
+
+
+--
+-- Name: uq_turma_sessao_aberta; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_turma_sessao_aberta ON public.turma_sessoes USING btree (id_turma) WHERE ((status)::text = 'aberta'::text);
+
+
+--
+-- Name: uq_turma_sessao_evento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_turma_sessao_evento ON public.turma_sessoes USING btree (id_turma, id_evento);
 
 
 --
@@ -1607,6 +2026,14 @@ CREATE UNIQUE INDEX uq_visitantes_id_membro ON public.visitantes USING btree (id
 
 ALTER TABLE ONLY public.cadastroturmas
     ADD CONSTRAINT cadastroturmas_id_membro_responsavel_fkey FOREIGN KEY (id_membro_responsavel) REFERENCES public.membros(id_membro);
+
+
+--
+-- Name: crianca_responsavel crianca_responsavel_autorizacao_atualizada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crianca_responsavel
+    ADD CONSTRAINT crianca_responsavel_autorizacao_atualizada_por_fkey FOREIGN KEY (autorizacao_atualizada_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
 
 
 --
@@ -1831,6 +2258,206 @@ ALTER TABLE ONLY public.relatorios_gerados
 
 ALTER TABLE ONLY public.relatorios_gerados
     ADD CONSTRAINT relatorios_gerados_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario);
+
+
+--
+-- Name: turma_alertas turma_alertas_id_sessao_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_alertas
+    ADD CONSTRAINT turma_alertas_id_sessao_fkey FOREIGN KEY (id_sessao) REFERENCES public.turma_sessoes(id_sessao) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_alertas turma_alertas_tratado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_alertas
+    ADD CONSTRAINT turma_alertas_tratado_por_fkey FOREIGN KEY (tratado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_entrada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_entrada_por_fkey FOREIGN KEY (entrada_por) REFERENCES public.usuarios(id_usuario) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_id_crianca_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_id_crianca_fkey FOREIGN KEY (id_crianca) REFERENCES public.criancas(id_crianca) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_id_responsavel_retirada_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_id_responsavel_retirada_fkey FOREIGN KEY (id_responsavel_retirada) REFERENCES public.responsaveis(id_responsavel) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_id_sessao_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_id_sessao_fkey FOREIGN KEY (id_sessao) REFERENCES public.turma_sessoes(id_sessao) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_saida_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_saida_por_fkey FOREIGN KEY (saida_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_auditoria turma_auditoria_id_atendimento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria
+    ADD CONSTRAINT turma_auditoria_id_atendimento_fkey FOREIGN KEY (id_atendimento) REFERENCES public.turma_atendimentos(id_atendimento) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_auditoria turma_auditoria_id_codigo_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria
+    ADD CONSTRAINT turma_auditoria_id_codigo_fkey FOREIGN KEY (id_codigo) REFERENCES public.turma_codigos(id_codigo) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_auditoria turma_auditoria_id_sessao_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria
+    ADD CONSTRAINT turma_auditoria_id_sessao_fkey FOREIGN KEY (id_sessao) REFERENCES public.turma_sessoes(id_sessao) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_auditoria turma_auditoria_id_usuario_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_auditoria
+    ADD CONSTRAINT turma_auditoria_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_codigos turma_codigos_emitido_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_emitido_por_fkey FOREIGN KEY (emitido_por) REFERENCES public.usuarios(id_usuario) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_codigos turma_codigos_id_atendimento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_id_atendimento_fkey FOREIGN KEY (id_atendimento) REFERENCES public.turma_atendimentos(id_atendimento) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_codigos turma_codigos_id_responsavel_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_id_responsavel_fkey FOREIGN KEY (id_responsavel) REFERENCES public.responsaveis(id_responsavel) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_codigos turma_codigos_id_sessao_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_id_sessao_fkey FOREIGN KEY (id_sessao) REFERENCES public.turma_sessoes(id_sessao) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_codigos turma_codigos_invalidado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_invalidado_por_fkey FOREIGN KEY (invalidado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_codigos turma_codigos_segunda_via_de_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_segunda_via_de_fkey FOREIGN KEY (segunda_via_de) REFERENCES public.turma_codigos(id_codigo);
+
+
+--
+-- Name: turma_codigos turma_codigos_utilizado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_codigos
+    ADD CONSTRAINT turma_codigos_utilizado_por_fkey FOREIGN KEY (utilizado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_sessoes turma_sessoes_aberta_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes
+    ADD CONSTRAINT turma_sessoes_aberta_por_fkey FOREIGN KEY (aberta_por) REFERENCES public.usuarios(id_usuario) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_sessoes turma_sessoes_encerrada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes
+    ADD CONSTRAINT turma_sessoes_encerrada_por_fkey FOREIGN KEY (encerrada_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+--
+-- Name: turma_sessoes turma_sessoes_id_evento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes
+    ADD CONSTRAINT turma_sessoes_id_evento_fkey FOREIGN KEY (id_evento) REFERENCES public.eventos(id_evento) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_sessoes turma_sessoes_id_turma_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_sessoes
+    ADD CONSTRAINT turma_sessoes_id_turma_fkey FOREIGN KEY (id_turma) REFERENCES public.cadastroturmas(id_turma) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_voluntarios turma_voluntarios_id_turma_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_voluntarios
+    ADD CONSTRAINT turma_voluntarios_id_turma_fkey FOREIGN KEY (id_turma) REFERENCES public.cadastroturmas(id_turma) ON DELETE CASCADE;
+
+
+--
+-- Name: turma_voluntarios turma_voluntarios_id_voluntario_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_voluntarios
+    ADD CONSTRAINT turma_voluntarios_id_voluntario_fkey FOREIGN KEY (id_voluntario) REFERENCES public.voluntarios(id_voluntario) ON DELETE CASCADE;
+
+
+--
+-- Name: turma_voluntarios turma_voluntarios_vinculado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_voluntarios
+    ADD CONSTRAINT turma_voluntarios_vinculado_por_fkey FOREIGN KEY (vinculado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
 
 
 --

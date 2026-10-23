@@ -10,7 +10,7 @@
     "db:presenca": "node backend/database/executar.js backend/database/presenca.sql",
     "db:paginas": "node backend/database/executar.js backend/database/paginas.sql",
     "db:seed": "node backend/database/seed.js && node backend/database/executar.js backend/database/seed-paginas.sql && node backend/database/seed-voluntarios.js",
-    "db:setup": "npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:cadastro && npm run db:seed && npm run db:pessoas && npm run db:acesso && npm run db:relatorios && npm run db:trocas && npm run db:notificacoes",
+    "db:setup": "npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:cadastro && npm run db:seed && npm run db:pessoas && npm run db:acesso && npm run db:relatorios && npm run db:trocas && npm run db:notificacoes && npm run db:atendimento",
     "test:seguranca": "node tests/preparar-banco.js && node --test tests/seguranca-acesso.test.js tests/sql-injection.test.js",
     "test:layout": "node tests/preparar-banco.js && node --test tests/layout.test.js",
     "db:voluntario": "node backend/database/executar.js backend/database/voluntario.sql",
@@ -20,6 +20,7 @@
     "db:relatorios": "node backend/database/executar.js backend/database/relatorios.sql",
     "db:trocas": "node backend/database/executar.js backend/database/trocas.sql",
     "db:notificacoes": "node backend/database/executar.js backend/database/notificacoes.sql",
+    "db:atendimento": "node backend/database/executar.js backend/database/atendimento-turmas.sql",
     "db:instalar": "node backend/database/executar.js backend/database/instalacao.sql",
     "db:gerar-instalacao": "node backend/database/gerar-instalacao.js",
     "push:chaves": "node backend/database/gerar-chaves-push.js"
@@ -35,6 +36,7 @@
     "inquirer": "^14.2.2",
     "multer": "^2.4.0",
     "pg": "^8.23.0",
+    "qrcode": "1.5.4",
     "web-push": "3.6.7"
   },
   "devDependencies": {

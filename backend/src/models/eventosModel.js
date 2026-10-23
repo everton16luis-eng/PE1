@@ -227,6 +227,12 @@ const eventoModel = {
                 await cliente.query('ROLLBACK');
                 return situacao ? { realizado: true } : null;
             }
+            // Atendimento de turma é histórico das crianças: o evento não pode sumir
+            const atendimento = await cliente.query('SELECT 1 FROM turma_sessoes WHERE id_evento = $1 LIMIT 1', [id]);
+            if (atendimento.rowCount) {
+                await cliente.query('ROLLBACK');
+                return { comAtendimento: true };
+            }
             // escala_participantes não apaga em cascata: os voluntários escalados saem primeiro
             await cliente.query(
                 'DELETE FROM escala_participantes WHERE id_escala IN (SELECT id_escala FROM escalas WHERE id_evento = $1)', [id]

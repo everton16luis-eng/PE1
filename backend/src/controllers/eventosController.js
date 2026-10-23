@@ -129,6 +129,7 @@ exports.removerEvento = async (req, res) => {
         const resultado = await Eventos.removerEvento(id);
         if (!resultado) return res.status(404).json({ erro: 'Evento não encontrado.' });
         if (resultado.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
+        if (resultado.comAtendimento) return res.status(409).json({ erro: 'Este evento tem atendimento de turma registrado (entrada e saída de crianças) e não pode ser removido.' });
         if (antes?.voluntarios.length) avisarDepois(() => Avisos.eventoRemovido(antes.voluntarios, antes));
         res.json({ mensagem: 'Evento removido.', ...resultado });
     } catch (error) {

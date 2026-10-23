@@ -2,7 +2,7 @@
 
 [← Voltar ao README](../README.md)
 
-São **342 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
+São **359 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
 
 ## Como rodar
 
@@ -39,6 +39,7 @@ node --test tests/voluntario.test.js
 | `voluntario.test.js` | Portal: bloqueio de todas as rotas de gestão, dados só do próprio voluntário, confirmar/recusar/"mudei de ideia", não responder escala alheia nem passada, ausências (conflitos e períodos inválidos), preferências, troca de senha. Ficha: permissão, edição, recusa e retirada de escala. Acesso ao portal: criação, perfil e permissões, duplicidade, bloqueio |
 | `melhorias.test.js` | Cadastro sempre como visitante (campos de privilégio ignorados); promoção a membro e apto/ativo só por administrador, com as regras de consistência; Usuários sem contas do portal; turma Next por último; editar e remover eventos (permissão, validação, escalas junto); formato das escalas da semana; Minha área por classificação (voluntário, membro, visitante); relatório de pendentes |
 | `base-universal.test.js` | Base universal de pessoas: integridade (toda visita, ficha e login aponta para uma pessoa), um cadastro passando pelos setores (Participantes, Crianças < 18, Voluntários = ativo e apto, Usuários = login de gestão), quem faz 18 anos sai de Crianças, ficha infantil e de voluntário sem duplicar a pessoa, pedido de acesso cria a pessoa, classificação só pelo administrador, escala só com voluntários elegíveis |
+| `turmas-atendimento.test.js` | Turmas: abertura só com evento elegível (30 min antes, nunca depois do fim); vínculo do voluntário; voluntário sem acesso à gestão; entrada (sem duplicar, quem fez); dados só para quem opera; etiquetas com dois códigos e dois QR distintos, sem contatos; código da etiqueta da criança recusado na saída (digitado ou QR); saída com o código de retirada da própria criança e pessoa autorizada; reuso, outra criança, outra sessão, 2ª via; duas retiradas simultâneas; volta depois de sair; encerramento manual exige todos fora; encerramento administrativo; evento com atendimento não é removido; encerramento automático às 23h59 e após a meia-noite, recuperação, idempotência, alertas e tratamento; vínculos pela administração |
 | `layout.test.js` | Login e registro no mesmo padrão em celular, tablet e desktop; todas as páginas sem erro de JavaScript e sem rolagem horizontal; título não sobreposto; menu lateral no celular; calendário; listas que só aparecem após busca/filtro; botões Voltar/Avançar e recarregar; formulários não ficam no histórico; ficha do voluntário; portal (confirmar e recusar pela tela); XSS; menu de usuário restrito; troca rápida de página sem desenhar a página antiga; acesso pela lista de participantes (Dar acesso, "Já têm acesso") |
 | `apoio.js` | Funções comuns: sobe a API no banco de testes (`iniciar`, `encerrar`), faz requisições (`api`), cria usuários com perfil/permissões (`criarUsuario`), conta registros (`contar`), encontra voluntário com escalas (`voluntarioComEscalas`) |
 

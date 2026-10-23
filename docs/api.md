@@ -161,6 +161,39 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 | POST | `/turmas` | `criancas` | `{ nome, idade_minima, idade_maxima, dia_semana, horario, id_membro_responsavel?, ativo?, observacoes? }` |
 | PUT | `/turmas/:id` | `criancas` | Mesmo corpo |
 | DELETE | `/turmas/:id` | `criancas` | 409 se houver crianças ou presenças (sugere inativar) |
+| GET | `/criancas/:id/responsaveis` | `criancas` | `{ id_crianca, nome, responsaveis: [{ id_responsavel, nome, parentesco, telefone, email, principal, autorizado_retirada, autorizacao_atualizada_em, autorizacao_atualizada_por }] }` |
+| POST | `/criancas/:id/responsaveis` | `criancas` | Outra pessoa vinculada: `{ nome, parentesco, telefone, email?, autorizado_retirada? }` |
+| PATCH | `/criancas/:id/responsaveis/:idResponsavel` | `criancas` | `{ autorizado_retirada: boolean }` — quem pode buscar a criança na turma (registra quem alterou e quando) |
+
+No cadastro (`POST /criancas`), `responsavel.autorizado_retirada: true` já autoriza o responsável a buscar a criança. Ninguém fica autorizado sem essa marcação.
+
+## Turmas (atendimento das crianças)
+
+Liberado também para quem não é da equipe de gestão (perfil Voluntário ou usuário padrão): o servidor confere, em cada chamada, se o login **opera a turma** — responsável principal (`cadastroturmas.id_membro_responsavel`), voluntário vinculado (`turma_voluntarios`) ou **gestão das crianças** (administrador ou área `criancas`). Sem vínculo: 403. As rotas `/atendimento/admin/*` são só da gestão das crianças.
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/atendimento/turmas` | turma | `{ turmas (com a sessão aberta, presentes, prazo, eventos_atendidos), eventos_elegiveis, proximo_evento, gestor, alertas_pendentes, mensagem_sem_evento }` |
+| POST | `/atendimento/turmas/:id/sessoes` | turma | Abre a turma: `{ id_evento? }`. **Só com evento em andamento ou que começa nos próximos 30 min** (409 com a mensagem padrão); 409 se a turma já está aberta ou já teve atendimento nesse evento; 400 com `eventos` se houver mais de um elegível e nenhum foi escolhido |
+| GET | `/atendimento/sessoes/:id` | turma | `{ sessao (evento, horários, prazo_encerramento, regra_encerramento, presentes…), atendimentos, gestor }` |
+| GET | `/atendimento/sessoes/:id/criancas?busca=` | turma | Crianças ativas para a entrada (sem busca: as da turma). Só nome, idade, turma e `presente` |
+| GET | `/atendimento/sessoes/:id/criancas/:idCrianca` | turma | Dados completos e responsáveis (com `autorizado_retirada`). Voluntário: só com a turma aberta; gestão: sempre. Cada consulta fica no histórico |
+| POST | `/atendimento/sessoes/:id/entradas` | turma | `{ id_crianca }` → 201 `{ id_atendimento, nome, entrada_em, codigo }` (`codigo` = código da etiqueta da criança). 409 se já presente ou turma encerrada/fora do prazo |
+| POST | `/atendimento/sessoes/:id/conferir` | turma | `{ codigo }` (curto ou token do QR, de qualquer das duas etiquetas) → `{ valido, tipo: "crianca"\|"retirada", crianca, responsavel, presente, codigo_crianca }` ou `{ valido: false, motivo, mensagem }` |
+| POST | `/atendimento/sessoes/:id/encerrar` | turma | Encerramento manual: 409 com `presentes` se ainda houver criança presente |
+| POST | `/atendimento/atendimentos/:id/saida` | turma | `{ codigo, id_responsavel? }`. Só vale o **código de retirada** (etiqueta do responsável) ativo **desta** criança nesta sessão — o código da etiqueta da criança é recusado; se a criança tem pessoas autorizadas, `id_responsavel` é obrigatório e precisa ser uma delas. Recusas (409, `motivo`): `codigo_invalido`, `codigo_crianca`, `outra_crianca`, `outra_sessao`, `ja_utilizado`, `invalidado` — todas registradas |
+| GET | `/atendimento/atendimentos/:id/etiqueta` | turma | `{ crianca, turma, evento, data_evento, responsavel, parentesco, id_sessao, codigo_crianca, qr_crianca, codigo_retirada, qr_responsavel }` — só com código ativo; sem telefone/e-mail. Cada QR contém só o seu token aleatório |
+| POST | `/atendimento/atendimentos/:id/etiqueta/impressao` | turma | `{ tipo: "ambas"\|"crianca"\|"responsavel" }` — registra a impressão |
+| POST | `/atendimento/atendimentos/:id/etiqueta/segunda-via` | turma | `{ motivo }` — invalida o código atual e emite outro |
+| GET | `/atendimento/admin/sessoes?status=&turma=` | gestão | Sessões abertas e encerradas |
+| GET | `/atendimento/admin/sessoes/:id/historico` | gestão | Auditoria da sessão (ação, quem, quando, automático) |
+| POST | `/atendimento/admin/sessoes/:id/encerrar` | gestão | `{ motivo }` — encerra e registra as saídas pendentes como **administrativas** |
+| GET | `/atendimento/admin/alertas?status=pendente\|tratado` | gestão | Turmas encerradas automaticamente |
+| GET | `/atendimento/admin/alertas/:id` | gestão | Alerta + crianças afetadas |
+| POST | `/atendimento/admin/alertas/:id/tratar` | gestão | `{ observacao }` — marca como tratado (quem e quando) |
+| GET / PUT | `/atendimento/admin/turmas/:id/voluntarios` | gestão | Voluntários vinculados à turma; PUT `{ voluntarios: [id_voluntario] }` |
+
+**Prazo da sessão:** até as 23h59 do dia do evento; se o evento passa da meia-noite (fim antes do início), até o fim do evento. A rotina do servidor (ao iniciar e a cada minuto) encerra as sessões vencidas: saídas regularizadas como `automatica` no horário do prazo, códigos invalidados, alerta criado — tudo numa transação, uma vez só.
 
 ## Relatórios
 

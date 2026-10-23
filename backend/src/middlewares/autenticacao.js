@@ -25,11 +25,13 @@ exports.exigirLogin = async (req, res, next) => {
 
 // Quem não é da equipe de gestão (perfil Voluntário e usuário padrão, sem
 // nenhuma área liberada) só acessa a Minha área (portal), os próprios avisos
-// (notificações) e os próprios dados de login. Vale para qualquer rota,
+// (notificações), os próprios dados de login e as Turmas (o controller só deixa
+// operar as turmas a que a pessoa está vinculada). Vale para qualquer rota,
 // mesmo chamada direto pela URL.
 exports.restringirAreaDeGestao = (req, res, next) => {
     const liberado = req.path === '/auth/me' || req.path === '/portal' || req.path.startsWith('/portal/')
-        || req.path === '/notificacoes' || req.path.startsWith('/notificacoes/');
+        || req.path === '/notificacoes' || req.path.startsWith('/notificacoes/')
+        || req.path.startsWith('/atendimento/');
     if (!liberado && !ehEquipeDeGestao(req.usuario)) {
         return res.status(403).json({ erro: 'Esta área é exclusiva da equipe de gestão.' });
     }

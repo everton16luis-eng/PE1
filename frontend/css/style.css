@@ -3405,3 +3405,633 @@ tr.linha-atualizada td {
         min-height: 44px;
     }
 }
+
+/* =========================================
+   TURMAS (atendimento das crianças)
+   ========================================= */
+.turmas-atendimento {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.turma-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-left: 5px solid var(--border);
+}
+
+.turma-card.aberta {
+    border-left-color: #22955e;
+}
+
+.turma-card-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.turma-card h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.turma-linha {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    font-size: 13px;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.turma-linha .material-icons {
+    font-size: 18px;
+    color: var(--navy);
+}
+
+.turma-numeros {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.turma-numeros strong {
+    font-size: 32px;
+    color: #22955e;
+}
+
+.turma-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.turma-acoes button,
+.sessao-acoes button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+}
+
+.turma-acoes .primary {
+    flex: 1 1 100%;
+}
+
+.turma-acoes.secundarias button {
+    flex: 1 1 0;
+}
+
+.motivo-bloqueio {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 10px 12px;
+    border: 1px solid #ecd6c7;
+    border-radius: 10px;
+    background: #f8efe9;
+    font-size: 13px;
+}
+
+.motivo-bloqueio .material-icons {
+    color: var(--navy);
+    font-size: 20px;
+}
+
+.contador-aba.alerta {
+    color: #c34e4e;
+    font-weight: 700;
+}
+
+.sessao-turma {
+    display: grid;
+    gap: 16px;
+}
+
+.sessao-cabecalho {
+    border-top: 5px solid #22955e;
+}
+
+.sessao-cabecalho.encerrada {
+    border-top-color: var(--muted);
+}
+
+.sessao-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.sessao-info > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.sessao-info small {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.sessao-info strong {
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+.sessao-info span {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.sessao-presentes strong {
+    font-size: 30px;
+    color: #22955e;
+}
+
+.sessao-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+button.secondary.perigo {
+    border-color: #e9b9b9;
+    color: #a33a3a;
+}
+
+.lista-atendimentos {
+    display: grid;
+    gap: 10px;
+}
+
+.atendimento-item {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.3fr) minmax(170px, 1.5fr) auto;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-left: 5px solid #22955e;
+    border-radius: 12px;
+    background: #f1faf5;
+}
+
+.atendimento-item.saiu {
+    border-left-color: #b8c0cc;
+    background: #f7f8fa;
+    color: #4d586b;
+}
+
+.atendimento-nome strong {
+    display: block;
+    font-size: 15px;
+}
+
+.atendimento-nome small,
+.atendimento-horarios small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.atendimento-horarios {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+}
+
+.atendimento-acoes {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.atendimento-acoes .action-btn {
+    min-height: 44px;
+}
+
+.action-btn.com-texto.destaque {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+.alerta-texto {
+    color: #b23c3c;
+    font-weight: 600;
+}
+
+.lista-escolha button.opcao-escolha {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    text-align: left;
+}
+
+.lista-escolha button.opcao-escolha:hover:not(:disabled) {
+    background: #f7ece4;
+}
+
+.lista-escolha button.opcao-escolha small {
+    color: var(--muted);
+}
+
+.confirmar-crianca {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 10px 0;
+    padding: 14px;
+    border: 2px solid var(--navy);
+    border-radius: 12px;
+    background: #fbf5f1;
+}
+
+.confirmar-crianca p {
+    margin: 0;
+}
+
+.confirmar-crianca.sucesso {
+    border-color: #22955e;
+    background: #f1faf5;
+}
+
+.confirmar-crianca.falha {
+    border-color: #c34e4e;
+    background: #fdf1f1;
+}
+
+.confirmar-crianca .material-icons {
+    font-size: 30px;
+}
+
+.confirmar-crianca.sucesso .material-icons {
+    color: #22955e;
+}
+
+.confirmar-crianca.falha .material-icons {
+    color: #c34e4e;
+}
+
+.nome-grande {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.ficha-lista p {
+    margin: 6px 0;
+    font-size: 14px;
+}
+
+.titulo-secao {
+    margin: 16px 0 8px;
+    font-size: 15px;
+}
+
+.lista-simples {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lista-simples li {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.lista-responsaveis {
+    display: grid;
+    gap: 10px;
+}
+
+.responsavel-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.responsavel-item .badge {
+    align-self: flex-start;
+}
+
+.contatos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.contatos a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--navy);
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.contatos .material-icons {
+    font-size: 18px;
+}
+
+.quem-busca {
+    margin: 12px 0;
+    padding: 0;
+    border: 0;
+}
+
+.quem-busca legend {
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.opcao-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+}
+
+.opcao-radio input {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+}
+
+.opcao-radio small {
+    display: block;
+    color: var(--muted);
+}
+
+.opcao-radio:has(input:checked) {
+    border-color: var(--navy);
+    background: #fbf5f1;
+}
+
+.codigo-input {
+    width: 100%;
+    padding: 12px;
+    font-family: "Courier New", monospace;
+    font-size: 22px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+.responsavel-item.opcao-radio {
+    flex-direction: row;
+}
+
+.form-responsavel .opcao-radio {
+    margin-top: 12px;
+}
+
+.codigo-input::placeholder {
+    font-family: inherit;
+    font-size: 15px;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.lista-checagem {
+    max-height: 300px;
+    margin: 10px 0;
+    overflow-y: auto;
+}
+
+.lista-historico {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lista-historico li {
+    display: grid;
+    grid-template-columns: 95px 1fr;
+    gap: 2px 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.lista-historico li small {
+    grid-column: 2;
+    color: var(--muted);
+}
+
+.lista-historico li.alerta strong {
+    color: #b23c3c;
+}
+
+.lista-alertas {
+    display: grid;
+    gap: 10px;
+}
+
+.alerta-turma {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.alerta-turma.pendente {
+    border-left: 5px solid #d39b2a;
+    background: #fffaf0;
+}
+
+.alerta-turma.pendente.prioritario {
+    border-left-color: #c34e4e;
+    background: #fdf1f1;
+}
+
+.alerta-turma small {
+    display: block;
+    color: var(--muted);
+}
+
+.alerta-turma > .material-icons {
+    color: #c34e4e;
+}
+
+/* Etiquetas: 90 x 50 mm, borda tracejada para recortar */
+.previa-etiquetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+
+.etiqueta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3mm;
+    width: 90mm;
+    max-width: 100%;
+    height: 50mm;
+    padding: 3mm 4mm;
+    border: 1px dashed #555;
+    border-radius: 2mm;
+    background: #fff;
+    color: #000;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.etiqueta-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 1mm;
+    min-width: 0;
+}
+
+.etiqueta-tipo {
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.etiqueta-nome {
+    font-size: 14pt;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.etiqueta-turma {
+    font-size: 9pt;
+}
+
+.etiqueta-codigo {
+    font-family: "Courier New", monospace;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.etiqueta-retirada {
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+    font-size: 8pt;
+    font-weight: 700;
+}
+
+.etiqueta small {
+    font-size: 6.5pt;
+}
+
+.etiqueta-qr {
+    flex: 0 0 24mm;
+    width: 24mm;
+}
+
+.etiqueta-qr svg {
+    display: block;
+    width: 24mm;
+    height: 24mm;
+}
+
+/* Faixa no topo da etiqueta do responsável: diferencia das etiquetas das crianças */
+.etiqueta-responsavel {
+    background: repeating-linear-gradient(90deg, #000 0 4mm, transparent 4mm 8mm) top / 100% 1.2mm no-repeat, #fff;
+}
+
+.form-actions.etiquetas-acoes {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.etiquetas-acoes button {
+    flex: 1 1 160px;
+}
+
+#area-impressao {
+    display: none;
+}
+
+@media print {
+    body.imprimindo-etiquetas > *:not(#area-impressao) {
+        display: none !important;
+    }
+
+    body.imprimindo-etiquetas #area-impressao {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5mm;
+        background: #fff;
+    }
+
+    body.imprimindo-etiquetas .etiqueta {
+        break-inside: avoid;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    @page {
+        margin: 10mm;
+    }
+}
+
+@media (max-width: 700px) {
+    .atendimento-item {
+        grid-template-columns: 1fr auto;
+    }
+
+    .atendimento-horarios {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .atendimento-acoes .action-btn {
+        flex: 1 1 140px;
+    }
+
+    .alerta-turma {
+        grid-template-columns: auto 1fr;
+    }
+
+    .alerta-turma .badge,
+    .alerta-turma button {
+        grid-column: 1 / -1;
+    }
+
+    .sessao-acoes button {
+        flex: 1 1 100%;
+    }
+}

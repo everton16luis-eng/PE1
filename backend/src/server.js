@@ -46,6 +46,8 @@ app.use('/api', exigirLogin);
 app.use('/api', restringirAreaDeGestao);
 app.use('/api', require('./routes/portalRoutes'));
 app.use('/api', require('./routes/notificacoesRoutes'));
+// Turmas: voluntário vinculado à turma opera sem precisar de área de gestão
+app.use('/api', require('./routes/atendimentoRoutes'));
 
 app.use('/api', dashboardRoutes);
 app.use('/api', eventosRoutes);
@@ -82,6 +84,7 @@ if (require.main === module) {
         console.log(`API rodando em http://localhost:${PORT}`);
         iniciarBackupAutomatico();
         require('./config/notificacoes').iniciarLembretes();
+        require('./config/atendimento').iniciarEncerramentoAutomatico();
     });
 }
 

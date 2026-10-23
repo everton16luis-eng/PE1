@@ -49,7 +49,7 @@ async function gerenciaCriancas() {
                                 <td>${escapar(c.responsavel || '—')}${c.parentesco ? `<small style="display:block;color:var(--muted)">${escapar(c.parentesco)} • ${escapar(c.telefone || '')}</small>` : ''}</td>
                                 <td>${c.tem_ficha ? escapar(c.turma || 'Sem turma') : '<span class="badge pending">Ficha a completar</span>'}</td>
                                 <td>${!c.ativo ? '<span class="badge inactive">Cadastro inativo</span>' : c.presente_hoje ? '<span class="badge ok">Presente</span>' : '<span class="badge pending">Ausente</span>'}</td>
-                                <td>${c.tem_ficha ? '<span class="sem-acao">Ficha completa</span>'
+                                <td>${c.tem_ficha ? `<button type="button" class="action-btn com-texto" data-retirada="${c.id_crianca}"><span class="material-icons">how_to_reg</span>Retirada</button>`
                                     : `<button type="button" class="action-btn com-texto" data-completar="${c.id_membro}"><span class="material-icons">assignment_ind</span>Completar ficha</button>`}</td>
                             </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhuma pessoa com menos de 18 anos no cadastro.</td></tr>'}
                     </tbody>
@@ -91,6 +91,8 @@ async function gerenciaCriancas() {
     grade.querySelector('#btnNovaCrianca').addEventListener('click', () => novaCrianca(dados.turmas));
     // Pessoa menor de 18 já cadastrada: completa a ficha infantil (sem cadastrar de novo)
     grade.querySelector('#painelCriancas').addEventListener('click', event => {
+        const retirada = event.target.closest('[data-retirada]');
+        if (retirada) return modalRetirada(Number(retirada.dataset.retirada));
         const botao = event.target.closest('[data-completar]');
         if (!botao) return;
         const pessoa = dados.criancas.find(c => c.id_membro === Number(botao.dataset.completar));
@@ -175,6 +177,10 @@ function novaCrianca(turmas, pessoa = null) {
                         <input type="checkbox" id="cImagem">
                         <div><strong>Autorização de imagem</strong><small>Responsável autorizou o uso de imagens da criança nas atividades da igreja.</small></div>
                     </label>
+                    <label class="checkbox-card">
+                        <input type="checkbox" id="cRetirada">
+                        <div><strong>Responsável pode buscar a criança</strong><small>Autoriza este responsável a retirar a criança na turma. Outras pessoas são cadastradas depois, em "Retirada".</small></div>
+                    </label>
                 </div>
             </div>
 
@@ -240,7 +246,8 @@ function novaCrianca(turmas, pessoa = null) {
                 nome: $('cResponsavel').value,
                 parentesco: $('cParentesco').value,
                 telefone: $('cTelefone').value,
-                email: $('cEmail').value
+                email: $('cEmail').value,
+                autorizado_retirada: $('cRetirada').checked
             }
         };
 
@@ -327,6 +334,60 @@ async function gerenciaTurmas() {
             }
         }
     });
+}
+
+// Quem pode buscar a criança na turma: marcar/desmarcar e cadastrar outra pessoa autorizada
+async function modalRetirada(idCrianca) {
+    const { modal } = abrirModal('Retirada da criança', 'Quem pode buscar a criança na turma', '<p class="vazio">Carregando...</p>');
+    const corpo = modal.querySelector('.modal-corpo');
+    async function desenhar(mensagem = '') {
+        let dados;
+        try { dados = await enviarDados(`criancas/${idCrianca}/responsaveis`, 'GET'); } catch (erro) { corpo.innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`; return; }
+        modal.querySelector('.modal-header p').textContent = dados.nome;
+        corpo.innerHTML = `
+            <p class="subtitulo">Só quem estiver marcado aparece como autorizado na saída da turma. Ninguém é autorizado automaticamente.</p>
+            <div class="lista-responsaveis">${dados.responsaveis.map(r => `
+                <label class="responsavel-item opcao-radio">
+                    <input type="checkbox" data-autorizar="${r.id_responsavel}" ${r.autorizado_retirada ? 'checked' : ''}>
+                    <span><strong>${escapar(r.nome)}</strong>
+                        <small>${escapar(r.parentesco || 'Responsável')}${r.principal ? ' · principal' : ''}${r.telefone ? ` · ${escapar(r.telefone)}` : ''}</small>
+                        ${r.autorizacao_atualizada_em ? `<small>Atualizado em ${new Date(r.autorizacao_atualizada_em).toLocaleString('pt-BR')}${r.autorizacao_atualizada_por ? ` por ${escapar(r.autorizacao_atualizada_por)}` : ''}</small>` : ''}</span>
+                </label>`).join('') || '<p class="vazio">Nenhum responsável cadastrado.</p>'}</div>
+            <p class="mensagem-lista" role="status">${escapar(mensagem)}</p>
+            <form novalidate class="form-responsavel">
+                <h3 class="titulo-secao">Cadastrar outra pessoa</h3>
+                <div class="form-grid">
+                    <div class="form-group"><label for="rNome">Nome completo</label><input type="text" id="rNome" required></div>
+                    <div class="form-group"><label for="rParentesco">Parentesco</label>
+                        <select id="rParentesco" required><option value="">Selecione</option><option value="mae">Mãe</option><option value="pai">Pai</option>
+                            <option value="avo">Avó/Avô</option><option value="tio">Tia/Tio</option><option value="responsavel">Outro responsável</option></select></div>
+                    <div class="form-group"><label for="rTelefone">Telefone</label><input type="tel" id="rTelefone" required></div>
+                    <div class="form-group"><label for="rEmail">E-mail</label><input type="email" id="rEmail"></div>
+                </div>
+                <label class="opcao-radio"><input type="checkbox" id="rAutorizado"><span>Pode buscar a criança</span></label>
+                <div class="form-actions"><button type="submit" class="primary">Adicionar</button></div>
+            </form>`;
+        corpo.querySelectorAll('[data-autorizar]').forEach(caixa => caixa.addEventListener('change', async () => {
+            caixa.disabled = true;
+            try {
+                const r = await enviarDados(`criancas/${idCrianca}/responsaveis/${caixa.dataset.autorizar}`, 'PATCH', { autorizado_retirada: caixa.checked });
+                desenhar(r.mensagem);
+            } catch (erro) { caixa.checked = !caixa.checked; caixa.disabled = false; corpo.querySelector('.mensagem-lista').textContent = erro.message; }
+        }));
+        const form = corpo.querySelector('form');
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            try {
+                await enviarDados(`criancas/${idCrianca}/responsaveis`, 'POST', {
+                    nome: form.querySelector('#rNome').value, parentesco: form.querySelector('#rParentesco').value,
+                    telefone: form.querySelector('#rTelefone').value, email: form.querySelector('#rEmail').value,
+                    autorizado_retirada: form.querySelector('#rAutorizado').checked
+                });
+                desenhar('Pessoa cadastrada.');
+            } catch (erro) { mensagemFormulario(form, erro.message); }
+        });
+    }
+    desenhar();
 }
 
 function modalTurma(turma, responsaveis) {

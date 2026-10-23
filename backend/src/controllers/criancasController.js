@@ -42,8 +42,11 @@ exports.novaCrianca = async (req, res) => {
                 nome: texto(r.nome),
                 parentesco: PARENTESCOS[r.parentesco] || null,
                 telefone: texto(r.telefone),
-                email: texto(r.email)
-            }
+                email: texto(r.email),
+                // Buscar a criança na turma: só quem a equipe marcar
+                autorizado_retirada: r.autorizado_retirada === true
+            },
+            id_usuario: req.usuario.id_usuario
         };
 
         if (b.id_membro != null && b.id_membro !== '' && !dados.id_membro) return res.status(400).json({ erro: 'Pessoa inválida.' });
@@ -69,6 +72,56 @@ exports.novaCrianca = async (req, res) => {
     } catch (error) {
         console.error('Erro ao cadastrar criança', error);
         if (error.code === '23503') return res.status(400).json({ erro: 'A turma selecionada não existe.' });
+        responderErro(res, error);
+    }
+}
+
+// ---------------------------------------------------------
+// Responsáveis e autorização de retirada (quem pode buscar a criança na turma)
+// ---------------------------------------------------------
+const idValido = valor => Number.isInteger(Number(valor)) && Number(valor) > 0;
+
+exports.responsaveis = async (req, res) => {
+    try {
+        if (!idValido(req.params.id)) return res.status(400).json({ erro: 'Criança inválida.' });
+        const dados = await Criancas.responsaveis(Number(req.params.id));
+        if (!dados) return res.status(404).json({ erro: 'Criança não encontrada.' });
+        res.json(dados);
+    } catch (error) {
+        console.error('Erro ao listar responsáveis', error);
+        responderErro(res, error);
+    }
+}
+
+exports.adicionarResponsavel = async (req, res) => {
+    try {
+        if (!idValido(req.params.id)) return res.status(400).json({ erro: 'Criança inválida.' });
+        const b = req.body || {};
+        const dados = {
+            nome: texto(b.nome)?.slice(0, 150), parentesco: PARENTESCOS[b.parentesco] || null,
+            telefone: texto(b.telefone)?.slice(0, 30), email: texto(b.email)?.slice(0, 150),
+            autorizado_retirada: b.autorizado_retirada === true
+        };
+        if (!dados.nome || !dados.parentesco || !dados.telefone) return res.status(400).json({ erro: 'Informe nome, parentesco e telefone.' });
+        if (dados.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dados.email)) return res.status(400).json({ erro: 'E-mail inválido.' });
+        const novo = await Criancas.adicionarResponsavel(Number(req.params.id), dados, req.usuario.id_usuario);
+        if (!novo) return res.status(404).json({ erro: 'Criança não encontrada.' });
+        res.status(201).json(novo);
+    } catch (error) {
+        console.error('Erro ao adicionar responsável', error);
+        responderErro(res, error);
+    }
+}
+
+exports.definirAutorizacao = async (req, res) => {
+    try {
+        if (!idValido(req.params.id) || !idValido(req.params.idResponsavel)) return res.status(400).json({ erro: 'Dados inválidos.' });
+        if (typeof req.body?.autorizado_retirada !== 'boolean') return res.status(400).json({ erro: 'Informe se a pessoa está autorizada.' });
+        const ok = await Criancas.definirAutorizacao(Number(req.params.id), Number(req.params.idResponsavel), req.body.autorizado_retirada, req.usuario.id_usuario);
+        if (!ok) return res.status(404).json({ erro: 'Responsável não vinculado a esta criança.' });
+        res.json({ mensagem: req.body.autorizado_retirada ? 'Autorizado a buscar a criança.' : 'Autorização de retirada removida.' });
+    } catch (error) {
+        console.error('Erro ao alterar autorização', error);
         responderErro(res, error);
     }
 }

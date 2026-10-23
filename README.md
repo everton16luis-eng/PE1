@@ -4,7 +4,7 @@ Sistema web para a gestão de uma igreja: membros e visitantes, voluntários e s
 
 - **Backend:** Node.js + Express 5, padrão MVC (rotas → controllers → models), PostgreSQL via `pg`.
 - **Frontend:** HTML, CSS e JavaScript puros, em uma única página (`index.html`) que troca o conteúdo por funções `gerencia...()`; responsivo do celular ao desktop.
-- **Testes:** 342 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
+- **Testes:** 359 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
 
 ## Funcionalidades
 
@@ -61,7 +61,7 @@ Acesse `http://localhost:3000` e entre com um dos usuários de teste (senha `Tes
 | `npm run db:instalar` | Instalação nova: estrutura completa e dados iniciais num banco vazio, sem dados de teste |
 | `npm run db:gerar-instalacao` | Gera de novo o `instalacao.sql` depois de uma migração nova |
 | `npm run db:setup` | Aplica todas as migrações e o seed de teste |
-| `npm run db:presenca` / `db:paginas` / `db:voluntario` / `db:cadastro` / `db:pessoas` / `db:acesso` / `db:relatorios` / `db:trocas` / `db:notificacoes` | Aplica cada migração isoladamente |
+| `npm run db:presenca` / `db:paginas` / `db:voluntario` / `db:cadastro` / `db:pessoas` / `db:acesso` / `db:relatorios` / `db:trocas` / `db:notificacoes` / `db:atendimento` | Aplica cada migração isoladamente |
 | `npm run db:seed` | Gera ~6 meses de dados de teste + complementos |
 
 ## Estrutura

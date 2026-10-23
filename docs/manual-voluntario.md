@@ -31,6 +31,18 @@ Para receber os avisos **no celular, mesmo com o sistema fechado**:
 
 No Android, use o Chrome. No iPhone, primeiro adicione o sistema à Tela de Início (Compartilhar → "Adicionar à Tela de Início") e abra por lá. Ao **sair** do sistema, aquele aparelho deixa de receber os seus avisos.
 
+## Turmas (se você é responsável por uma turma)
+
+Se a liderança vinculou você a uma turma (NEXT, Kids…), o menu mostra **Turmas**.
+
+1. **Abra a turma** quando o culto ou evento estiver começando: a abertura é liberada 30 minutos antes do início. Fora desse período, o botão fica desligado e a tela explica o motivo.
+2. **Registrar entrada:** busque a criança, **confira o nome** na tela e confirme. Imprima as **duas etiquetas**: uma fica com a criança e a outra com o responsável. Os códigos são diferentes de propósito: o da criança não serve para retirá-la.
+3. **Registrar saída:** escolha quem veio buscar (só aparecem as pessoas autorizadas) e digite o **código de RETIRADA** da etiqueta do responsável ou leia o QR dela. Se o código for de outra criança ou já tiver sido usado, o sistema recusa: **não entregue a criança**; chame a liderança.
+4. Etiqueta perdida? Use **2ª via**, informando o motivo; a antiga deixa de valer.
+5. Quando todas as crianças tiverem saído, toque em **Encerrar turma**. Se a turma ficar aberta, o sistema encerra sozinho às 23h59 e avisa a liderança.
+
+Os dados das crianças e dos responsáveis ficam visíveis só enquanto a turma está aberta.
+
 ## O que você vê
 
 No topo aparecem a sua **próxima escala**, quantas escalas estão **aguardando a sua resposta**, quantas vezes você já serviu e a sua porcentagem de presença.

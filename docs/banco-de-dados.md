@@ -67,7 +67,15 @@ erDiagram
 | `turmas` | **Registros de presença** (o nome é histórico) | `id_turma`, `id_membro`, `nome`, `data`, `hora_entrada`, `hora_saida`; único (`id_turma`, `id_membro`, `data`) |
 | `criancas` | Cadastro infantil | `nome_completo`, `data_nascimento`, `id_membro` (para a presença), `id_turma`, `sexo`, `alergias`, `data_cadastro`, `autorizacao_responsavel`, `autorizacao_imagem`, `ativo` |
 | `responsaveis` | Pais/responsáveis | `nome_completo`, `telefone`, `email`, `parentesco` |
-| `crianca_responsavel` | Responsáveis de cada criança (N:N) | `responsavel_principal` |
+| `crianca_responsavel` | Responsáveis de cada criança (N:N) | `responsavel_principal`, **`autorizado_retirada`** (pode buscar a criança na turma; padrão `false`), `autorizacao_atualizada_em`/`_por` |
+| `turma_voluntarios` | Voluntários que operam cada turma (além do responsável principal) | PK (`id_turma`, `id_voluntario`), `vinculado_em`, `vinculado_por` |
+| `turma_sessoes` | **Atendimento** de uma turma num evento (abrir → encerrar) | `id_turma`, `id_evento` (obrigatório), `status` (`aberta`/`encerrada`), `aberta_em`/`_por`, `encerrada_em`/`_por`, `processada_em`, `tipo_encerramento` (`manual`, `administrativo`, `automatico_limite_diario`, `automatico_fim_evento`), `motivo_encerramento`. Uma aberta por turma; uma por turma e evento |
+| `turma_atendimentos` | Entrada e saída de cada criança na sessão | `id_sessao`, `id_crianca`, `entrada_em`/`_por`, `saida_em`/`_por`, `tipo_saida` (`manual` = conferida; `automatica`; `administrativa`), `id_responsavel_retirada`. Único: criança presente uma vez por sessão (voltou = novo registro) |
+| `turma_codigos` | Códigos das etiquetas: **dois, vinculados** no mesmo registro | `id_atendimento`, `id_sessao`, `codigo` + `token_crianca` (etiqueta da **criança**, exposta: só identifica, nunca retira), `codigo_retirada` + `token` (etiqueta do **responsável**: o único aceito na saída) — códigos de 6 caracteres, sem repetir na sessão; tokens aleatórios nos QR; `id_responsavel`, `status` (`ativo`/`utilizado`/`invalidado`), emissão, uso, invalidação (quem, quando, motivo), `segunda_via_de`. Um ativo por atendimento |
+| `turma_auditoria` | Histórico de tudo: abertura, entradas, saídas, etiquetas, conferências, tentativas recusadas, encerramentos | `id_sessao`, `id_atendimento`, `id_codigo`, `acao`, `detalhe`, `id_usuario`, `automatico`, `criado_em` |
+| `turma_alertas` | Turma encerrada automaticamente (esquecida) | `id_sessao` (único), `motivo`, `prioritario` (havia criança presente), `presentes_no_encerramento`, `saidas_regularizadas`, `deveria_encerrar_em`, `encerrada_em`, `processada_em`, `status` (`pendente`/`tratado`), `tratado_por`/`_em`, `observacao_tratamento` |
+
+> **Lista de presença × Turmas:** a Lista de presença (`turmas`) continua como estava. O atendimento das turmas (`turma_*`) é o fluxo com evento, etiqueta e retirada conferida. A view `vw_eventos_janela` calcula início, fim (com virada da meia-noite) e o limite diário de cada evento no fuso da igreja.
 
 > A "presença de hoje" de uma criança é um registro em `turmas` para o `id_membro` dela na data atual. Por isso, ao cadastrar uma criança, o sistema também cria um membro.
 
@@ -117,6 +125,7 @@ Ficam em `backend/database/` e são executadas por `executar.js` (sempre em UTF-
 | `npm run db:acesso` | `acesso.sql` | Contas criadas pela tela de login: ativas e sem áreas de gestão (usuário padrão) |
 | `npm run db:relatorios` | `relatorios.sql` | Histórico de relatórios com o arquivo gerado (`titulo`, `id_evento`, `arquivo`, `hash_arquivo`…) |
 | `npm run db:notificacoes` | `notificacoes.sql` | `notificacoes` (central de avisos de cada login), `push_inscricoes` (aparelhos que ativaram o Web Push) e `avisos_enviados` (lembretes automáticos sem repetir) |
+| `npm run db:atendimento` | `atendimento-turmas.sql` | Turmas: `turma_voluntarios`, `turma_sessoes`, `turma_atendimentos`, `turma_codigos`, `turma_auditoria`, `turma_alertas`, a view `vw_eventos_janela` e `crianca_responsavel.autorizado_retirada` (ninguém autorizado por padrão) |
 | `npm run db:trocas` | `trocas.sql` | `escala_trocas`: histórico de trocas de vaga (quem saiu, quem entrou, quando e se foi o voluntário ou a equipe) |
 
 ### Instalação nova

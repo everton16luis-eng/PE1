@@ -10,7 +10,7 @@ const { iniciar, encerrar, api, criarUsuario, voluntarioComEscalas, pool, TODAS,
 
 const TELAS = { celular: { width: 375, height: 812 }, tablet: { width: 768, height: 1024 }, desktop: { width: 1280, height: 800 } };
 const PAGINAS = ['gerenciaDashboard', 'gerenciaEvento', 'gerenciaPresenca', 'gerenciaParticipantes', 'gerenciaVoluntarios',
-    'gerenciaEscalas', 'gerenciaFuncoes', 'gerenciaCriancas', 'gerenciaRelatorios', 'gerenciaUsuarios', 'gerenciaConfiguracoes'];
+    'gerenciaEscalas', 'gerenciaFuncoes', 'gerenciaCriancas', 'gerenciaAtendimento', 'gerenciaRelatorios', 'gerenciaUsuarios', 'gerenciaConfiguracoes'];
 
 let navegador;
 let admin;
@@ -360,8 +360,13 @@ describe('Ficha e portal do voluntário', () => {
             const { pagina, contexto, erros } = await abrirLogado(login, tela);
             await pagina.waitForSelector('.escala-card');
 
-            // Só a Minha área no menu; endereço de gestão volta para o portal
-            assert.deepEqual(await pagina.$$eval('.sidebar nav a', links => links.map(a => a.id)), ['gerenciaMinhaArea']);
+            // Só a Minha área no menu (e Turmas, se ele opera alguma turma); endereço de gestão volta para o portal
+            const operaTurma = (await pool.query(
+                `SELECT 1 FROM cadastroturmas t WHERE t.ativo AND (t.id_membro_responsavel = $1 OR EXISTS (
+                     SELECT 1 FROM turma_voluntarios tv JOIN voluntarios vv ON vv.id_voluntario = tv.id_voluntario
+                     WHERE tv.id_turma = t.id_turma AND vv.id_membro = $1))`,
+                [v.id_membro])).rowCount > 0;
+            assert.deepEqual(await pagina.$$eval('.sidebar nav a', links => links.map(a => a.id)), operaTurma ? ['gerenciaMinhaArea', 'gerenciaAtendimento'] : ['gerenciaMinhaArea']);
             await pagina.goto(`${urlBase}/#/usuarios`);
             await pagina.waitForSelector('.escala-card');
             assert.match(pagina.url(), /#\/minha-area$/);
@@ -541,7 +546,7 @@ describe('Segurança na tela', () => {
         const restrito = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, criancas: true } });
         const { pagina, contexto } = await abrirLogado(restrito, TELAS.desktop);
         const menu = await pagina.$$eval('.sidebar nav a', links => links.map(a => a.id));
-        assert.deepEqual(menu, ['gerenciaDashboard', 'gerenciaPresenca', 'gerenciaCriancas', 'gerenciaConfiguracoes']);
+        assert.deepEqual(menu, ['gerenciaDashboard', 'gerenciaPresenca', 'gerenciaCriancas', 'gerenciaAtendimento', 'gerenciaConfiguracoes']);
         await abrirPagina(pagina, 'gerenciaConfiguracoes', TELAS.desktop);
         assert.equal(await pagina.isDisabled('#cfNome'), true, 'configurações deveriam ser só leitura');
         assert.equal(await pagina.isVisible('#formConfiguracoes button[type="submit"]'), false, 'não deveria haver botão de salvar');

@@ -101,6 +101,24 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
 - **Lista:** **todas as pessoas do cadastro com menos de 18 anos** (calculado pela data de nascimento; quem faz 18 sai da lista sozinho e continua em Participantes). Quem tem ficha infantil mostra responsável e turma; quem ainda não tem aparece como **Ficha a completar** (filtro **Sem ficha**), com o botão **Completar ficha**. Crianças com cadastro inativo aparecem como **Cadastro inativo** (filtro **Inativas**). A presença vem da Lista de presença. Alergias aparecem com ⚠.
 - **Nova criança:** cadastra a criança no cadastro universal (como visitante, só menores de 18) junto com a ficha: responsável, turma (sugerida pela idade) e autorizações. **Completar ficha** faz o mesmo para quem já está no cadastro, sem cadastrar de novo. A **autorização do responsável é obrigatória**; a de imagem é opcional.
 - **Gerenciar turmas:** crie e edite turmas (faixa etária, responsável, dia e horário). Uma turma com crianças ou presenças registradas não pode ser excluída; marque-a como **Inativa**.
+- **Retirada (quem pode buscar):** na linha da criança, **Retirada** mostra os responsáveis. Marque quem pode buscar a criança na turma e cadastre outras pessoas autorizadas (avó, tio…). Ninguém fica autorizado sozinho; cada mudança registra quem fez e quando. No cadastro de uma criança nova, marque **Responsável pode buscar a criança**.
+
+## Turmas (recepção das crianças)
+
+Para administradores e quem tem a área **Crianças** (tudo), e para os **voluntários responsáveis** de cada turma (só a operação das suas turmas, sem acesso a Dashboard, Configurações ou outras áreas).
+
+- **Abrir a turma:** só quando há um **evento** em andamento ou que começa nos próximos **30 minutos**. Sem evento, o botão fica desligado e a tela explica o motivo e quando a abertura será liberada. A turma fica ligada àquele evento e pode funcionar até as **23h59** do dia; se o evento passa da meia-noite, até o fim dele. Cada turma abre uma vez por evento.
+- **Registrar entrada:** busque a criança (sem acento funciona), confira nome, idade, alergias e responsáveis e confirme. O sistema gera os **dois códigos** das etiquetas.
+- **Etiquetas:** duas, com códigos e QR **diferentes**. A da criança traz um código que só identifica; a do responsável (com faixa no topo) traz o **código de RETIRADA**, o único aceito na saída, e repete o código da criança para você conferir que são do mesmo atendimento. Não levam telefone nem e-mail. Pré-visualize e imprima as duas, só a da criança ou só a do responsável (folha comum, etiquetas de 9 × 5 cm com linha de corte). **2ª via** (etiqueta perdida) pede o motivo e invalida a anterior.
+- **Registrar saída:** escolha quem está buscando entre as **pessoas autorizadas** e digite ou leia o **código de retirada** da etiqueta do responsável. O sistema recusa o código da etiqueta da criança, código de outra criança, de outra sessão, já usado ou invalidado, e registra a tentativa. Sem pessoa autorizada cadastrada, aparece um aviso: entregue só com a etiqueta e peça o cadastro das autorizações.
+- **Conferir etiqueta:** confere um código (de qualquer das duas etiquetas) sem registrar a saída e diz qual etiqueta foi lida.
+- **Dados:** dados da criança e dos responsáveis, com telefone e e-mail clicáveis. Para o voluntário, só com a turma aberta.
+- **Encerrar turma:** depois que todas as crianças saíram. Encerrada, a turma não recebe mais entradas nem saídas; os códigos deixam de valer.
+- **Abas da gestão:**
+  - **Sessões:** todas, abertas e encerradas, com **Ver** e o **histórico completo** de cada uma (quem fez o quê e quando);
+  - **Alertas:** turmas que o sistema encerrou sozinho porque ninguém encerrou. Os **prioritários** tinham crianças ainda presentes, com saída registrada pelo sistema, que não é entrega conferida. Abra o alerta, confirme com as famílias e **marque como tratado**, descrevendo o que foi feito;
+  - **Responsáveis:** em cada turma, os voluntários que podem abrir e operar a turma;
+  - **Encerrar (administração):** encerra uma sessão com motivo; as crianças ainda presentes saem como saída administrativa.
 
 ## Relatórios
 

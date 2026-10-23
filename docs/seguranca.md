@@ -84,6 +84,16 @@ Além disso, o sistema recusa deixar a igreja sem nenhum administrador ativo.
 - Ao sair do sistema, o aparelho deixa de receber os avisos daquele login. Um aparelho pertence a um login por vez.
 - A lista de quem pode assumir uma vaga e os avisos mostram só nomes — nenhum telefone ou e-mail.
 
+## Turmas (crianças)
+
+- O voluntário só opera as turmas a que está vinculado; o servidor confere em cada chamada (não confia em ids do navegador). Ser responsável de turma não dá nenhuma área de gestão.
+- A turma só abre com evento elegível (em andamento ou nos próximos 30 min), conferido no servidor com data, hora e fuso. O prazo considera eventos que passam da meia-noite.
+- Dados completos da criança e dos responsáveis: voluntário só com a turma aberta; cada consulta fica registrada.
+- Etiquetas: **dois códigos distintos e vinculados**. A etiqueta da criança, que fica à vista, tem um código que só identifica e **nunca** autoriza a retirada (é recusado e a tentativa é registrada). O **código de retirada** existe só na etiqueta do responsável. Cada etiqueta tem seu QR com token aleatório próprio; nenhum dado pessoal no QR e nenhum contato impresso. O código de retirada só vale para aquela criança, naquela sessão, uma vez; 2ª via e encerramento invalidam os dois para sempre.
+- Saída em transação com bloqueio da linha: duas retiradas simultâneas com o mesmo código — só uma passa. Tentativas recusadas (outra criança, outra sessão, reuso, código inválido) ficam na auditoria.
+- Encerramento automático no servidor (não depende do navegador), idempotente, numa transação com o alerta. A saída automática é marcada como não conferida e gera alerta prioritário.
+- Quem pode buscar a criança é marcado pela equipe; ninguém é autorizado automaticamente.
+
 ## Limitações conhecidas e recomendações para produção
 
 | Item | Situação | Recomendação |

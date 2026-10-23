@@ -67,7 +67,7 @@ Depois:
 2. Inicie o sistema (`npm start`) e faça o **primeiro cadastro** na aba Registro da tela de login. Como ainda não existe nenhum administrador, essa conta **vira administrador automaticamente**. Os cadastros seguintes entram como usuário padrão.
 3. Em **Configurações**, confira os dados da igreja. Em **Funções** e **Crianças → Gerenciar turmas**, ajuste as listas e escolha os responsáveis das turmas.
 
-As migrações (`db:presenca` … `db:notificacoes`) podem ser rodadas por cima sem erro. Nas atualizações futuras, rode só as migrações novas. Não rode o seed (`db:seed`) num banco de verdade.
+As migrações (`db:presenca` … `db:atendimento`) podem ser rodadas por cima sem erro. Nas atualizações futuras, rode só as migrações novas. Não rode o seed (`db:seed`) num banco de verdade.
 
 > **Ao criar uma migração nova**, aplique-a no banco de desenvolvimento e rode `npm run db:gerar-instalacao`. Assim o `instalacao.sql` volta a ter a estrutura completa. Os dados iniciais ficam em `backend/database/dados-iniciais.sql`.
 
@@ -105,6 +105,7 @@ Isso executa, em ordem:
 8. `db:relatorios` — histórico de relatórios com arquivo.
 9. `db:trocas` — histórico de trocas de vaga nas escalas.
 10. `db:notificacoes` — central de avisos, aparelhos do Web Push e controle de lembretes.
+11. `db:atendimento` — Turmas: sessões por evento, entrada/saída, etiquetas, histórico e alertas.
 
 Todas as migrações **só acrescentam** estruturas e podem ser rodadas mais de uma vez. O seed não roda duas vezes no mesmo banco (verifica o usuário `admin@novocaminho.org`). Detalhes em [Banco de dados](banco-de-dados.md).
 

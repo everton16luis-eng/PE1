@@ -107,6 +107,16 @@ const notificacoesModel = {
     },
 
     // Liderança das escalas: administradores e equipe com a área Escalas
+    // Administração das crianças: administradores e quem tem a área Crianças
+    gestaoCriancas: async () => {
+        const result = await pool.query(
+            `SELECT id_usuario FROM usuarios
+             WHERE ativo AND perfil <> 'VOLUNTARIO'
+               AND (perfil = 'ADMINISTRADOR' OR (permissoes->>'criancas')::boolean IS TRUE)`
+        );
+        return result.rows.map(r => r.id_usuario);
+    },
+
     lideranca: async () => {
         const result = await pool.query(
             `SELECT id_usuario FROM usuarios

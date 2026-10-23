@@ -66,6 +66,8 @@ const ROTAS = {
     'escalas': [gerenciaEscalas, 'escalas'],
     'escalas/nova': [novaEscala, 'escalas'],
     'criancas': [gerenciaCriancas, 'criancas'],
+    'atendimento': [gerenciaAtendimento, 'turmas'],
+    'atendimento/sessao': [sessaoTurma, 'turmas', 'atendimento'],
     'criancas/nova': [novaCrianca, 'criancas', 'criancas'],
     'turmas': [gerenciaTurmas, 'criancas'],
     'relatorios': [gerenciaRelatorios, 'relatorios'],
@@ -139,11 +141,12 @@ async function abrirRotaDoHistorico(estado) {
         [abrir, permissao] = ROTAS[rota];
         args = [];
     }
-    // Voluntário só acessa a Minha área; os demais vão ao Dashboard se não tiverem permissão
-    if (somenteVoluntario() && permissao !== 'portal') {
+    // Voluntário só acessa a Minha área (e as Turmas, se for responsável por alguma);
+    // os demais vão ao Dashboard se não tiverem permissão
+    if (somenteVoluntario() && permissao !== 'portal' && !(permissao === 'turmas' && temPermissao('turmas'))) {
         rota = 'minha-area';
     } else if (permissao && !temPermissao(permissao)) {
-        rota = 'dashboard';
+        rota = somenteVoluntario() ? 'minha-area' : 'dashboard';
     }
     if (rota !== estado?.rota) {
         [abrir] = ROTAS[rota];
@@ -217,6 +220,13 @@ function cabecalhos() {
 // (usuário padrão) e quem tem ficha de voluntário mesmo com perfil de gestão.
 // O que aparece nela vem da classificação no banco.
 function temPermissao(area) {
+    // Turmas: gestão das crianças ou quem é responsável/voluntário de alguma turma
+    // (não depende de área de gestão; o servidor confere cada turma)
+    if (area === 'turmas') {
+        return usuarioAtual?.perfil === 'ADMINISTRADOR'
+            || (usuarioAtual?.perfil !== 'VOLUNTARIO' && Boolean(usuarioAtual?.permissoes?.criancas))
+            || Number(usuarioAtual?.turmas_vinculadas) > 0;
+    }
     if (area === 'portal') {
         return !usuarioAtual?.gestao || ['VOLUNTARIO', 'VISUALIZACAO'].includes(usuarioAtual?.perfil) || Boolean(usuarioAtual?.voluntario);
     }
@@ -541,6 +551,7 @@ function sideBar() {
         ['gerenciaEscalas', 'calendar_month', 'Escalas', gerenciaEscalas, 'escalas'],
         ['gerenciaFuncoes', 'engineering', 'Funções', gerenciaFuncoes, 'voluntarios'],
         ['gerenciaCriancas', 'escalator_warning', 'Crianças', gerenciaCriancas, 'criancas'],
+        ['gerenciaAtendimento', 'child_care', 'Turmas', gerenciaAtendimento, 'turmas'],
         ['gerenciaRelatorios', 'receipt_long', 'Relatórios', gerenciaRelatorios, 'relatorios'],
         ['gerenciaUsuarios', 'manage_accounts', 'Usuários', gerenciaUsuarios, 'usuarios'],
         ['gerenciaConfiguracoes', 'settings', 'Configurações', gerenciaConfiguracoes, 'gestao']
@@ -548,7 +559,9 @@ function sideBar() {
 
     const nav = sideBar.querySelector('nav');
     paginas
-        .filter(([, , , , permissao]) => somenteVoluntario() ? permissao === 'portal' : (!permissao || temPermissao(permissao)))
+        .filter(([, , , , permissao]) => somenteVoluntario()
+            ? permissao === 'portal' || (permissao === 'turmas' && temPermissao('turmas'))
+            : (!permissao || temPermissao(permissao)))
         .forEach(([id, icone, nome, abrirPagina]) => {
             const link = document.createElement('a');
             link.id = id;
