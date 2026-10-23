@@ -1,4 +1,6 @@
 const Eventos = require('../models/eventosModel');
+const Notificacoes = require('../models/notificacoesModel');
+const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
 
 exports.getAllFuncoes = async (req, res) => {
@@ -97,11 +99,18 @@ exports.atualizarEvento = async (req, res) => {
             return res.status(400).json({ erro: 'O horário de término deve ser depois do início.' });
         }
 
+        const antes = await Notificacoes.escaladosDoEvento(id);
         const evento = await Eventos.atualizarEvento(id, dados);
         if (!evento) {
             const situacao = await Eventos.buscarSituacao(id);
             if (situacao?.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
             return res.status(404).json({ erro: 'Evento não encontrado.' });
+        }
+        // Mudou o dia ou o horário de início: os escalados são avisados
+        const mudouHorario = antes && (antes.data !== dados.data_evento
+            || String(antes.hora_inicio || '').slice(0, 5) !== String(dados.hora_inicio || '').slice(0, 5));
+        if (mudouHorario && antes.voluntarios.length) {
+            avisarDepois(() => Avisos.eventoAlterado(antes.voluntarios, { evento: dados.nome, data: dados.data_evento, hora_inicio: dados.hora_inicio }));
         }
         res.json(evento);
     } catch (error) {
@@ -115,9 +124,12 @@ exports.removerEvento = async (req, res) => {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'Evento inválido.' });
 
+        // Quem estava escalado é avisado de que a escala foi cancelada
+        const antes = await Notificacoes.escaladosDoEvento(id);
         const resultado = await Eventos.removerEvento(id);
         if (!resultado) return res.status(404).json({ erro: 'Evento não encontrado.' });
         if (resultado.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
+        if (antes?.voluntarios.length) avisarDepois(() => Avisos.eventoRemovido(antes.voluntarios, antes));
         res.json({ mensagem: 'Evento removido.', ...resultado });
     } catch (error) {
         console.error('Erro ao remover evento', error);

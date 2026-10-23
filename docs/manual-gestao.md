@@ -23,6 +23,16 @@ Para secretaria, líderes de departamento e administradores. O que aparece no se
 - **Voltar e Avançar do navegador:** funcionam normalmente entre as páginas, e recarregar (F5) mantém você na página atual.
 - **Ver nomes nas listas:** em Participantes, Voluntários, Funções e Crianças, os nomes só aparecem depois que você **pesquisa** ou clica num **filtro** (Todos, Ativos…). Isso evita expor os dados de todos ao abrir a página.
 
+## Avisos (sininho)
+
+O sininho no alto de todas as telas mostra os avisos não lidos. A liderança (administradores e quem tem a área **Escalas**) recebe:
+
+- **"Fulano não poderá ir"**, com o motivo, assim que um voluntário recusa uma escala;
+- **troca de vaga** feita entre voluntários;
+- às 18h, o resumo das **confirmações pendentes** dos próximos 2 dias.
+
+Toque num aviso para abrir a tela certa. Para receber também no celular: sininho → **Ativar neste aparelho**. Os voluntários são avisados sozinhos quando são escalados, retirados, quando o evento muda de dia ou horário ou é removido, e na véspera. A opção **Notificações** em Configurações liga ou pausa esses lembretes automáticos.
+
 ## Dashboard
 
 Mostra os totais (visitantes, membros, voluntários e escalas do mês), as escalas desta semana, quem ainda não confirmou presença, o gráfico de confirmações do mês e os próximos eventos. Na parte de baixo há atalhos para cadastros e relatórios.

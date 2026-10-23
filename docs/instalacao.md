@@ -31,6 +31,8 @@ cp backend/src/.env.example backend/src/.env
 | `AUTH_SECRET` | **sim em produção** | Chave que assina os tokens de login. Sem ela o servidor gera uma chave temporária e todos precisam entrar de novo a cada reinício |
 | `PG_DUMP_PATH` | não | Caminho do `pg_dump` para o backup. No Windows o sistema procura sozinho em `C:\Program Files\PostgreSQL\<versão>\bin` |
 | `DB_NAME_TESTE` | não | Nome do banco de testes (padrão: `<DB_NAME>_teste`) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | para notificações no celular | Chaves do Web Push. Gere com `npm run push:chaves` (grava no `.env`, uma vez por servidor). Sem elas, só a central de avisos (sininho) funciona |
+| `LEMBRETE_HORA` | não (18) | Hora local em que saem os lembretes da véspera |
 
 Para gerar uma chave forte:
 
@@ -71,10 +73,11 @@ Isso executa, em ordem:
 7. `db:acesso` — contas da tela de login como usuário padrão.
 8. `db:relatorios` — histórico de relatórios com arquivo.
 9. `db:trocas` — histórico de trocas de vaga nas escalas.
+10. `db:notificacoes` — central de avisos, aparelhos do Web Push e controle de lembretes.
 
 Todas as migrações **só acrescentam** estruturas e podem ser rodadas mais de uma vez. O seed não roda duas vezes no mesmo banco (verifica o usuário `admin@novocaminho.org`). Detalhes em [Banco de dados](banco-de-dados.md).
 
-> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`, `db:pessoas`, `db:acesso`, `db:relatorios`, `db:trocas`) e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
+> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`, `db:pessoas`, `db:acesso`, `db:relatorios`, `db:trocas`, `db:notificacoes`), gere as chaves com `npm run push:chaves` e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
 
 ## 4. Rodar
 
@@ -91,6 +94,16 @@ npm test
 ```
 
 Os testes criam e usam um banco separado (`igreja_sistema_teste`), cópia do principal — nunca escrevem no banco de verdade. Veja [Testes](testes.md).
+
+## Notificações no celular (Web Push)
+
+Funcionam no Android (Chrome, Edge, Firefox, Samsung Internet) e no computador **sem aplicativo**: cada pessoa toca no sininho → **Ativar neste aparelho** e aceita a permissão. No iPhone, só no iOS 16.4+ com o sistema adicionado à Tela de Início.
+
+- **Exigem endereço seguro:** `https://` em produção ou `http://localhost` nos testes. Pelo Wi-Fi (`http://192.168…`) o navegador **bloqueia** as notificações.
+- **Testar no computador:** abra `http://localhost:3000`, entre, toque no sininho → **Ativar neste aparelho** → **Enviar um teste**.
+- **Testar num Android antes de publicar:** ligue o celular no computador por USB (com "Depuração USB" ativada nas opções de desenvolvedor), abra `chrome://inspect/#devices` no Chrome do computador, ative **Port forwarding** de `3000` para `localhost:3000` e, no Chrome do celular, abra `http://localhost:3000`. Assim o celular trata o endereço como seguro.
+- **Ao sair do sistema** o aparelho deixa de receber os avisos daquele login (privacidade em celular emprestado).
+- **Chaves VAPID:** gere uma vez (`npm run push:chaves`) e não troque — trocar faz todos os aparelhos precisarem ativar de novo. Troque o `VAPID_SUBJECT` por um e-mail real da igreja.
 
 ## Problemas comuns
 

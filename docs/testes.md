@@ -2,7 +2,7 @@
 
 [← Voltar ao README](../README.md)
 
-São **321 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
+São **337 testes**, escritos com o executor nativo do Node (`node:test`) e, para a interface, `playwright-core` controlando o Chrome ou o Edge já instalados (sem baixar navegador).
 
 ## Como rodar
 

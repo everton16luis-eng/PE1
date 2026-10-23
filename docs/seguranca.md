@@ -76,6 +76,14 @@ Além disso, o sistema recusa deixar a igreja sem nenhum administrador ativo.
 - Gere um `AUTH_SECRET` forte e único por ambiente. Trocar a chave desconecta todos os usuários.
 - A pasta `backups/` também está fora do git: os arquivos contêm todos os dados, inclusive os hashes de senha.
 
+## Notificações
+
+- Cada login só lê e altera os próprios avisos e aparelhos (o id vem do token; avisos de outra pessoa respondem 404).
+- A inscrição do aparelho só aceita endereço `https` do serviço de push e chaves no formato esperado.
+- O conteúdo do push vai criptografado (Web Push com VAPID); a chave privada fica só no `.env`.
+- Ao sair do sistema, o aparelho deixa de receber os avisos daquele login. Um aparelho pertence a um login por vez.
+- A lista de quem pode assumir uma vaga e os avisos mostram só nomes — nenhum telefone ou e-mail.
+
 ## Limitações conhecidas e recomendações para produção
 
 | Item | Situação | Recomendação |

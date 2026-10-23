@@ -1,4 +1,6 @@
 const Voluntarios = require('../models/voluntariosModel');
+const Notificacoes = require('../models/notificacoesModel');
+const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
 
 const DIAS = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
@@ -159,8 +161,10 @@ exports.removerDaEscala = async (req, res) => {
         const id = idDaUrl(req, res);
         const idEscala = id && idDaUrl(req, res, 'idEscala');
         if (!idEscala) return;
+        const info = await Notificacoes.escalaInfo(idEscala);
         const removido = await Voluntarios.removerDaEscala(id, idEscala);
         if (!removido) return res.status(404).json({ erro: 'Escala futura não encontrada para este voluntário.' });
+        if (info) avisarDepois(() => Avisos.escalaRetirada([id], info));
         res.json({ mensagem: 'Voluntário retirado da escala.' });
     } catch (error) {
         console.error('Erro ao retirar voluntário da escala', error);

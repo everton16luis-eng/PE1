@@ -8,6 +8,8 @@ const Usuarios = require('../models/usuariosModel');
 const Participantes = require('../models/participantesModel');
 const Eventos = require('../models/eventosModel');
 const Escalas = require('../models/escalasModel');
+const Notificacoes = require('../models/notificacoesModel');
+const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha } = require('../config/seguranca');
 const Regras = require('../config/regrasVoluntario');
@@ -65,6 +67,13 @@ exports.responderEscala = async (req, res) => {
         // O voluntário só responde escalas futuras e que são dele
         const resposta = await Voluntarios.responderEscala(id, Number(req.params.idEscala), dados, true);
         if (!resposta) return res.status(404).json({ erro: 'Escala não encontrada (ou já passou).' });
+        // "Não posso ir": a liderança é avisada na hora, com o motivo
+        if (dados.recusado) {
+            avisarDepois(async () => Avisos.recusa({
+                nome: await Notificacoes.nomeDoVoluntario(id), motivo: dados.motivo,
+                info: await Notificacoes.escalaInfo(Number(req.params.idEscala))
+            }));
+        }
         res.json(resposta);
     } catch (error) {
         console.error('Erro ao responder escala pelo portal', error);
@@ -100,6 +109,12 @@ exports.passarVaga = async (req, res) => {
 
         const resultado = await Escalas.passarVaga(Number(req.params.idEscala), id, idNovo, req.usuario.id_usuario);
         if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
+        // Quem assumiu e a liderança são avisados
+        avisarDepois(async () => Avisos.vagaPassada({
+            idEntrou: idNovo, nomeEntrou: resultado.nome,
+            nomeSaiu: await Notificacoes.nomeDoVoluntario(id),
+            info: await Notificacoes.escalaInfo(Number(req.params.idEscala))
+        }));
         res.json({ mensagem: `Vaga passada para ${resultado.nome}. Ele(a) vai confirmar pela Minha área.` });
     } catch (error) {
         console.error('Erro ao passar a vaga', error);

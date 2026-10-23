@@ -195,6 +195,35 @@ Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos
 
 Regras para quem **não** é administrador (403): não cria nem promove administradores, não edita contas de administrador, não altera o próprio perfil ou as próprias permissões e não concede permissões que não possui. O sistema não deixa ficar sem administrador ativo (400).
 
+## Notificações
+
+Cada login só vê e altera os **próprios** avisos e aparelhos (o id vem do token). Liberado também para voluntários e usuários sem área de gestão.
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/notificacoes` | login | `{ nao_lidas, notificacoes (30 mais recentes: tipo, titulo, mensagem, rota, lida, criado_em), aparelhos, push_disponivel }` |
+| POST | `/notificacoes/:id/lida` | login | Marca um aviso como lido (404 se não for do login) |
+| POST | `/notificacoes/lidas` | login | Marca todos como lidos |
+| GET | `/notificacoes/push/chave` | login | `{ chave, disponivel }` — chave pública VAPID para ativar o push |
+| POST | `/notificacoes/push` | login | `{ inscricao: { endpoint (https), keys: { p256dh, auth } }, aparelho? }` — ativa neste aparelho. 503 sem chaves VAPID no servidor |
+| DELETE | `/notificacoes/push` | login | `{ endpoint }` — desativa neste aparelho |
+| POST | `/notificacoes/push/teste` | login | Envia um aviso de teste para o próprio login |
+
+Avisos automáticos (tipo → quem recebe):
+
+| Tipo | Quando | Quem recebe |
+|---|---|---|
+| `escala_nova` | Escala criada ou voluntário colocado por substituição | Voluntário |
+| `escala_retirada` | Equipe tira o voluntário da escala (ou o substitui) | Voluntário |
+| `escala_alterada` | Evento muda de dia ou de horário de início | Escalados no evento |
+| `escala_removida` | Evento removido | Escalados no evento |
+| `vaga_recebida` / `troca_voluntarios` | Voluntário passa a vaga | Quem assumiu / liderança |
+| `recusa` | Voluntário toca em "Não posso ir" | Liderança (com o motivo) |
+| `lembrete` | Véspera da escala, a partir das 18h (`LEMBRETE_HORA`) | Cada escalado, uma vez |
+| `pendencias` | Diário, a partir das 18h, se houver | Liderança: pendências dos próximos 2 dias |
+
+"Liderança" = administradores e equipe com a área **Escalas**. Os lembretes automáticos respeitam a opção **Notificações** em Configurações.
+
 ## Configurações
 
 | Método | Rota | Acesso | Descrição |

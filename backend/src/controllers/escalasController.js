@@ -1,4 +1,6 @@
 const Escalas = require('../models/escalasModel');
+const Notificacoes = require('../models/notificacoesModel');
+const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -88,7 +90,10 @@ exports.novaEscala = async (req, res) => {
             return res.status(400).json({ erro: 'Há voluntário(s) que não estão ativos e aptos para esta função. Atualize a lista e tente de novo.' });
         }
 
-        res.status(201).json(await Escalas.criar(dados));
+        const escala = await Escalas.criar(dados);
+        // Aviso para os voluntários escalados (sem atrasar a resposta)
+        avisarDepois(async () => Avisos.novaEscala(voluntarios, await Notificacoes.escalaInfo(escala.id_escala)));
+        res.status(201).json(escala);
     } catch (error) {
         console.error('Erro ao cadastrar escala', error);
         if (error.code === '23503') return res.status(400).json({ erro: 'Evento, função ou voluntário inexistente.' });
@@ -132,6 +137,12 @@ exports.substituirParticipante = async (req, res) => {
 
         const resultado = await Escalas.substituirParticipante(idEscala, idAnterior, idNovo, req.usuario.id_usuario);
         if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
+        // Quem entrou recebe a escala; quem saiu é avisado
+        avisarDepois(async () => {
+            const info = await Notificacoes.escalaInfo(idEscala);
+            await Avisos.novaEscala([idNovo], info);
+            await Avisos.escalaRetirada([idAnterior], info);
+        });
         res.json(await Escalas.buscarEscala(idEscala));
     } catch (error) {
         console.error('Erro ao substituir voluntário da escala', error);

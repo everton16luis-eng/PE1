@@ -116,6 +116,7 @@ Ficam em `backend/database/` e são executadas por `executar.js` (sempre em UTF-
 | `npm run db:pessoas` | `pessoas.sql` | **Base universal**: `membros.classificacao` e `data_primeira_visita`; leva visitantes, a criança sem pessoa e os logins sem pessoa para a base (como visitantes) e liga cada um; `criancas.id_membro` e `usuarios.id_membro` passam a ser obrigatórios (uma ficha infantil por pessoa); visões de resumo contam pela classificação. Não apaga pessoas nem muda ids |
 | `npm run db:acesso` | `acesso.sql` | Contas criadas pela tela de login: ativas e sem áreas de gestão (usuário padrão) |
 | `npm run db:relatorios` | `relatorios.sql` | Histórico de relatórios com o arquivo gerado (`titulo`, `id_evento`, `arquivo`, `hash_arquivo`…) |
+| `npm run db:notificacoes` | `notificacoes.sql` | `notificacoes` (central de avisos de cada login), `push_inscricoes` (aparelhos que ativaram o Web Push) e `avisos_enviados` (lembretes automáticos sem repetir) |
 | `npm run db:trocas` | `trocas.sql` | `escala_trocas`: histórico de trocas de vaga (quem saiu, quem entrou, quando e se foi o voluntário ou a equipe) |
 
 Para rodar um `.sql` avulso:

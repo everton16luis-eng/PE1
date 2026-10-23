@@ -46,11 +46,17 @@ before(async () => {
            AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_membro = v.id_membro)
          ORDER BY es.data_escala, ep.id_escala`)).rows;
     for (const c of candidatas) {
-        const livres = await livresNoBanco(c.id_escala, c.id_voluntario);
-        if (livres.length) {
+        // João precisa estar sem login (o teste cria um para ele ver a Minha área)
+        const livres = (await livresNoBanco(c.id_escala, c.id_voluntario));
+        const semLogin = (await pool.query(
+            `SELECT id_voluntario FROM voluntarios v
+             WHERE id_voluntario = ANY($1::int[]) AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_membro = v.id_membro)`,
+            [livres.map(l => l.id_voluntario)])).rows.map(r => r.id_voluntario);
+        const candidato = livres.find(l => semLogin.includes(l.id_voluntario));
+        if (candidato) {
             escala = { id_escala: c.id_escala, data: c.data, id_funcao: c.id_funcao };
             maria = { id_voluntario: c.id_voluntario, ...(await criarUsuario({ perfil: 'VOLUNTARIO', permissoes: NENHUMA, id_membro: c.id_membro })) };
-            joao = livres[0];
+            joao = candidato;
             break;
         }
     }

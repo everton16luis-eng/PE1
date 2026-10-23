@@ -263,10 +263,173 @@ img {
     background: #f0f0f0;
 }
 
-.notifications {
-    font-size: 22px;
+/* Sininho de avisos (com contador de não lidos) — também no celular */
+.sino {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-right: 4px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
     color: var(--muted);
-    margin-right: 6px;
+    cursor: pointer;
+}
+
+.sino .material-icons {
+    font-size: 22px;
+}
+
+.sino:hover {
+    color: var(--navy);
+}
+
+.sino-contador {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #c62828;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 19px;
+    text-align: center;
+}
+
+/* Central de avisos */
+.modal.modal-avisos {
+    max-width: 560px;
+}
+
+.aparelho-avisos {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    background: #f7ece4;
+    border: 1px solid #ecd6c7;
+}
+
+.aparelho-avisos.estado-ativo {
+    background: #e7f7ee;
+    border-color: #c5ead6;
+}
+
+.aparelho-avisos > .material-icons {
+    color: var(--navy);
+    font-size: 28px;
+}
+
+.aparelho-avisos.estado-ativo > .material-icons {
+    color: #1f7a4d;
+}
+
+.aparelho-avisos p {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.aparelho-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.aparelho-acoes button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+}
+
+.mensagem-aparelho:empty {
+    display: none;
+}
+
+.mensagem-aparelho.erro {
+    color: #b03b3b;
+}
+
+.avisos-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 8px;
+    font-size: 13px;
+}
+
+.link-botao {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--navy);
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.lista-avisos {
+    list-style: none;
+    display: grid;
+    gap: 6px;
+}
+
+.aviso button {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.aviso.nao-lido button {
+    background: #eef3fb;
+    border-color: #d6e2f5;
+}
+
+.aviso-icone {
+    color: var(--navy);
+    font-size: 22px;
+}
+
+.aviso-texto {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.aviso.nao-lido .aviso-texto strong::after {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: #c62828;
+    vertical-align: middle;
+}
+
+.aviso-texto small {
+    color: var(--muted);
+    font-size: 11px;
 }
 
 
@@ -1413,8 +1576,9 @@ dialog button {
         font-size: 12px;
     }
 
+    /* No celular: sininho e Sair bastam (o avatar ocuparia o lugar do título) */
     .profile-info,
-    .notifications {
+    .profile .avatar {
         display: none;
     }
 

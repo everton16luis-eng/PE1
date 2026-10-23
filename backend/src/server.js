@@ -45,6 +45,7 @@ app.use('/api', authRoutes);
 app.use('/api', exigirLogin);
 app.use('/api', restringirAreaDeGestao);
 app.use('/api', require('./routes/portalRoutes'));
+app.use('/api', require('./routes/notificacoesRoutes'));
 
 app.use('/api', dashboardRoutes);
 app.use('/api', eventosRoutes);
@@ -77,9 +78,10 @@ app.use((error, req, res, next) => {
 
 // Os testes importam o app e sobem o servidor numa porta própria
 if (require.main === module) {
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
         console.log(`API rodando em http://localhost:${PORT}`);
         iniciarBackupAutomatico();
+        require('./config/notificacoes').iniciarLembretes();
     });
 }
 

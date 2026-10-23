@@ -16,6 +16,9 @@ async function carregarDashboard() {
         return; // token inválido: enviarDados já abriu a tela de login
     }
 
+    // Notificações: recebe os avisos no aparelho (se ativado) e conta os não lidos
+    registrarServiceWorker();
+
     const app = document.getElementById('app');
     const main = document.createElement('main');
     main.classList.add('content');
@@ -180,6 +183,7 @@ function salvarToken(token, lembrar) {
 }
 
 function sairDoSistema() {
+    esquecerAparelhoAoSair(); // precisa do token: antes de apagá-lo
     try {
         sessionStorage.removeItem('igreja-token');
         localStorage.removeItem('igreja-token');
@@ -565,7 +569,10 @@ function headerInterno(nome, descricao) {
             </div>
         </div>
         <div class="profile">
-            <span class="material-icons notifications">notifications</span>
+            <button type="button" class="sino" aria-label="Avisos" title="Avisos">
+                <span class="material-icons" aria-hidden="true">notifications</span>
+                <span class="sino-contador" hidden></span>
+            </button>
             <div class="avatar"></div>
             <div class="profile-info">
                 <strong></strong>
@@ -586,6 +593,8 @@ function headerInterno(nome, descricao) {
         event.preventDefault();
         sairDoSistema();
     }));
+    header.querySelector('.sino').addEventListener('click', abrirAvisos);
+    atualizarSino();
 
     return header;
 }
