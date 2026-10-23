@@ -223,6 +223,7 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
     });
 
     async function desenharCalendario() {
+        if (!ativa()) return;
         $('mesAtual').textContent = `${NOMES_MESES[mes - 1]} ${ano}`;
         $('selectMes').value = mes;
         $('selectAno').value = ano;
@@ -257,6 +258,8 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
     }
 
     async function carregarDia(data) {
+        // Chamada também depois do calendário: se o usuário já saiu de Escalas, não mexe na página nova
+        if (!ativa()) return;
         diaSelecionado = data;
         // Guarda o dia escolhido para o Voltar/recarregar reabrir no mesmo dia
         if (history.state?.rota === 'escalas') history.replaceState({ ...history.state, rota: 'escalas', args: [data, visao] }, '', location.hash);

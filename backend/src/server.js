@@ -30,7 +30,8 @@ app.use((req, res, next) => {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'same-origin',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+        // Câmera só para o próprio site (leitura do QR das etiquetas nas Turmas)
+        'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()'
     });
     if (req.path.startsWith('/api')) res.set('Cache-Control', 'no-store');
     next();
@@ -39,6 +40,8 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(frontEnd, { dotfiles: 'deny' }));
+// Leitor de QR para navegadores sem leitor próprio (iPhone): servido daqui, sem serviço externo
+app.get('/vendor/jsQR.js', (req, res) => res.sendFile(require.resolve('jsqr/dist/jsQR.js')));
 
 // Login e cadastro são públicos; o restante da API exige token
 app.use('/api', authRoutes);

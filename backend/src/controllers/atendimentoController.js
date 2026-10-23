@@ -118,7 +118,16 @@ exports.registrarEntrada = async (req, res) => {
         const sessao = await sessaoAutorizada(req, res, req.params.id);
         if (!sessao) return;
         if (!idValido(req.body?.id_crianca)) return res.status(400).json({ erro: 'Escolha a criança.' });
-        res.status(201).json(await Atendimento.registrarEntrada(req.usuario, sessao.id_sessao, Number(req.body.id_crianca)));
+        // Quem está deixando a criança: um responsável vinculado (id) ou o nome de outra pessoa
+        const idResponsavel = req.body?.id_responsavel;
+        if (idResponsavel !== undefined && idResponsavel !== null && idResponsavel !== '' && !idValido(idResponsavel)) {
+            return res.status(400).json({ erro: 'Responsável inválido.' });
+        }
+        res.status(201).json(await Atendimento.registrarEntrada(req.usuario, sessao.id_sessao, {
+            id_crianca: Number(req.body.id_crianca),
+            id_responsavel: idResponsavel ? Number(idResponsavel) : null,
+            nome_entregador: texto(req.body?.nome_entregador, 150)
+        }));
     } catch (error) {
         tratarErro(res, error, 'Erro ao registrar a entrada');
     }
@@ -144,6 +153,19 @@ exports.encerrarSessao = async (req, res) => {
         res.json({ mensagem: 'Turma encerrada.' });
     } catch (error) {
         tratarErro(res, error, 'Erro ao encerrar a turma');
+    }
+};
+
+// Lê o código (QR ou digitado) e devolve os dados finais da retirada, sem registrar nada
+exports.previaSaida = async (req, res) => {
+    try {
+        const alvo = await atendimentoAutorizado(req, res);
+        if (!alvo) return;
+        const codigo = texto(req.body?.codigo, 64);
+        if (!codigo) return res.status(400).json({ erro: 'Leia o QR ou digite o código de retirada.' });
+        res.json(await Atendimento.previaSaida(req.usuario, Number(req.params.id), codigo));
+    } catch (error) {
+        tratarErro(res, error, 'Erro ao conferir a retirada');
     }
 };
 

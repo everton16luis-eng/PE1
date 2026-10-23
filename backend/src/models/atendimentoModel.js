@@ -210,7 +210,7 @@ const atendimentoModel = {
             `SELECT a.id_atendimento, a.id_crianca, cm.nome_completo AS nome, cm.data_nascimento,
                     date_part('year', age(cm.data_nascimento))::int AS idade,
                     (c.alergias IS NOT NULL AND btrim(c.alergias) <> '') AS tem_alergia,
-                    a.entrada_em, ue.nome AS entrada_por, a.saida_em, us.nome AS saida_por, a.tipo_saida,
+                    a.entrada_em, ue.nome AS entrada_por, a.entregue_por_nome, a.saida_em, us.nome AS saida_por, a.tipo_saida,
                     r.nome_completo AS retirada_por,
                     EXISTS (SELECT 1 FROM turma_codigos k WHERE k.id_atendimento = a.id_atendimento AND k.status = 'ativo') AS codigo_ativo
              FROM turma_atendimentos a
@@ -289,7 +289,9 @@ const atendimentoModel = {
     // ---------------------------------------------------------
     // Entrada
     // ---------------------------------------------------------
-    registrarEntrada: (usuario, idSessao, idCrianca, agora = new Date()) => comTransacao(async cliente => {
+    // Entrada: { id_crianca, id_responsavel } (responsável vinculado à criança) ou
+    // { id_crianca, nome_entregador } (outra pessoa). Quem deixou a criança é obrigatório.
+    registrarEntrada: (usuario, idSessao, { id_crianca: idCrianca, id_responsavel: idResponsavel = null, nome_entregador: nomeEntregador = '' }, agora = new Date()) => comTransacao(async cliente => {
         await atendimentoModel.travarSessaoAberta(cliente, idSessao, agora);
         const crianca = (await cliente.query(
             `SELECT c.id_crianca, cm.nome_completo FROM criancas c JOIN membros cm ON cm.id_membro = c.id_membro
@@ -298,32 +300,47 @@ const atendimentoModel = {
         )).rows[0];
         if (!crianca) throw new ErroAtendimento(404, 'Criança não encontrada ou com cadastro inativo.');
 
+        let entregador;
+        if (idResponsavel) {
+            entregador = (await cliente.query(
+                `SELECT r.id_responsavel, r.nome_completo AS nome FROM crianca_responsavel cr JOIN responsaveis r ON r.id_responsavel = cr.id_responsavel
+                 WHERE cr.id_crianca = $1 AND cr.id_responsavel = $2 AND r.ativo IS NOT FALSE`,
+                [idCrianca, idResponsavel]
+            )).rows[0];
+            if (!entregador) throw new ErroAtendimento(400, 'Este responsável não está vinculado a esta criança.');
+        } else {
+            const nome = String(nomeEntregador || '').trim().replace(/\s+/g, ' ').slice(0, 150);
+            if (nome.length < 3) throw new ErroAtendimento(400, 'Informe quem está deixando a criança.');
+            entregador = { id_responsavel: null, nome };
+        }
+
         let atendimento;
         try {
             atendimento = (await cliente.query(
-                `INSERT INTO turma_atendimentos (id_sessao, id_crianca, entrada_em, entrada_por)
-                 VALUES ($1, $2, $3, $4) RETURNING id_atendimento, entrada_em`,
-                [idSessao, idCrianca, agora, usuario.id_usuario]
+                `INSERT INTO turma_atendimentos (id_sessao, id_crianca, entrada_em, entrada_por, id_responsavel_entrada, entregue_por_nome)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_atendimento, entrada_em`,
+                [idSessao, idCrianca, agora, usuario.id_usuario, entregador.id_responsavel, entregador.nome]
             )).rows[0];
         } catch (error) {
             if (error.code === '23505') throw new ErroAtendimento(409, `${crianca.nome_completo} já está presente nesta turma.`);
             throw error;
         }
-        await auditar(cliente, { id_sessao: idSessao, id_atendimento: atendimento.id_atendimento, acao: 'entrada', detalhe: crianca.nome_completo, id_usuario: usuario.id_usuario });
+        await auditar(cliente, {
+            id_sessao: idSessao, id_atendimento: atendimento.id_atendimento, acao: 'entrada',
+            detalhe: `${crianca.nome_completo}; deixada por ${entregador.nome}${entregador.id_responsavel ? '' : ' (não cadastrado como responsável)'}`,
+            id_usuario: usuario.id_usuario
+        });
         const codigo = await atendimentoModel.emitirCodigo(cliente, usuario, idSessao, atendimento.id_atendimento, idCrianca);
-        return { ...atendimento, nome: crianca.nome_completo, codigo: codigo.codigo };
+        return { ...atendimento, nome: crianca.nome_completo, entregue_por: entregador.nome, codigo: codigo.codigo };
     }),
 
     // Códigos novos para o atendimento (na entrada ou na 2ª via), dois e vinculados:
     // o da criança (etiqueta exposta, só identifica) e o de retirada (só na etiqueta do
     // responsável, o único aceito na saída). Nenhum dos dois repete outro código da sessão.
-    // O responsável da etiqueta é o autorizado à retirada (o principal primeiro), se houver.
+    // O responsável da etiqueta é quem deixou a criança na entrada (quando é um responsável cadastrado).
     async emitirCodigo(cliente, usuario, idSessao, idAtendimento, idCrianca, { segundaViaDe = null, motivo = null } = {}) {
         const responsavel = (await cliente.query(
-            `SELECT cr.id_responsavel FROM crianca_responsavel cr JOIN responsaveis r ON r.id_responsavel = cr.id_responsavel
-             WHERE cr.id_crianca = $1 AND cr.autorizado_retirada AND r.ativo IS NOT FALSE
-             ORDER BY cr.responsavel_principal DESC, r.nome_completo LIMIT 1`,
-            [idCrianca]
+            'SELECT id_responsavel_entrada AS id_responsavel FROM turma_atendimentos WHERE id_atendimento = $1', [idAtendimento]
         )).rows[0];
         for (let tentativa = 0; tentativa < 8; tentativa++) {
             const codigo = codigoCurto();
@@ -414,7 +431,8 @@ const atendimentoModel = {
             return { valido: false, ...problema };
         }
         const dados = (await pool.query(
-            `SELECT a.id_atendimento, a.saida_em, cm.nome_completo AS crianca, r.nome_completo AS responsavel
+            `SELECT a.id_atendimento, a.id_crianca, a.saida_em, a.entrada_em, a.entregue_por_nome, cm.nome_completo AS crianca,
+                    date_part('year', age(cm.data_nascimento))::int AS idade, r.nome_completo AS responsavel
              FROM turma_atendimentos a JOIN criancas c ON c.id_crianca = a.id_crianca JOIN membros cm ON cm.id_membro = c.id_membro
              LEFT JOIN responsaveis r ON r.id_responsavel = $2
              WHERE a.id_atendimento = $1`,
@@ -422,8 +440,45 @@ const atendimentoModel = {
         )).rows[0];
         await auditar(null, { id_sessao: idSessao, id_atendimento: codigo.id_atendimento, id_codigo: codigo.id_codigo, acao: 'codigo_conferido', detalhe: codigo.tipo, id_usuario: usuario.id_usuario });
         return {
-            valido: true, tipo: codigo.tipo, id_atendimento: dados.id_atendimento, crianca: dados.crianca,
+            valido: true, tipo: codigo.tipo, id_atendimento: dados.id_atendimento, id_crianca: dados.id_crianca, crianca: dados.crianca,
+            idade: dados.idade, entrada_em: dados.entrada_em, entregue_por: dados.entregue_por_nome || dados.responsavel || null,
             responsavel: dados.responsavel, presente: !dados.saida_em, codigo_crianca: codigo.codigo
+        };
+    },
+
+    // ---------------------------------------------------------
+    // Prévia da retirada: confere o código (leitura do QR ou digitado) SEM usá-lo e
+    // devolve os dados finais para o voluntário confirmar. A saída só acontece no POST da saída.
+    // ---------------------------------------------------------
+    previaSaida: async (usuario, idAtendimento, informado, agora = new Date()) => {
+        const atendimento = (await pool.query(
+            `SELECT a.id_atendimento, a.id_sessao, a.id_crianca, a.entrada_em, a.saida_em, a.entregue_por_nome,
+                    cm.nome_completo AS crianca, date_part('year', age(cm.data_nascimento))::int AS idade,
+                    t.nome AS turma, s.status, ${PRAZO} AS prazo
+             FROM turma_atendimentos a
+             JOIN criancas c ON c.id_crianca = a.id_crianca JOIN membros cm ON cm.id_membro = c.id_membro
+             JOIN turma_sessoes s ON s.id_sessao = a.id_sessao
+             JOIN cadastroturmas t ON t.id_turma = s.id_turma
+             JOIN vw_eventos_janela j ON j.id_evento = s.id_evento
+             WHERE a.id_atendimento = $1`,
+            [idAtendimento]
+        )).rows[0];
+        if (!atendimento) throw new ErroAtendimento(404, 'Atendimento não encontrado.');
+        if (atendimento.status !== 'aberta' || new Date(atendimento.prazo) <= agora) throw new ErroAtendimento(409, 'Esta turma já foi encerrada.');
+        if (atendimento.saida_em) throw new ErroAtendimento(409, `A saída de ${atendimento.crianca} já foi registrada.`);
+        const codigo = await atendimentoModel.localizarCodigo(null, atendimento.id_sessao, informado);
+        const problema = atendimentoModel.problemaDoCodigo(codigo, atendimento.id_sessao, idAtendimento, { retirada: true });
+        if (problema) {
+            await auditar(null, {
+                id_sessao: atendimento.id_sessao, id_atendimento: Number(idAtendimento), id_codigo: codigo && !codigo.outra_sessao ? codigo.id_codigo : null,
+                acao: problema.motivo === 'ja_utilizado' ? 'tentativa_reuso_codigo' : 'retirada_recusada', detalhe: problema.motivo, id_usuario: usuario.id_usuario
+            });
+            return { valido: false, ...problema };
+        }
+        await auditar(null, { id_sessao: atendimento.id_sessao, id_atendimento: Number(idAtendimento), id_codigo: codigo.id_codigo, acao: 'codigo_conferido', detalhe: 'prévia da retirada', id_usuario: usuario.id_usuario });
+        return {
+            valido: true, id_atendimento: atendimento.id_atendimento, crianca: atendimento.crianca, idade: atendimento.idade, turma: atendimento.turma,
+            entrada_em: atendimento.entrada_em, entregue_por: atendimento.entregue_por_nome, codigo_retirada: codigo.codigo_retirada
         };
     },
 
@@ -499,7 +554,7 @@ const atendimentoModel = {
             `SELECT a.id_atendimento, a.id_sessao, a.saida_em, cm.nome_completo AS crianca, t.nome AS turma,
                     j.nome AS evento, j.data_evento, k.id_codigo, k.codigo, k.token_crianca,
                     k.codigo_retirada, k.token, k.emitido_em,
-                    r.nome_completo AS responsavel, r.parentesco
+                    COALESCE(a.entregue_por_nome, r.nome_completo) AS responsavel, r.parentesco
              FROM turma_atendimentos a
              JOIN criancas c ON c.id_crianca = a.id_crianca JOIN membros cm ON cm.id_membro = c.id_membro
              JOIN turma_sessoes s ON s.id_sessao = a.id_sessao

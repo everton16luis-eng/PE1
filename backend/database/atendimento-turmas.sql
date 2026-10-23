@@ -76,6 +76,12 @@ CREATE TABLE IF NOT EXISTS public.turma_atendimentos (
     CHECK ((saida_em IS NULL) = (tipo_saida IS NULL))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_atendimento_presente ON public.turma_atendimentos (id_sessao, id_crianca) WHERE saida_em IS NULL;
+
+-- Quem deixou a criança na entrada (segurança): um responsável vinculado ou outra
+-- pessoa (só o nome). Obrigatório nas entradas novas; vai na etiqueta do responsável.
+ALTER TABLE public.turma_atendimentos
+    ADD COLUMN IF NOT EXISTS id_responsavel_entrada integer REFERENCES public.responsaveis (id_responsavel) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS entregue_por_nome varchar(150);
 CREATE INDEX IF NOT EXISTS idx_atendimentos_sessao ON public.turma_atendimentos (id_sessao);
 
 -- Código das etiquetas: curto (para ler) + token aleatório (QR). Vale só para

@@ -13,6 +13,7 @@ router.get('/atendimento/sessoes/:id/criancas/:idCrianca', atendimentoController
 router.post('/atendimento/sessoes/:id/entradas', atendimentoController.registrarEntrada);
 router.post('/atendimento/sessoes/:id/conferir', atendimentoController.conferirCodigo);
 router.post('/atendimento/sessoes/:id/encerrar', atendimentoController.encerrarSessao);
+router.post('/atendimento/atendimentos/:id/saida/previa', atendimentoController.previaSaida);
 router.post('/atendimento/atendimentos/:id/saida', atendimentoController.registrarSaida);
 router.get('/atendimento/atendimentos/:id/etiqueta', atendimentoController.etiqueta);
 router.post('/atendimento/atendimentos/:id/etiqueta/impressao', atendimentoController.registrarImpressao);

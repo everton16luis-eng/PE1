@@ -81,6 +81,13 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
 - **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
+## Leitura do QR pela câmera e quem deixou a criança
+
+- **Ler QR pela câmera** (celular ou computador) na saída e em "Ler QR / conferir": leitor nativo do navegador ou jsQR servido pelo sistema (iPhone). A leitura mostra os **dados finais** (prévia no servidor, sem usar o código) e só a confirmação registra a saída. `Permissions-Policy` libera a câmera só para o próprio site.
+- **Entrada exige quem está deixando a criança** (responsável vinculado ou outra pessoa); o nome vai na etiqueta do responsável, na leitura do QR, na lista da sessão e no relatório (coluna "Deixada por").
+- **Banco:** `turma_atendimentos.id_responsavel_entrada` e `entregue_por_nome` (migração `atendimento-turmas.sql`). Dependência nova: `jsqr`.
+- **Testes:** 3 novos em `turmas-atendimento.test.js`.
+
 ## Relatório de Turmas
 
 - Novo tipo **Turmas** em Relatórios, separado por evento (PDF e Excel com uma seção por evento; CSV em linhas), com filtros por turma e situação da sessão. Exige Relatórios e Crianças, também no download do histórico.

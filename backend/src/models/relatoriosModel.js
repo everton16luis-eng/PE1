@@ -223,7 +223,7 @@ const RELATORIOS = {
     turmas: {
         titulo: 'Turmas',
         colunas: [['data', 'Data'], ['evento', 'Evento'], ['turma', 'Turma'], ['crianca', 'Criança'], ['idade', 'Idade'],
-            ['entrada', 'Entrada'], ['entrada_por', 'Entrada registrada por'], ['saida', 'Saída'], ['situacao', 'Situação da saída'],
+            ['entrada', 'Entrada'], ['deixada_por', 'Deixada por'], ['entrada_por', 'Entrada registrada por'], ['saida', 'Saída'], ['situacao', 'Situação da saída'],
             ['retirada', 'Entregue a'], ['saida_por', 'Saída registrada por'], ['sessao', 'Sessão da turma']],
         consulta(f) {
             const w = construtor();
@@ -243,7 +243,7 @@ const RELATORIOS = {
                             al.motivo AS alerta_motivo, al.status AS alerta_status, al.prioritario AS alerta_prioritario,
                             ut.nome AS alerta_tratado_por, al.observacao_tratamento AS alerta_observacao,
                             cm.nome_completo AS crianca, date_part('year', age(cm.data_nascimento))::int AS idade,
-                            to_char(a.entrada_em AT TIME ZONE z.fuso, 'HH24:MI') AS entrada, uen.nome AS entrada_por,
+                            to_char(a.entrada_em AT TIME ZONE z.fuso, 'HH24:MI') AS entrada, a.entregue_por_nome AS deixada_por, uen.nome AS entrada_por,
                             to_char(a.saida_em AT TIME ZONE z.fuso, 'HH24:MI') AS saida, a.tipo_saida,
                             r.nome_completo AS retirada_por, r.parentesco AS retirada_parentesco, usa.nome AS saida_por
                      FROM turma_sessoes s

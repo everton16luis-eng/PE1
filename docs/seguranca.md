@@ -64,7 +64,7 @@ Além disso, o sistema recusa deixar a igreja sem nenhum administrador ativo.
 | Tipo de arquivo adulterado | `X-Content-Type-Options: nosniff` |
 | Identificação do servidor | `X-Powered-By` removido |
 | Vazamento de URL | `Referrer-Policy: same-origin` |
-| Recursos do dispositivo | `Permissions-Policy` bloqueia câmera, microfone e localização |
+| Recursos do dispositivo | `Permissions-Policy`: câmera só para o próprio site (leitura do QR nas Turmas); microfone e localização bloqueados |
 | Cache de dados sensíveis | `Cache-Control: no-store` nas respostas da API |
 | Requisições gigantes | Corpo limitado a 100 KB (413) |
 | Arquivos do servidor | Só a pasta `frontend/` é pública; arquivos ocultos (`.env`) são negados. Testado com tentativas de *path traversal* |
@@ -93,6 +93,8 @@ Além disso, o sistema recusa deixar a igreja sem nenhum administrador ativo.
 - Saída em transação com bloqueio da linha: duas retiradas simultâneas com o mesmo código — só uma passa. Tentativas recusadas (outra criança, outra sessão, reuso, código inválido) ficam na auditoria.
 - Encerramento automático no servidor (não depende do navegador), idempotente, numa transação com o alerta. A saída automática é marcada como não conferida e gera alerta prioritário.
 - Quem pode buscar a criança é marcado pela equipe; ninguém é autorizado automaticamente.
+- Na entrada é obrigatório informar **quem está deixando a criança** (responsável vinculado ou o nome de outra pessoa). O nome vai na etiqueta do responsável, aparece na leitura do QR e fica no histórico e no relatório.
+- Leitura pela câmera: o QR continua só com o token aleatório (nenhum nome dentro dele). A leitura faz uma **prévia** no servidor, que confere o código sem usá-lo e mostra os dados finais; a saída só é registrada quando o voluntário confirma. A câmera roda no navegador (nenhuma imagem é enviada ao servidor) e só em endereço seguro.
 
 ## Limitações conhecidas e recomendações para produção
 

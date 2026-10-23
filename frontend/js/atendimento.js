@@ -208,7 +208,7 @@ async function sessaoTurma(idSessao) {
             </div>
             ${aberta ? `<div class="sessao-acoes">
                 <button type="button" class="primary" data-acao="entrada"><span class="material-icons">person_add</span>Registrar entrada</button>
-                <button type="button" class="secondary" data-acao="conferir"><span class="material-icons">qr_code_scanner</span>Conferir etiqueta</button>
+                <button type="button" class="secondary" data-acao="conferir"><span class="material-icons">qr_code_scanner</span>Ler QR / conferir</button>
                 <button type="button" class="secondary" data-acao="encerrar"><span class="material-icons">lock</span>Encerrar turma</button>
                 ${dados.gestor ? '<button type="button" class="secondary perigo" data-acao="encerrar-admin"><span class="material-icons">gpp_maybe</span>Encerrar (administração)</button>' : ''}
             </div>` : '<p class="motivo-bloqueio"><span class="material-icons">lock</span>Turma encerrada: não recebe entradas nem saídas. O histórico continua disponível.</p>'}
@@ -225,7 +225,7 @@ async function sessaoTurma(idSessao) {
                             <small>${idadeTexto(a.idade)}${a.tem_alergia ? ' · <span class="alerta-texto">⚠ alergia</span>' : ''}</small>
                         </div>
                         <div class="atendimento-horarios">
-                            <span>Entrada ${horaDe(a.entrada_em)} <small>por ${escapar(a.entrada_por || '—')}</small></span>
+                            <span>Entrada ${horaDe(a.entrada_em)} <small>por ${escapar(a.entrada_por || '—')}${a.entregue_por_nome ? ` · deixada por ${escapar(a.entregue_por_nome)}` : ''}</small></span>
                             ${a.saida_em ? `<span>Saída ${horaDe(a.saida_em)} <small>${escapar(TIPOS_SAIDA[a.tipo_saida] || '')}${a.saida_por ? ` · ${escapar(a.saida_por)}` : ''}${a.retirada_por ? ` · com ${escapar(a.retirada_por)}` : ''}</small></span>` : ''}
                         </div>
                         <span class="badge ${a.saida_em ? (a.tipo_saida === 'manual' ? 'acesso' : 'pending') : 'ok'}">${a.saida_em ? 'Saída registrada' : 'Presente'}</span>
@@ -248,7 +248,7 @@ async function sessaoTurma(idSessao) {
         if (!botao) return;
         const acao = botao.dataset.acao;
         if (acao === 'entrada') return modalEntrada(s, recarregar);
-        if (acao === 'conferir') return modalConferir(s);
+        if (acao === 'conferir') return modalConferir(s, recarregar);
         if (acao === 'historico') return modalHistorico(s);
         if (acao === 'encerrar') {
             if (!confirm(`Encerrar a turma ${s.turma}? Depois de encerrada, ela não recebe mais entradas nem saídas.`)) return;
@@ -310,25 +310,49 @@ function modalEntrada(sessao, aoConcluir) {
                 <strong class="nome-grande">${escapar(crianca.nome)}</strong>
                 <p>${idadeTexto(crianca.idade)} · nascimento ${formatarDataSimples(crianca.data_nascimento)}${crianca.turma ? ` · ${escapar(crianca.turma)}` : ''}</p>
                 ${crianca.alergias ? `<p class="alerta-texto">⚠ Alergias: ${escapar(crianca.alergias)}</p>` : ''}
-                <p>Responsáveis: ${escapar(crianca.responsaveis.map(r => `${r.nome}${r.parentesco ? ` (${r.parentesco})` : ''}`).join(', ') || 'não cadastrados')}</p>
             </div>
+            <fieldset class="quem-busca">
+                <legend>Quem está deixando a criança?</legend>
+                ${crianca.responsaveis.map(r => `
+                    <label class="opcao-radio"><input type="radio" name="entregador" value="${r.id_responsavel}">
+                        <span><strong>${escapar(r.nome)}</strong> <small>${escapar(r.parentesco || 'Responsável')}${r.autorizado_retirada ? ' · autorizado a buscar' : ''}</small></span></label>`).join('')}
+                <label class="opcao-radio"><input type="radio" name="entregador" value="outra">
+                    <span><strong>Outra pessoa</strong> <small>não cadastrada como responsável</small></span></label>
+                <div class="form-group" data-outra-pessoa hidden><label for="nomeEntregador">Nome de quem está deixando</label>
+                    <input type="text" id="nomeEntregador" maxlength="150" autocomplete="off" placeholder="Nome completo"></div>
+            </fieldset>
             <div class="form-actions">
                 <button type="button" class="btn-cancel" data-voltar>Escolher outra</button>
                 <button type="button" class="primary" data-confirmar><span class="material-icons">how_to_reg</span>Registrar entrada de ${escapar(crianca.nome.split(' ')[0])}</button>
             </div>`;
+        confirmacao.querySelectorAll('input[name="entregador"]').forEach(opcao => opcao.addEventListener('change', () => {
+            const outra = confirmacao.querySelector('input[name="entregador"]:checked')?.value === 'outra';
+            confirmacao.querySelector('[data-outra-pessoa]').hidden = !outra;
+            if (outra) confirmacao.querySelector('#nomeEntregador').focus();
+        }));
         confirmacao.querySelector('[data-voltar]').addEventListener('click', () => {
             confirmacao.hidden = true; lista.hidden = false; busca.disabled = false; busca.focus();
         });
         confirmacao.querySelector('[data-confirmar]').addEventListener('click', async event2 => {
             const botaoConfirmar = event2.currentTarget;
+            // Segurança: quem deixou a criança é obrigatório (vai na etiqueta do responsável)
+            const escolha = confirmacao.querySelector('input[name="entregador"]:checked')?.value;
+            const nomeOutra = confirmacao.querySelector('#nomeEntregador').value.trim();
+            if (!escolha || (escolha === 'outra' && nomeOutra.length < 3)) {
+                aviso.textContent = !escolha ? 'Informe quem está deixando a criança.' : 'Digite o nome de quem está deixando a criança.';
+                aviso.classList.add('erro');
+                return;
+            }
             botaoConfirmar.disabled = true;
             try {
-                const registro = await enviarDados(`atendimento/sessoes/${sessao.id_sessao}/entradas`, 'POST', { id_crianca: crianca.id_crianca });
+                const registro = await enviarDados(`atendimento/sessoes/${sessao.id_sessao}/entradas`, 'POST', escolha === 'outra'
+                    ? { id_crianca: crianca.id_crianca, nome_entregador: nomeOutra }
+                    : { id_crianca: crianca.id_crianca, id_responsavel: Number(escolha) });
                 confirmacao.innerHTML = `
                     <div class="confirmar-crianca sucesso">
                         <span class="material-icons">check_circle</span>
                         <strong class="nome-grande">${escapar(registro.nome)}</strong>
-                        <p>Entrada registrada às ${horaDe(registro.entrada_em)}. Imprima as etiquetas: uma fica com a criança, a outra com o responsável.</p>
+                        <p>Entrada registrada às ${horaDe(registro.entrada_em)}, deixada por <strong>${escapar(registro.entregue_por)}</strong>. Imprima as etiquetas: uma fica com a criança, a outra com quem deixou.</p>
                     </div>
                     <div class="form-actions">
                         <button type="button" class="btn-cancel" data-outra>Registrar outra criança</button>
@@ -381,8 +405,10 @@ async function modalDadosCrianca(idSessao, idCrianca) {
     }
 }
 
-// Saída: confere quem busca e o código da etiqueta do responsável (validado no servidor)
-async function modalSaida(sessao, atendimento, aoConcluir) {
+// Saída: lê (câmera) ou digita o código de retirada → o servidor confere SEM usar o código e
+// devolve os dados finais → o voluntário confere e confirma. Só a confirmação registra a saída.
+// codigoInicial = código já lido (ex.: pela tela "Ler QR"), que entra direto na conferência.
+async function modalSaida(sessao, atendimento, aoConcluir, codigoInicial = '') {
     const { modal, fechar } = abrirModal('Registrar saída', `${sessao.turma} · ${sessao.evento}`, '<p class="vazio">Carregando...</p>');
     const corpo = modal.querySelector('.modal-corpo');
     let crianca;
@@ -395,74 +421,160 @@ async function modalSaida(sessao, atendimento, aoConcluir) {
             <div class="confirmar-crianca">
                 <small>Criança</small>
                 <strong class="nome-grande">${escapar(crianca.nome)}</strong>
-                <p>Entrada às ${horaDe(atendimento.entrada_em)} · saída será registrada em <strong data-agora>${dataHoraDe(new Date())}</strong></p>
+                <p>Entrada às ${horaDe(atendimento.entrada_em)}${atendimento.entregue_por_nome ? ` · deixada por <strong>${escapar(atendimento.entregue_por_nome)}</strong>` : ''}</p>
             </div>
-            <fieldset class="quem-busca">
+            <div class="form-group"><label for="codigoSaida">Código de retirada (etiqueta de quem deixou a criança)</label>
+                <div class="codigo-com-camera">
+                    <input type="text" id="codigoSaida" class="codigo-input" placeholder="Digite o código ou use a câmera" autocomplete="off" autocapitalize="characters">
+                    <button type="button" class="secondary" data-camera aria-label="Ler o QR com a câmera"><span class="material-icons">qr_code_scanner</span><span class="rotulo-camera">Ler QR</span></button>
+                </div>
+            </div>
+            <div class="form-actions previa-acoes"><button type="button" class="secondary" data-conferir>Conferir código</button></div>
+            <div data-previa></div>
+            <fieldset class="quem-busca" data-quem-busca hidden>
                 <legend>Quem está buscando?</legend>
                 ${autorizados.length ? autorizados.map(r => `
                     <label class="opcao-radio"><input type="radio" name="responsavel" value="${r.id_responsavel}">
                         <span><strong>${escapar(r.nome)}</strong> <small>${escapar(r.parentesco || '')}${r.telefone ? ` · ${escapar(r.telefone)}` : ''}</small></span></label>`).join('')
-                : '<p class="motivo-bloqueio"><span class="material-icons">warning</span>Nenhuma pessoa autorizada a buscar esta criança está cadastrada. Entregue somente com a etiqueta do responsável e avise a liderança para cadastrar as autorizações.</p>'}
+                : '<p class="motivo-bloqueio"><span class="material-icons">warning</span>Nenhuma pessoa autorizada a buscar esta criança está cadastrada. Entregue somente com a etiqueta e avise a liderança para cadastrar as autorizações.</p>'}
             </fieldset>
-            <div class="form-group"><label for="codigoSaida">Código de retirada (etiqueta do responsável)</label>
-            <input type="text" id="codigoSaida" class="codigo-input" placeholder="Código de RETIRADA (ou leia o QR do responsável)" autocomplete="off" autocapitalize="characters" required></div>
-            <p class="subtitulo">O código da etiqueta da criança não é aceito. Confira que a etiqueta do responsável é desta criança; o código vale uma única vez.</p>
             <div class="form-actions">
                 <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
-                <button type="submit" class="primary"><span class="material-icons">logout</span>Confirmar saída</button>
+                <button type="submit" class="primary" disabled><span class="material-icons">logout</span>Confirmar saída</button>
             </div>
         </form>`;
     const form = corpo.querySelector('form');
-    const relogio = setInterval(() => { const campo = corpo.querySelector('[data-agora]'); if (campo) campo.textContent = dataHoraDe(new Date()); else clearInterval(relogio); }, 15000);
-    corpo.querySelector('#codigoSaida').focus();
-    corpo.querySelector('[data-cancelar]').addEventListener('click', fechar);
+    const campo = form.querySelector('#codigoSaida');
+    const previa = form.querySelector('[data-previa]');
+    const confirmar = form.querySelector('[type="submit"]');
+    let codigoConferido = null; // só o código conferido pelo servidor pode ser confirmado
+    let lidoPelaCamera = '';
+
+    const limparPrevia = () => {
+        codigoConferido = null;
+        confirmar.disabled = true;
+        previa.innerHTML = '';
+        form.querySelector('[data-quem-busca]').hidden = true;
+    };
+    async function conferir(codigo) {
+        limparPrevia();
+        if (!codigo) return mensagemFormulario(form, 'Leia o QR ou digite o código de retirada.');
+        mensagemFormulario(form, '', false);
+        try {
+            const r = await enviarDados(`atendimento/atendimentos/${atendimento.id_atendimento}/saida/previa`, 'POST', { codigo });
+            if (!r.valido) {
+                previa.innerHTML = `<div class="confirmar-crianca falha"><span class="material-icons">gpp_bad</span><p>${escapar(r.mensagem)}</p></div>`;
+                return;
+            }
+            codigoConferido = codigo;
+            previa.innerHTML = `
+                <div class="confirmar-crianca sucesso previa-retirada">
+                    <span class="material-icons">verified</span>
+                    <small>Código de retirada válido · ${formatarCodigo(r.codigo_retirada)}</small>
+                    <strong class="nome-grande">${escapar(r.crianca)}</strong>
+                    <dl>
+                        <dt>Turma</dt><dd>${escapar(r.turma)}</dd>
+                        <dt>Idade</dt><dd>${idadeTexto(r.idade) || '—'}</dd>
+                        <dt>Entrada</dt><dd>${horaDe(r.entrada_em)}</dd>
+                        <dt>Deixada por</dt><dd><strong>${escapar(r.entregue_por || 'não informado')}</strong></dd>
+                        <dt>Saída</dt><dd data-agora>${dataHoraDe(new Date())}</dd>
+                    </dl>
+                    <p>Confira os dados e confirme para registrar a saída.</p>
+                </div>`;
+            form.querySelector('[data-quem-busca]').hidden = false;
+            confirmar.disabled = false;
+            confirmar.focus();
+        } catch (erro) {
+            previa.innerHTML = `<div class="confirmar-crianca falha"><span class="material-icons">gpp_bad</span><p>${escapar(erro.message)}</p></div>`;
+        }
+    }
+    const codigoInformado = () => lidoPelaCamera || campo.value.trim();
+
+    campo.addEventListener('input', () => { lidoPelaCamera = ''; limparPrevia(); });
+    campo.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); conferir(codigoInformado()); } });
+    form.querySelector('[data-conferir]').addEventListener('click', () => conferir(codigoInformado()));
+    form.querySelector('[data-camera]').addEventListener('click', async () => {
+        const lido = await lerQrCode('Ler o QR de retirada');
+        if (!lido) return;
+        lidoPelaCamera = lido;
+        campo.value = 'QR lido pela câmera';
+        conferir(lido);
+    });
+    form.querySelector('[data-cancelar]').addEventListener('click', fechar);
     form.addEventListener('submit', async event => {
         event.preventDefault();
+        if (!codigoConferido) return mensagemFormulario(form, 'Confira o código antes de confirmar.');
         const escolhido = form.querySelector('input[name="responsavel"]:checked');
         if (autorizados.length && !escolhido) return mensagemFormulario(form, 'Escolha quem está buscando a criança.');
-        const codigo = form.querySelector('#codigoSaida').value.trim();
-        if (!codigo) return mensagemFormulario(form, 'Digite ou leia o código da etiqueta do responsável.');
-        const botao = form.querySelector('[type="submit"]');
-        botao.disabled = true;
+        confirmar.disabled = true;
         try {
-            await enviarDados(`atendimento/atendimentos/${atendimento.id_atendimento}/saida`, 'POST', { codigo, id_responsavel: escolhido ? Number(escolhido.value) : null });
-            clearInterval(relogio);
+            await enviarDados(`atendimento/atendimentos/${atendimento.id_atendimento}/saida`, 'POST', { codigo: codigoConferido, id_responsavel: escolhido ? Number(escolhido.value) : null });
             fechar();
             aoConcluir();
         } catch (erro) {
-            botao.disabled = false;
+            confirmar.disabled = false;
             mensagemFormulario(form, erro.message);
-            form.querySelector('#codigoSaida').select();
         }
     });
+    if (codigoInicial) {
+        lidoPelaCamera = codigoInicial;
+        campo.value = 'QR lido pela câmera';
+        conferir(codigoInicial);
+    } else {
+        campo.focus();
+    }
 }
 
-// Conferir uma etiqueta sem registrar a saída
-function modalConferir(sessao) {
-    const { modal } = abrirModal('Conferir etiqueta', 'Leia o QR ou digite o código', `
+// Ler o QR (câmera) ou digitar um código: mostra de quem é a etiqueta. Se for a etiqueta
+// de retirada de uma criança presente, segue para a confirmação da saída com os dados.
+function modalConferir(sessao, aoConcluir = () => {}, { abrirCamera = true } = {}) {
+    const { modal, fechar } = abrirModal('Ler etiqueta', 'Leia o QR com a câmera ou digite o código', `
         <form novalidate>
-            <input type="text" class="codigo-input" id="codigoConferir" placeholder="Código ou QR" autocomplete="off" autocapitalize="characters">
+            <div class="codigo-com-camera">
+                <input type="text" class="codigo-input" id="codigoConferir" placeholder="Código da etiqueta" autocomplete="off" autocapitalize="characters">
+                <button type="button" class="secondary" data-camera aria-label="Ler o QR com a câmera"><span class="material-icons">qr_code_scanner</span><span class="rotulo-camera">Ler QR</span></button>
+            </div>
             <div class="form-actions"><button type="submit" class="primary">Conferir</button></div>
             <div id="resultadoConferencia"></div>
         </form>`);
     const form = modal.querySelector('form');
-    form.querySelector('input').focus();
-    form.addEventListener('submit', async event => {
-        event.preventDefault();
-        const resultado = form.querySelector('#resultadoConferencia');
+    const campo = form.querySelector('input');
+    const resultado = form.querySelector('#resultadoConferencia');
+
+    async function conferir(codigo) {
+        resultado.innerHTML = '';
+        if (!codigo) return;
         try {
-            const r = await enviarDados(`atendimento/sessoes/${sessao.id_sessao}/conferir`, 'POST', { codigo: form.querySelector('input').value });
+            const r = await enviarDados(`atendimento/sessoes/${sessao.id_sessao}/conferir`, 'POST', { codigo });
+            if (r.valido && r.tipo === 'retirada' && r.presente) {
+                // Etiqueta de retirada de uma criança presente: confirmação da saída com os dados
+                fechar();
+                modalSaida(sessao, { id_atendimento: r.id_atendimento, id_crianca: r.id_crianca, entrada_em: r.entrada_em, entregue_por_nome: r.entregue_por }, aoConcluir, codigo);
+                return;
+            }
             resultado.innerHTML = r.valido
-                ? `<div class="confirmar-crianca sucesso"><span class="material-icons">verified</span>
-                     <small>${r.tipo === 'retirada' ? 'Etiqueta do RESPONSÁVEL (vale para a retirada)' : 'Etiqueta da CRIANÇA (não serve para retirada)'}</small>
+                ? `<div class="confirmar-crianca ${r.tipo === 'retirada' ? 'sucesso' : ''}"><span class="material-icons">${r.tipo === 'retirada' ? 'verified' : 'badge'}</span>
+                     <small>${r.tipo === 'retirada' ? 'Etiqueta de RETIRADA' : 'Etiqueta da CRIANÇA — não serve para retirada'}</small>
                      <strong class="nome-grande">${escapar(r.crianca)}</strong>
-                     <p>${r.presente ? 'Presente nesta turma.' : 'Já saiu.'} Código da criança: ${formatarCodigo(r.codigo_crianca)}.${r.tipo === 'retirada' && r.responsavel ? ` Responsável: ${escapar(r.responsavel)}.` : ''}</p></div>`
+                     <p>${r.presente ? 'Presente nesta turma' : 'Já saiu'} · entrada ${horaDe(r.entrada_em)}${r.entregue_por ? ` · deixada por <strong>${escapar(r.entregue_por)}</strong>` : ''}</p>
+                     ${r.tipo === 'crianca' && r.presente ? '<p>Para entregar, peça a etiqueta de quem deixou a criança.</p>' : ''}</div>`
                 : `<div class="confirmar-crianca falha"><span class="material-icons">gpp_bad</span><p>${escapar(r.mensagem)}</p></div>`;
         } catch (erro) {
             resultado.innerHTML = `<div class="confirmar-crianca falha"><p>${escapar(erro.message)}</p></div>`;
         }
-        form.querySelector('input').select();
+    }
+    async function usarCamera() {
+        const lido = await lerQrCode('Ler o QR da etiqueta');
+        if (lido) conferir(lido);
+    }
+    form.querySelector('[data-camera]').addEventListener('click', usarCamera);
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        conferir(campo.value.trim());
+        campo.select();
     });
+    if (abrirCamera && cameraDisponivel()) usarCamera();
+    else campo.focus();
 }
 
 // ---------------------------------------------------------
@@ -487,7 +599,7 @@ function htmlEtiqueta(e, tipo) {
            </div>`
         : `<div class="etiqueta etiqueta-responsavel">
                <div class="etiqueta-texto">
-                   <span class="etiqueta-tipo">RESPONSÁVEL — apresente na retirada</span>
+                   <span class="etiqueta-tipo">RESPONSÁVEL — quem deixou a criança</span>
                    <strong class="etiqueta-nome">${escapar(e.responsavel || 'Responsável')}</strong>
                    <span class="etiqueta-turma">Criança: ${escapar(e.crianca)} · ${escapar(e.turma)}</span>
                    <span class="etiqueta-retirada">RETIRADA <span class="etiqueta-codigo">${formatarCodigo(e.codigo_retirada)}</span></span>

@@ -36,8 +36,8 @@ No Android, use o Chrome. No iPhone, primeiro adicione o sistema à Tela de Iní
 Se a liderança vinculou você a uma turma (NEXT, Kids…), o menu mostra **Turmas**.
 
 1. **Abra a turma** quando o culto ou evento estiver começando: a abertura é liberada 30 minutos antes do início. Fora desse período, o botão fica desligado e a tela explica o motivo.
-2. **Registrar entrada:** busque a criança, **confira o nome** na tela e confirme. Imprima as **duas etiquetas**: uma fica com a criança e a outra com o responsável. Os códigos são diferentes de propósito: o da criança não serve para retirá-la.
-3. **Registrar saída:** escolha quem veio buscar (só aparecem as pessoas autorizadas) e digite o **código de RETIRADA** da etiqueta do responsável ou leia o QR dela. Se o código for de outra criança ou já tiver sido usado, o sistema recusa: **não entregue a criança**; chame a liderança.
+2. **Registrar entrada:** busque a criança, **confira o nome** na tela, marque **quem está deixando a criança** (ou "Outra pessoa" e digite o nome) e confirme. Imprima as **duas etiquetas**: uma fica com a criança e a outra com o responsável. Os códigos são diferentes de propósito: o da criança não serve para retirá-la.
+3. **Registrar saída:** toque em **Ler QR / conferir** e aponte a câmera para a etiqueta de quem veio buscar (ou digite o **código de RETIRADA**). Confira os dados que aparecem — criança e **quem deixou** —, escolha quem veio buscar e toque em **Confirmar saída**. Se o código for de outra criança ou já tiver sido usado, o sistema recusa: **não entregue a criança**; chame a liderança.
 4. Etiqueta perdida? Use **2ª via**, informando o motivo; a antiga deixa de valer.
 5. Quando todas as crianças tiverem saído, toque em **Encerrar turma**. Se a turma ficar aberta, o sistema encerra sozinho às 23h59 e avisa a liderança.
 

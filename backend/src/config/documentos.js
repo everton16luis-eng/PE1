@@ -217,8 +217,8 @@ function montarRelatorioTurmas(dados, formato, meta) {
     const numerosDoEvento = r => [[r.turmas, 'Turmas atendidas'], [r.criancas, 'Crianças recebidas'], [r.entradas, 'Entradas'],
         [r.conferidas, 'Saídas conferidas'], [r.automaticas, 'Saídas automáticas'], [r.administrativas, 'Saídas pela administração'],
         [r.presentes, 'Ainda presentes'], [r.alertas, 'Alertas']];
-    const colunas = ['Criança', 'Idade', 'Entrada', 'Entrada por', 'Saída', 'Situação da saída', 'Entregue a', 'Saída por'];
-    const linhaCrianca = a => [a.crianca, a.idade ?? '', a.entrada || '', a.entrada_por || '', a.saida || '—', a.situacao, a.retirada || '—', a.saida_por || (a.tipo_saida === 'automatica' ? 'sistema' : '—')];
+    const colunas = ['Criança', 'Idade', 'Entrada', 'Deixada por', 'Entrada por', 'Saída', 'Situação da saída', 'Entregue a', 'Saída por'];
+    const linhaCrianca = a => [a.crianca, a.idade ?? '', a.entrada || '', a.deixada_por || '—', a.entrada_por || '', a.saida || '—', a.situacao, a.retirada || '—', a.saida_por || (a.tipo_saida === 'automatica' ? 'sistema' : '—')];
     const textoAlerta = al => `Alerta${al.prioritario ? ' PRIORITÁRIO' : ''}: ${al.motivo} — ${al.status === 'tratado' ? `tratado por ${al.tratado_por || '—'}: ${al.observacao || ''}` : 'pendente de tratamento'}`;
 
     if (formato === 'excel') {
@@ -268,7 +268,7 @@ function montarRelatorioTurmas(dados, formato, meta) {
             if (s.motivo_encerramento) pdf.paragrafo(`Motivo do encerramento: ${s.motivo_encerramento}`, { tamanho: 9, corTexto: CORES.suave, depois: 1 });
             if (s.alerta) pdf.paragrafo(textoAlerta(s.alerta), { tamanho: 9, negrito: true, corTexto: '#9b1c1c', depois: 2 });
             pdf.tabela(
-                [{ titulo: 'Criança', peso: 2.2 }, { titulo: 'Idade', peso: 0.6 }, { titulo: 'Entrada', peso: 0.7 }, { titulo: 'Entrada por', peso: 1.4 },
+                [{ titulo: 'Criança', peso: 2.1 }, { titulo: 'Idade', peso: 0.5 }, { titulo: 'Entrada', peso: 0.7 }, { titulo: 'Deixada por', peso: 1.6 }, { titulo: 'Entrada por', peso: 1.3 },
                  { titulo: 'Saída', peso: 0.7 }, { titulo: 'Situação da saída', peso: 2.3 }, { titulo: 'Entregue a', peso: 1.8 }, { titulo: 'Saída por', peso: 1.3 }],
                 s.atendimentos.map(linhaCrianca),
                 { vazio: 'Nenhuma criança recebida nesta turma.' }

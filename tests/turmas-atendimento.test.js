@@ -59,7 +59,8 @@ async function voluntarioComLogin(nome) {
 }
 
 const abrir = (usuario, turma, idEvento) => api(`/api/atendimento/turmas/${turma}/sessoes`, { metodo: 'POST', token: usuario.token, corpo: { id_evento: idEvento } });
-const entrar = (usuario, sessao, idCrianca) => api(`/api/atendimento/sessoes/${sessao}/entradas`, { metodo: 'POST', token: usuario.token, corpo: { id_crianca: idCrianca } });
+const entrar = (usuario, sessao, idCrianca, quemDeixou = { nome_entregador: 'Pessoa que deixou' }) =>
+    api(`/api/atendimento/sessoes/${sessao}/entradas`, { metodo: 'POST', token: usuario.token, corpo: { id_crianca: idCrianca, ...quemDeixou } });
 const sair = (usuario, idAtendimento, codigo, idResponsavel) => api(`/api/atendimento/atendimentos/${idAtendimento}/saida`, { metodo: 'POST', token: usuario.token, corpo: { codigo, id_responsavel: idResponsavel } });
 const codigoAtivo = async idAtendimento => (await pool.query("SELECT * FROM turma_codigos WHERE id_atendimento = $1 AND status = 'ativo'", [idAtendimento])).rows[0];
 
@@ -259,6 +260,67 @@ describe('Entrada, saída e códigos', () => {
         assert.equal(k.rows[0].n, 0);
     });
 
+    test('entrada exige quem deixou a criança; a etiqueta sai com esse nome', async () => {
+        const ev = await eventoAgora('Culto entrega', -5, 90);
+        const turma = await novaTurma('Turma Entrega');
+        await pool.query('INSERT INTO turma_voluntarios (id_turma, id_voluntario) VALUES ($1, $2)', [turma, voluntario.id_voluntario]);
+        const s = (await abrir(voluntario, turma, ev)).corpo.id_sessao;
+        assert.equal((await entrar(voluntario, s, criancas[0].id_crianca, {})).status, 400, 'sem quem deixou');
+        assert.equal((await entrar(voluntario, s, criancas[0].id_crianca, { nome_entregador: 'ab' })).status, 400, 'nome curto');
+        const deOutra = (await pool.query('SELECT id_responsavel FROM crianca_responsavel WHERE id_crianca = $1 LIMIT 1', [criancas[1].id_crianca])).rows[0].id_responsavel;
+        const vinculado = (await pool.query(
+            'SELECT 1 FROM crianca_responsavel WHERE id_crianca = $1 AND id_responsavel = $2', [criancas[0].id_crianca, deOutra])).rowCount;
+        if (!vinculado) assert.equal((await entrar(voluntario, s, criancas[0].id_crianca, { id_responsavel: deOutra })).status, 400, 'responsável de outra criança');
+        const resp = (await pool.query(
+            'SELECT r.id_responsavel, r.nome_completo FROM crianca_responsavel cr JOIN responsaveis r ON r.id_responsavel = cr.id_responsavel WHERE cr.id_crianca = $1 LIMIT 1',
+            [criancas[0].id_crianca])).rows[0];
+        const ok = await entrar(voluntario, s, criancas[0].id_crianca, { id_responsavel: resp.id_responsavel });
+        assert.equal(ok.status, 201);
+        assert.equal(ok.corpo.entregue_por, resp.nome_completo);
+        const etiqueta = (await api(`/api/atendimento/atendimentos/${ok.corpo.id_atendimento}/etiqueta`, { token: voluntario.token })).corpo;
+        assert.equal(etiqueta.responsavel, resp.nome_completo, 'etiqueta de quem deixou');
+        const outra = await entrar(voluntario, s, criancas[1].id_crianca, { nome_entregador: 'Vizinha Maria' });
+        assert.equal(outra.corpo.entregue_por, 'Vizinha Maria');
+        const lista = (await api(`/api/atendimento/sessoes/${s}`, { token: voluntario.token })).corpo.atendimentos;
+        assert.ok(lista.some(a => a.entregue_por_nome === 'Vizinha Maria'));
+    });
+
+    test('leitura do QR: a prévia mostra os dados finais sem usar o código; só a confirmação registra', async () => {
+        const s = (await pool.query("SELECT s.id_sessao FROM turma_sessoes s JOIN cadastroturmas t ON t.id_turma = s.id_turma WHERE t.nome LIKE 'Turma Entrega%' AND s.status = 'aberta'")).rows[0].id_sessao;
+        const a = (await pool.query("SELECT id_atendimento FROM turma_atendimentos WHERE id_sessao = $1 AND entregue_por_nome = 'Vizinha Maria'", [s])).rows[0].id_atendimento;
+        const k = await codigoAtivo(a);
+        const previa = (corpo) => api(`/api/atendimento/atendimentos/${a}/saida/previa`, { metodo: 'POST', token: voluntario.token, corpo });
+        // etiqueta da criança: recusada também na prévia
+        const daCrianca = await previa({ codigo: k.token_crianca });
+        assert.deepEqual([daCrianca.corpo.valido, daCrianca.corpo.motivo], [false, 'codigo_crianca']);
+        // QR de retirada: dados finais, código continua ativo
+        const r = await previa({ codigo: k.token });
+        assert.equal(r.status, 200);
+        assert.equal(r.corpo.valido, true);
+        assert.equal(r.corpo.crianca, criancas[1].nome);
+        assert.equal(r.corpo.entregue_por, 'Vizinha Maria');
+        assert.equal(r.corpo.codigo_retirada, k.codigo_retirada);
+        assert.equal((await codigoAtivo(a)).id_codigo, k.id_codigo, 'a prévia não usa o código');
+        assert.equal((await api(`/api/atendimento/atendimentos/${a}/saida/previa`, { metodo: 'POST', token: outro.token, corpo: { codigo: k.token } })).status, 403);
+        // a conferência pela sessão também informa quem deixou
+        const conferida = (await api(`/api/atendimento/sessoes/${s}/conferir`, { metodo: 'POST', token: voluntario.token, corpo: { codigo: k.token } })).corpo;
+        assert.deepEqual([conferida.tipo, conferida.entregue_por, conferida.presente], ['retirada', 'Vizinha Maria', true]);
+        // confirmação
+        assert.equal((await sair(voluntario, a, k.token)).status, 200);
+        assert.equal((await previa({ codigo: k.token })).status, 409, 'depois da saída');
+        // não deixa a turma aberta para os testes de horário
+        assert.equal((await api(`/api/atendimento/admin/sessoes/${s}/encerrar`, { metodo: 'POST', token: admin.token, corpo: { motivo: 'fim do teste' } })).status, 200);
+    });
+
+    test('câmera liberada só para o próprio site; leitor de QR servido pelo sistema', async () => {
+        const pagina = await fetch(`${require('./apoio').base}/`);
+        assert.match(pagina.headers.get('permissions-policy'), /camera=\(self\)/);
+        assert.match(pagina.headers.get('permissions-policy'), /microphone=\(\)/);
+        const leitor = await fetch(`${require('./apoio').base}/vendor/jsQR.js`);
+        assert.equal(leitor.status, 200);
+        assert.match(await leitor.text(), /jsQR/);
+    });
+
     test('evento com atendimento de turma não pode ser removido', async () => {
         const ev = (await pool.query('SELECT id_evento FROM turma_sessoes WHERE id_sessao = $1', [sessao])).rows[0].id_evento;
         // o evento ainda não "aconteceu" por completo: a remoção é barrada pelo atendimento
@@ -271,9 +333,11 @@ describe('Encerramento automático e alertas', () => {
     test('às 23h59: saídas regularizadas como automáticas, códigos invalidados, alerta prioritário, sem duplicar', async () => {
         const ev = await eventoEm('Culto noite', '2031-03-05', '19:00', '21:00');
         const sessao = await Atendimento.abrirSessao({ id_usuario: voluntario.id }, turmaB, ev, new Date('2031-03-05T18:45:00-03:00'));
-        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, criancas[1].id_crianca, new Date('2031-03-05T19:10:00-03:00'));
+        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, { id_crianca: criancas[1].id_crianca, nome_entregador: 'Responsável do teste' }, new Date('2031-03-05T19:10:00-03:00'));
 
-        assert.equal((await executarEncerramentoAutomatico(new Date('2031-03-05T23:58:00-03:00'))).encerradas, 0, 'ainda no prazo');
+        // (o banco de testes é cópia do principal: pode haver outras sessões; confere só a deste teste)
+        await executarEncerramentoAutomatico(new Date('2031-03-05T23:58:00-03:00'));
+        assert.equal((await pool.query('SELECT status FROM turma_sessoes WHERE id_sessao = $1', [sessao.id_sessao])).rows[0].status, 'aberta', 'ainda no prazo');
         const r = await executarEncerramentoAutomatico(new Date('2031-03-06T08:00:00-03:00')); // servidor estava desligado: recupera
         assert.ok(r.encerradas >= 1);
         const s = (await pool.query('SELECT status, tipo_encerramento, encerrada_em, encerrada_por FROM turma_sessoes WHERE id_sessao = $1', [sessao.id_sessao])).rows[0];
@@ -311,11 +375,11 @@ describe('Encerramento automático e alertas', () => {
     test('evento que passa da meia-noite: segue aberta depois das 23h59 e fecha no fim do evento', async () => {
         const ev = await eventoEm('Vigília', '2031-03-07', '23:00', '02:00');
         const sessao = await Atendimento.abrirSessao({ id_usuario: voluntario.id }, turmaB, ev, new Date('2031-03-07T22:40:00-03:00'));
-        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, criancas[2].id_crianca, new Date('2031-03-07T23:05:00-03:00'));
+        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, { id_crianca: criancas[2].id_crianca, nome_entregador: 'Responsável do teste' }, new Date('2031-03-07T23:05:00-03:00'));
         await executarEncerramentoAutomatico(new Date('2031-03-08T00:30:00-03:00'));
         assert.equal((await pool.query('SELECT status FROM turma_sessoes WHERE id_sessao = $1', [sessao.id_sessao])).rows[0].status, 'aberta');
         // a entrada depois da meia-noite ainda vale (dentro do evento)
-        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, criancas[1].id_crianca, new Date('2031-03-08T01:00:00-03:00'));
+        await Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, { id_crianca: criancas[1].id_crianca, nome_entregador: 'Responsável do teste' }, new Date('2031-03-08T01:00:00-03:00'));
         await executarEncerramentoAutomatico(new Date('2031-03-08T02:00:30-03:00'));
         const s = (await pool.query('SELECT status, tipo_encerramento, encerrada_em FROM turma_sessoes WHERE id_sessao = $1', [sessao.id_sessao])).rows[0];
         assert.equal(s.status, 'encerrada');
@@ -329,7 +393,7 @@ describe('Encerramento automático e alertas', () => {
         const ev = await eventoEm('Culto tarde', '2031-03-09', '15:00', '17:00');
         const sessao = await Atendimento.abrirSessao({ id_usuario: voluntario.id }, turmaB, ev, new Date('2031-03-09T14:50:00-03:00'));
         await assert.rejects(
-            Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, criancas[0].id_crianca, new Date('2031-03-10T00:10:00-03:00')),
+            Atendimento.registrarEntrada({ id_usuario: voluntario.id }, sessao.id_sessao, { id_crianca: criancas[0].id_crianca, nome_entregador: 'Responsável do teste' }, new Date('2031-03-10T00:10:00-03:00')),
             erro => erro.status === 409
         );
         await executarEncerramentoAutomatico(new Date('2031-03-10T00:10:00-03:00'));

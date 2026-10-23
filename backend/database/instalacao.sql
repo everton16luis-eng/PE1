@@ -840,6 +840,8 @@ CREATE TABLE public.turma_atendimentos (
     saida_por integer,
     tipo_saida character varying(15),
     id_responsavel_retirada integer,
+    id_responsavel_entrada integer,
+    entregue_por_nome character varying(150),
     CONSTRAINT turma_atendimentos_check CHECK (((saida_em IS NULL) = (tipo_saida IS NULL))),
     CONSTRAINT turma_atendimentos_tipo_saida_check CHECK (((tipo_saida)::text = ANY ((ARRAY['manual'::character varying, 'automatica'::character varying, 'administrativa'::character varying])::text[])))
 );
@@ -2290,6 +2292,14 @@ ALTER TABLE ONLY public.turma_atendimentos
 
 ALTER TABLE ONLY public.turma_atendimentos
     ADD CONSTRAINT turma_atendimentos_id_crianca_fkey FOREIGN KEY (id_crianca) REFERENCES public.criancas(id_crianca) ON DELETE RESTRICT;
+
+
+--
+-- Name: turma_atendimentos turma_atendimentos_id_responsavel_entrada_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.turma_atendimentos
+    ADD CONSTRAINT turma_atendimentos_id_responsavel_entrada_fkey FOREIGN KEY (id_responsavel_entrada) REFERENCES public.responsaveis(id_responsavel) ON DELETE SET NULL;
 
 
 --
