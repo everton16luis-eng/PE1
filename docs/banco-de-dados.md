@@ -119,6 +119,15 @@ Ficam em `backend/database/` e são executadas por `executar.js` (sempre em UTF-
 | `npm run db:notificacoes` | `notificacoes.sql` | `notificacoes` (central de avisos de cada login), `push_inscricoes` (aparelhos que ativaram o Web Push) e `avisos_enviados` (lembretes automáticos sem repetir) |
 | `npm run db:trocas` | `trocas.sql` | `escala_trocas`: histórico de trocas de vaga (quem saiu, quem entrou, quando e se foi o voluntário ou a equipe) |
 
+### Instalação nova
+
+| Script | Arquivo | O que faz |
+|---|---|---|
+| `npm run db:instalar` | `instalacao.sql` | Cria tudo num banco **vazio**: estrutura completa e os dados iniciais. Não inclui pessoas, logins, eventos, escalas nem finanças |
+| `npm run db:gerar-instalacao` | `gerar-instalacao.js` | Gera de novo o `instalacao.sql` a partir do banco do `.env` (estrutura via `pg_dump --schema-only`) somado a `dados-iniciais.sql`. Rode depois de cada migração nova |
+
+`dados-iniciais.sql` contém os dados da igreja, os departamentos, as funções, as turmas e as categorias financeiras. É escrito à mão e entra no `instalacao.sql`.
+
 Para rodar um `.sql` avulso:
 
 ```bash

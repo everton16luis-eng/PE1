@@ -14,8 +14,10 @@ function dataHora(valor) {
 
 async function gerenciaConfiguracoes() {
     registrarRota('configuracoes');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaConfiguracoes');
     const c = await buscarDados('configuracoes', {});
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const admin = usuarioAtual?.perfil === 'ADMINISTRADOR';
 

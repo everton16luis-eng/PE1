@@ -7,8 +7,10 @@ const faixaEtaria = t => (t.idade_minima != null ? `${t.idade_minima} a ${t.idad
 
 async function gerenciaCriancas() {
     registrarRota('criancas');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaCriancas');
     const dados = await buscarDados('criancas', { resumo: {}, criancas: [], turmas: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 
@@ -254,8 +256,10 @@ function novaCrianca(turmas, pessoa = null) {
 
 async function gerenciaTurmas() {
     registrarRota('turmas');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaCriancas');
     const dados = await buscarDados('turmas', { resumo: {}, turmas: [], responsaveis: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 

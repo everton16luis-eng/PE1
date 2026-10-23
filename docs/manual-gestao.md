@@ -66,6 +66,7 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
   - **Tornar membro** muda a classificação do visitante (é a mesma pessoa; informe data de entrada e, se houver, batismo). Ele vira membro **não apto**;
   - **Apto / Não apto** define se o membro pode ser voluntário — só membros ativos podem ser aptos;
   - **Ativo / Inativo** (para qualquer pessoa) — inativar também remove o apto. Um voluntário servindo precisa ser pausado antes em **Voluntários**. Inativar não apaga o cadastro.
+  - **Dar acesso** (quem ainda não tem login) abre o **Novo usuário** com a pessoa já escolhida: falta só e-mail, senha, perfil e permissões. **Editar acesso** (quem já tem login de gestão, inclusive quem se cadastrou pela tela de login) abre o acesso existente para mudar o perfil e as permissões. Menores de 18 anos não recebem acesso por aqui, e o login do voluntário continua na ficha dele.
 - São três coisas diferentes: o **tipo de pessoa** (visitante/membro, aqui), o **voluntariado** (página Voluntários) e o **acesso ao sistema** (página Usuários ou, para voluntários, a ficha do voluntário).
 
 ## Voluntários
@@ -116,7 +117,7 @@ Você também cadastra turmas novas nesta tela. A turma **Next** aparece sempre 
 Disponível para quem tem a permissão de Usuários.
 
 - **Lista:** pessoas com login de gestão (Administrador, Gestor, Secretaria, Financeiro e Visualização), inclusive inativas e pendentes. Voluntários não aparecem aqui só por servirem: função de escala não é acesso ao sistema.
-- **Novo usuário:** escolha **a pessoa do cadastro** que vai receber o acesso (só aparecem as que ainda não têm login; se ela não estiver lá, cadastre primeiro em Participantes), depois e-mail, senha, perfil, status e **permissões por área**.
+- **Novo usuário:** escolha **a pessoa do cadastro** que vai receber o acesso, depois e-mail, senha, perfil, status e **permissões por área**. Na lista só aparecem as pessoas que ainda não têm login. Se a busca deixar uma pessoa só, ela já fica escolhida. Quem **já tem login**, como quem se cadastrou pela tela de login, aparece logo abaixo, em "Já têm acesso", com o botão **Editar acesso**: é por ali que se dão as permissões. Se a pessoa não aparece em nenhum dos dois, cadastre-a primeiro em Participantes.
 - **Editar:** o nome é o do cadastro da pessoa; aqui mudam e-mail, telefone de login, senha (em branco mantém a atual), perfil, status e permissões. Tirar o acesso não apaga a pessoa.
 - **Cadastros pela tela de login:** já entram ativos, como usuário padrão (sem áreas). Para dar acesso de gestão, edite o usuário e marque o perfil e as áreas.
 - **Regras:**

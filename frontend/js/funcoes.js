@@ -4,8 +4,10 @@
 
 async function gerenciaFuncoes() {
     registrarRota('funcoes');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaFuncoes');
     const dados = await buscarDados('funcoes/gestao', { resumo: {}, funcoes: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 

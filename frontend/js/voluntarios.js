@@ -4,8 +4,10 @@
 
 async function gerenciaVoluntarios() {
     registrarRota('voluntarios');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaVoluntarios');
     const dados = await buscarDados('voluntarios', { resumo: {}, voluntarios: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 
@@ -112,10 +114,12 @@ async function gerenciaVoluntarios() {
 // Ficha de voluntário para uma pessoa ativa e apta (idMembro = já escolhida na lista)
 async function novoVoluntario(idMembro = null) {
     registrarRota('voluntarios/novo', idMembro ? [idMembro] : []);
+    const ativa = paginaAtiva();
     const [candidatos, funcoes] = await Promise.all([
         buscarDados('voluntarios/candidatos', { membros: [], departamentos: [] }),
         buscarDados('funcoes', [])
     ]);
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const icones = { 'RECEPÇÃO': 'front_hand', 'LOUVOR': 'music_note', 'MESA DE SOM': 'graphic_eq', 'PROJEÇÃO': 'videocam', 'FOTOS': 'photo_camera', 'ESTACIONAMENTO': 'local_parking', 'GESTÃO DE CULTO': 'event_note' };
 

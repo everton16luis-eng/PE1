@@ -15,6 +15,7 @@ function tituloDoDia(data) {
 async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario') {
     registrarRota('escalas', [dataInicial, visao]);
     marcarMenuAtivo('gerenciaEscalas');
+    const ativa = paginaAtiva();
     const main = document.getElementById('main');
     let [ano, mes] = dataInicial.split('-').map(Number); // mes de 1 a 12
     let diaSelecionado = dataInicial;
@@ -90,9 +91,11 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
     async function carregarPendentes(mensagem = '') {
         try {
             pendentes = await enviarDados('escalas/pendentes', 'GET');
+            if (!ativa()) return;
             $('mensagemPendentes').textContent = mensagem;
             $('mensagemPendentes').classList.remove('erro');
         } catch (erro) {
+            if (!ativa()) return;
             pendentes = [];
             $('mensagemPendentes').textContent = erro.message;
             $('mensagemPendentes').classList.add('erro');
@@ -225,6 +228,7 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
         $('selectAno').value = ano;
 
         const dias = await buscarDados(`escalas/calendario?ano=${ano}&mes=${mes}`, []);
+        if (!ativa()) return;
         const porData = Object.fromEntries(dias.map(d => [String(d.data).slice(0, 10), d]));
         const calendario = $('calendario');
         calendario.innerHTML = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map(d => `<div class="head">${d}</div>`).join('');
@@ -260,6 +264,7 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
         $('tituloDia').textContent = tituloDoDia(data);
 
         const dados = await buscarDados(`escalas/dia?data=${data}`, { eventos: [], escalas: [] });
+        if (!ativa()) return;
         $('eventosDia').textContent = dados.eventos.length
             ? dados.eventos.map(e => `${e.nome} (${formatarHora(e.hora_inicio)}–${formatarHora(e.hora_fim)})`).join(' • ')
             : 'Nenhum evento neste dia';
@@ -474,7 +479,9 @@ async function gerenciarEscala(idEscala, { destacar = null, aoAlterar = null, ao
 
 async function novaEscala(dataSugerida = dataDeHoje()) {
     registrarRota('escalas/nova', [dataSugerida]);
+    const ativa = paginaAtiva();
     const funcoes = await buscarDados('funcoes', []);
+    if (!ativa()) return;
     const main = document.getElementById('main');
 
     const section = document.createElement('section');

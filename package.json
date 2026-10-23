@@ -20,6 +20,8 @@
     "db:relatorios": "node backend/database/executar.js backend/database/relatorios.sql",
     "db:trocas": "node backend/database/executar.js backend/database/trocas.sql",
     "db:notificacoes": "node backend/database/executar.js backend/database/notificacoes.sql",
+    "db:instalar": "node backend/database/executar.js backend/database/instalacao.sql",
+    "db:gerar-instalacao": "node backend/database/gerar-instalacao.js",
     "push:chaves": "node backend/database/gerar-chaves-push.js"
   },
   "keywords": [],

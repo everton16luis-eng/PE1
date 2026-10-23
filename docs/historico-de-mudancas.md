@@ -81,6 +81,26 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
 - **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
+## Acesso pela lista de participantes e troca rápida de página
+
+- **Participantes:** botões **Dar acesso** (abre o Novo usuário com a pessoa escolhida) e **Editar acesso** (quem já tem login de gestão).
+- **Novo usuário:**
+  - quem já tem login aparece em "Já têm acesso", com **Editar acesso**. Antes, essas pessoas simplesmente não apareciam e não dava para escolher ninguém, como acontecia com quem se cadastrou pela tela de login;
+  - a busca que deixa uma pessoa só já a escolhe, e a escolha não se perde ao continuar digitando.
+- **Troca rápida de página:** uma página que ainda estava carregando não desenha mais por cima da página nova nem gera erro no console. Isso acontecia principalmente em Presença e Escalas. Cada página guarda a "geração" em que foi aberta (`paginaAtiva()`).
+- **Testes:** 4 novos testes de interface.
+
+## Instalação nova (banco limpo)
+
+- `backend/database/instalacao.sql` traz a estrutura completa e as listas básicas para uma primeira instalação, sem nenhum dado de pessoas: `npm run db:instalar` num banco vazio.
+- `dados-iniciais.sql` contém os dados da igreja, os departamentos, as funções, as turmas e as categorias financeiras. `npm run db:gerar-instalacao` gera de novo o arquivo depois de cada migração.
+- **Testado do zero:**
+  - estrutura idêntica à do banco atual;
+  - migrações por cima sem erro;
+  - primeiro cadastro virando administrador;
+  - caminho completo (pessoa → membro → apto → voluntário → evento e escala → criança);
+  - as 12 páginas abertas.
+
 ## Troca de vaga pelo próprio voluntário
 
 - **Passar a vaga:** na Minha área, o voluntário escolhe quem assume a vaga dele, entre os voluntários da mesma função, disponíveis no dia da semana, sem ausência e sem outra escala no mesmo dia. Quem assume entra aguardando resposta e vê de quem veio a vaga.

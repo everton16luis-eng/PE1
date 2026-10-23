@@ -4,7 +4,7 @@ Sistema web para a gestão de uma igreja: membros e visitantes, voluntários e s
 
 - **Backend:** Node.js + Express 5, padrão MVC (rotas → controllers → models), PostgreSQL via `pg`.
 - **Frontend:** HTML, CSS e JavaScript puros, em uma única página (`index.html`) que troca o conteúdo por funções `gerencia...()`; responsivo do celular ao desktop.
-- **Testes:** 338 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
+- **Testes:** 342 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
 
 ## Funcionalidades
 
@@ -31,7 +31,7 @@ npm install
 ```
 
 1. Crie `backend/src/.env` a partir de [`backend/src/.env.example`](backend/src/.env.example).
-2. Restaure o banco base e aplique as migrações — veja [Instalação](docs/instalacao.md).
+2. Crie o banco: para uma instalação nova (banco limpo), `npm run db:instalar`; para desenvolver com dados de teste, restaure o banco base e rode `npm run db:setup`. Veja [Instalação](docs/instalacao.md).
 3. Inicie o servidor:
 
 ```bash
@@ -58,6 +58,8 @@ Acesse `http://localhost:3000` e entre com um dos usuários de teste (senha `Tes
 | `npm test` | Recria o banco de testes e roda **todos** os testes |
 | `npm run test:seguranca` | Só os testes de segurança e SQL injection |
 | `npm run test:layout` | Só os testes de interface no navegador |
+| `npm run db:instalar` | Instalação nova: estrutura completa e dados iniciais num banco vazio, sem dados de teste |
+| `npm run db:gerar-instalacao` | Gera de novo o `instalacao.sql` depois de uma migração nova |
 | `npm run db:setup` | Aplica todas as migrações e o seed de teste |
 | `npm run db:presenca` / `db:paginas` / `db:voluntario` / `db:cadastro` / `db:pessoas` / `db:acesso` / `db:relatorios` / `db:trocas` / `db:notificacoes` | Aplica cada migração isoladamente |
 | `npm run db:seed` | Gera ~6 meses de dados de teste + complementos |

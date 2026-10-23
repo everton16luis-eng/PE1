@@ -376,6 +376,42 @@ img {
     gap: 6px 14px;
 }
 
+/* Novo usuário: pessoas da busca que já têm login */
+.ja-tem-acesso {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #ECD6C7;
+    border-radius: 10px;
+    background: #F8EFE9;
+    font-size: 13px;
+}
+
+.ja-tem-acesso p {
+    margin: 0 0 6px;
+    color: var(--muted);
+}
+
+.ja-tem-acesso-linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+    padding: 4px 0;
+}
+
+.ja-tem-acesso-linha button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.ja-tem-acesso-linha .material-icons {
+    font-size: 17px;
+}
+
 .link-botao {
     padding: 0;
     border: 0;

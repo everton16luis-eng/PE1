@@ -32,8 +32,10 @@ function ultimoAcesso(data) {
 
 async function gerenciaUsuarios() {
     registrarRota('usuarios');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaUsuarios');
     const dados = await buscarDados('usuarios', { usuarios: [], resumo: {} });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 
@@ -100,12 +102,18 @@ async function gerenciaUsuarios() {
     });
 }
 
-async function formularioUsuario(usuario = null) {
-    registrarRota(usuario ? 'usuarios/editar' : 'usuarios/novo', [usuario]);
+// idMembro = pessoa já escolhida (ex.: botão "Dar acesso" em Participantes)
+async function formularioUsuario(usuario = null, idMembro = null) {
+    registrarRota(usuario ? 'usuarios/editar' : 'usuarios/novo', usuario ? [usuario] : [null, idMembro]);
+    const ativa = paginaAtiva();
     const main = document.getElementById('main');
     const editar = Boolean(usuario);
-    // Novo acesso é dado a uma pessoa do cadastro universal que ainda não tem login
-    const pessoas = editar ? [] : (await buscarDados('usuarios', { pessoas: [] })).pessoas || [];
+    // Novo acesso é dado a uma pessoa do cadastro universal que ainda não tem login;
+    // quem já tem login aparece à parte, para editar o acesso que já existe
+    const dadosUsuarios = editar ? {} : await buscarDados('usuarios', { pessoas: [], usuarios: [] });
+    if (!ativa()) return;
+    const pessoas = dadosUsuarios.pessoas || [];
+    const comLogin = dadosUsuarios.usuarios || [];
 
     const section = document.createElement('section');
     section.className = 'panel volunteer-form';
@@ -121,6 +129,7 @@ async function formularioUsuario(usuario = null) {
                                <input type="search" id="uPessoaBusca" placeholder="Digite parte do nome..." aria-label="Buscar pessoa no cadastro">
                                <select id="uPessoa" required size="5" aria-label="Pessoa que vai receber o acesso"></select>
                                <small>Só aparecem pessoas sem login. Ter um cadastro não dá acesso: o acesso é criado aqui.</small>
+                               <div class="ja-tem-acesso" id="uJaTemAcesso" hidden></div>
                            </div>`}
                     <div class="form-group"><label for="uEmail">E-mail</label><input type="email" id="uEmail" placeholder="usuario@igreja.com" required><small>Usado para entrar no sistema (o telefone também serve).</small></div>
                     <div class="form-group"><label for="uTelefone">Telefone</label><input type="tel" id="uTelefone" placeholder="(00) 00000-0000"></div>
@@ -197,19 +206,41 @@ async function formularioUsuario(usuario = null) {
     }
 
     // Busca e escolha da pessoa (até 50 por vez); preenche e-mail e telefone do cadastro
+    function preencherContato() {
+        const pessoa = pessoas.find(p => String(p.id_membro) === $('uPessoa').value);
+        if (pessoa?.email && !$('uEmail').value) $('uEmail').value = pessoa.email;
+        if (pessoa?.telefone && !$('uTelefone').value) $('uTelefone').value = pessoa.telefone;
+    }
     function desenharPessoas() {
         const termo = normalizarTexto($('uPessoaBusca').value);
+        const escolhida = $('uPessoa').value;
         const encontradas = pessoas.filter(p => !termo || normalizarTexto(p.nome).includes(termo)).slice(0, 50);
         $('uPessoa').innerHTML = encontradas.map(p => `<option value="${p.id_membro}">${escapar(p.nome)}${p.email ? ' — ' + escapar(p.email) : ''}</option>`).join('')
             || '<option value="" disabled>Ninguém sem login com esse nome</option>';
+        // Continua escolhida enquanto aparecer; se a busca deixou uma pessoa só, ela já fica escolhida
+        if (encontradas.some(p => String(p.id_membro) === escolhida)) $('uPessoa').value = escolhida;
+        else if (termo && encontradas.length === 1) { $('uPessoa').value = String(encontradas[0].id_membro); preencherContato(); }
+
+        // Quem já tem login não está na lista acima: mostra para editar o acesso existente
+        const jaTem = termo.length >= 2 ? comLogin.filter(u => normalizarTexto(u.nome).includes(termo)).slice(0, 5) : [];
+        $('uJaTemAcesso').hidden = !jaTem.length;
+        $('uJaTemAcesso').innerHTML = jaTem.length ? `<p>Já têm acesso ao sistema (não aparecem na lista):</p>` + jaTem.map(u => `
+            <div class="ja-tem-acesso-linha">
+                <span><strong>${escapar(u.nome)}</strong> · ${escapar(PERFIS[u.perfil] || u.perfil)}${u.ativo ? '' : ' · inativo'}</span>
+                <button type="button" class="secondary" data-editar-usuario="${u.id_usuario}"><span class="material-icons">manage_accounts</span>Editar acesso</button>
+            </div>`).join('') : '';
     }
     if (!editar) {
+        const preEscolhida = idMembro && pessoas.find(p => p.id_membro === Number(idMembro));
+        if (preEscolhida) $('uPessoaBusca').value = preEscolhida.nome;
         desenharPessoas();
+        if (preEscolhida) { $('uPessoa').value = String(preEscolhida.id_membro); preencherContato(); }
         $('uPessoaBusca').addEventListener('input', desenharPessoas);
-        $('uPessoa').addEventListener('change', () => {
-            const pessoa = pessoas.find(p => String(p.id_membro) === $('uPessoa').value);
-            if (pessoa?.email && !$('uEmail').value) $('uEmail').value = pessoa.email;
-            if (pessoa?.telefone && !$('uTelefone').value) $('uTelefone').value = pessoa.telefone;
+        $('uPessoa').addEventListener('change', preencherContato);
+        $('uJaTemAcesso').addEventListener('click', event => {
+            const botao = event.target.closest('[data-editar-usuario]');
+            const existente = botao && comLogin.find(u => String(u.id_usuario) === botao.dataset.editarUsuario);
+            if (existente) formularioUsuario(existente);
         });
     }
 

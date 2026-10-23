@@ -42,7 +42,38 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 3. Criar o banco
 
-### Banco base
+### Instalação nova (banco limpo) — recomendado para produção
+
+`backend/database/instalacao.sql` traz a estrutura completa, com todas as migrações já aplicadas, e só as listas básicas:
+- os dados da igreja em Configurações;
+- 6 departamentos;
+- 11 funções;
+- 4 turmas, sem responsável;
+- 14 categorias financeiras.
+
+Não traz nenhuma pessoa, login, evento, escala ou lançamento financeiro.
+
+```bash
+createdb -U postgres -E UTF8 -T template0 igreja_sistema
+```
+
+```bash
+npm run db:instalar
+```
+
+Depois:
+
+1. Gere as chaves das notificações: `npm run push:chaves`.
+2. Inicie o sistema (`npm start`) e faça o **primeiro cadastro** na aba Registro da tela de login. Como ainda não existe nenhum administrador, essa conta **vira administrador automaticamente**. Os cadastros seguintes entram como usuário padrão.
+3. Em **Configurações**, confira os dados da igreja. Em **Funções** e **Crianças → Gerenciar turmas**, ajuste as listas e escolha os responsáveis das turmas.
+
+As migrações (`db:presenca` … `db:notificacoes`) podem ser rodadas por cima sem erro. Nas atualizações futuras, rode só as migrações novas. Não rode o seed (`db:seed`) num banco de verdade.
+
+> **Ao criar uma migração nova**, aplique-a no banco de desenvolvimento e rode `npm run db:gerar-instalacao`. Assim o `instalacao.sql` volta a ter a estrutura completa. Os dados iniciais ficam em `backend/database/dados-iniciais.sql`.
+
+### Banco de desenvolvimento (com dados de teste)
+
+#### Banco base
 
 O esquema original (membros, voluntários, escalas, financeiro…) está no dump mais recente da raiz, `dump-igreja_sistema-202610060830.sql` (formato *custom* do `pg_dump`):
 
@@ -54,7 +85,7 @@ createdb -U postgres igreja_sistema
 pg_restore -U postgres -d igreja_sistema --no-owner dump-igreja_sistema-202610060830.sql
 ```
 
-### Migrações e dados de teste
+#### Migrações e dados de teste
 
 Aplique as migrações na ordem e, se quiser dados de exemplo, o seed:
 
@@ -77,7 +108,7 @@ Isso executa, em ordem:
 
 Todas as migrações **só acrescentam** estruturas e podem ser rodadas mais de uma vez. O seed não roda duas vezes no mesmo banco (verifica o usuário `admin@novocaminho.org`). Detalhes em [Banco de dados](banco-de-dados.md).
 
-> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`, `db:pessoas`, `db:acesso`, `db:relatorios`, `db:trocas`, `db:notificacoes`), gere as chaves com `npm run push:chaves` e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
+> **Em produção** use a [instalação nova](#instalação-nova-banco-limpo--recomendado-para-produção) (`npm run db:instalar`), não o `db:setup`.
 
 ## 4. Rodar
 

@@ -45,6 +45,9 @@ async function carregarDashboard() {
 
 let navegandoPeloHistorico = false;
 let substituirProximaRota = false;
+// Muda a cada página aberta: o carregamento de uma página que o usuário já deixou para trás
+// não pode desenhar por cima da página nova
+let geracaoDaPagina = 0;
 
 // rota -> [função da página, permissão necessária, rota de volta se faltar dado]
 const ROTAS = {
@@ -78,8 +81,16 @@ function rotaDaUrl() {
     return decodeURIComponent(location.hash.replace(/^#\/?/, '')) || 'dashboard';
 }
 
+// Para a página saber, depois de um await, se ainda é a que está aberta:
+// const ativa = paginaAtiva(); ... await ...; if (!ativa()) return;
+function paginaAtiva() {
+    const geracao = geracaoDaPagina;
+    return () => geracao === geracaoDaPagina;
+}
+
 // Chamada no início de cada página (antes de qualquer await)
 function registrarRota(rota, args = []) {
+    geracaoDaPagina++;
     if (navegandoPeloHistorico) return;
     const substituir = substituirProximaRota || history.state?.rota === rota;
     // "anterior" = página de onde se chegou (usada para voltar depois de salvar)
@@ -914,9 +925,11 @@ async function renderizarEscalas() {
 
 async function gerenciaDashboard() {
     registrarRota('dashboard');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaDashboard');
     const main = document.getElementById('main');
     const [dados, escalas, inferior] = await Promise.all([dadosDashboard(), renderizarEscalas(), renderizarResumoInferior()]);
+    if (!ativa()) return;
 
     main.replaceChildren(
         headerInterno('Dashboard', 'Gerencie sua Igreja'),
@@ -995,12 +1008,14 @@ async function renderizarResumoInferior() {
 
 async function gerenciaEvento() {
     registrarRota('eventos');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaEvento');
     const [dados, eventosDisponiveis, voluntarios] = await Promise.all([
         dadosFuncoes(),
         dadosTodosEventos(),
         dadosVolutanrios()
     ]);
+    if (!ativa()) return;
     const header = headerInterno('Gerenciar Eventos', 'Crie e gerencie os eventos da igreja.');
     const main = document.getElementById('main');
 
@@ -1630,10 +1645,12 @@ function turmaNextPorUltimo(lista) {
 async function gerenciaPresenca() {
     registrarRota('presenca');
     marcarMenuAtivo('gerenciaPresenca');
+    const ativa = paginaAtiva();
     const [membros, turmasIniciais] = await Promise.all([
         buscarDados('presenca/membros', []),
         buscarDados('presenca/turmas', [])
     ]);
+    if (!ativa()) return;
     const header = headerInterno('Lista de presença', 'Organize a entrada e a saída de cada turma.');
     const main = document.getElementById('main');
 
@@ -1785,9 +1802,9 @@ async function gerenciaPresenca() {
             registros = await enviarDados(`presenca?data=${campoData.value}`, 'GET');
         } catch (erro) {
             registros = [];
-            mensagem(erro.message, true);
+            if (ativa()) mensagem(erro.message, true);
         }
-        renderizar();
+        if (ativa()) renderizar();
     }
 
     async function adicionar(idMembro) {

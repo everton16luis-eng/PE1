@@ -130,6 +130,7 @@ function configurarAusencias(container, rota, aoMudar) {
 
 async function fichaVoluntario(id) {
     registrarRota('voluntarios/ficha', [id]);
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaVoluntarios');
     const main = document.getElementById('main');
 
@@ -137,9 +138,10 @@ async function fichaVoluntario(id) {
     try {
         v = await enviarDados(`voluntarios/${id}`, 'GET');
     } catch (erro) {
-        main.replaceChildren(headerComVoltar('Voluntário', erro.message, gerenciaVoluntarios));
+        if (ativa()) main.replaceChildren(headerComVoltar('Voluntário', erro.message, gerenciaVoluntarios));
         return;
     }
+    if (!ativa()) return;
 
     const e = v.estatisticas;
     const presenca = e.realizadas ? Math.round((e.presentes / e.realizadas) * 100) : null;

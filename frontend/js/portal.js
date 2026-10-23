@@ -149,6 +149,7 @@ async function passarVaga(idEscala, descricao, aoConcluir) {
 
 async function gerenciaMinhaArea() {
     registrarRota('minha-area');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaMinhaArea');
     const main = document.getElementById('main');
     const primeiroNome = (usuarioAtual?.nome || '').split(' ')[0];
@@ -157,12 +158,14 @@ async function gerenciaMinhaArea() {
     try {
         v = await enviarDados('portal', 'GET');
     } catch (erro) {
+        if (!ativa()) return;
         const aviso = document.createElement('section');
         aviso.className = 'panel';
         aviso.innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
         main.replaceChildren(headerInterno(`Olá, ${primeiroNome}!`, 'Minha área'), aviso);
         return;
     }
+    if (!ativa()) return;
 
     if (v.classificacao !== 'voluntario') return areaDoParticipante(main, v, primeiroNome);
 

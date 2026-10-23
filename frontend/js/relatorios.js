@@ -115,8 +115,10 @@ async function gerarEExportar(tipo, filtros, formato, opcoes) {
 
 async function gerenciaRelatorios() {
     registrarRota('relatorios');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaRelatorios');
     const dados = await buscarDados('relatorios', { resumo: {}, recentes: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
     const tipos = tiposPermitidos();
@@ -261,8 +263,10 @@ async function gerenciaRelatorios() {
 
 async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {}, formatoInicial = 'pdf') {
     registrarRota('relatorios/gerar', [tipoInicial, filtrosIniciais, formatoInicial]);
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaRelatorios');
     const [funcoes, turmas] = await Promise.all([buscarDados('funcoes', []), buscarDados('presenca/turmas', [])]);
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const tipos = tiposPermitidos();
     if (!tipos.some(([chave]) => chave === tipoInicial)) tipoInicial = tipos[0]?.[0];
@@ -445,8 +449,10 @@ async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {
 
 async function gerarRelatorioEvento(idInicial = null) {
     registrarRota('relatorios/evento', [idInicial]);
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaRelatorios');
     const eventos = await buscarDados('relatorios/eventos', []);
+    if (!ativa()) return;
     const main = document.getElementById('main');
 
     const rotuloEvento = ev => `${formatarDataSimples(ev.data_evento)}${ev.hora_inicio ? ' ' + ev.hora_inicio : ''} — ${ev.nome}`

@@ -4,8 +4,10 @@
 
 async function gerenciaParticipantes() {
     registrarRota('participantes');
+    const ativa = paginaAtiva();
     marcarMenuAtivo('gerenciaParticipantes');
     const dados = await buscarDados('participantes', { resumo: {}, participantes: [] });
+    if (!ativa()) return;
     const main = document.getElementById('main');
     const r = dados.resumo || {};
 
@@ -89,6 +91,14 @@ async function gerenciaParticipantes() {
 
     // Ações de classificação (somente administrador)
     lista.addEventListener('click', async event => {
+        const darAcesso = event.target.closest('[data-dar-acesso]');
+        const editarAcesso = event.target.closest('[data-editar-acesso]');
+        if (darAcesso) return formularioUsuario(null, Number(darAcesso.dataset.darAcesso));
+        if (editarAcesso) {
+            const { usuarios = [] } = await buscarDados('usuarios', { usuarios: [] });
+            const existente = usuarios.find(u => u.id_membro === Number(editarAcesso.dataset.editarAcesso));
+            return existente ? formularioUsuario(existente) : avisar('Não foi possível abrir o acesso desta pessoa.', true);
+        }
         const promover = event.target.closest('[data-promover]');
         const apto = event.target.closest('[data-apto]');
         const ativo = event.target.closest('[data-ativo]');
@@ -135,11 +145,18 @@ function celulasParticipante(p, podeClassificar) {
     // Visitante: tornar membro; membro: aptidão ao voluntariado; todos: ativo/inativo
     const ativar = `<button type="button" class="action-btn com-texto" data-ativo="${p.id}" data-valor="${!p.ativo}">
                <span class="material-icons">${p.ativo ? 'person_off' : 'person'}</span>${p.ativo ? 'Inativar' : 'Reativar'}</button>`;
+    // Acesso ao sistema: dar a quem não tem login ou editar o login de gestão
+    // (o login do portal do voluntário é cuidado na ficha do voluntário)
+    const acesso = p.perfil
+        ? (p.perfil !== 'VOLUNTARIO' ? `<button type="button" class="action-btn com-texto" data-editar-acesso="${p.id}">
+               <span class="material-icons">manage_accounts</span>Editar acesso</button>` : '')
+        : (p.ativo && !p.menor ? `<button type="button" class="action-btn com-texto" data-dar-acesso="${p.id}">
+               <span class="material-icons">key</span>Dar acesso</button>` : '');
     const acoes = (p.tipo === 'visitante'
         ? `<button type="button" class="action-btn com-texto" data-promover="${p.id}" data-nome="${escapar(p.nome)}">
                <span class="material-icons">how_to_reg</span>Tornar membro</button>`
         : `<button type="button" class="action-btn com-texto" data-apto="${p.id}" data-valor="${!p.apto}" ${p.ativo ? '' : 'disabled'}>
-               <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>`) + ativar;
+               <span class="material-icons">${p.apto ? 'remove_done' : 'volunteer_activism'}</span>${p.apto ? 'Retirar apto' : 'Marcar apto'}</button>`) + ativar + acesso;
     return `
         <td>
             <div class="person">

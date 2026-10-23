@@ -690,3 +690,74 @@ describe('Minha área, dashboard e listas responsivas', () => {
         await contexto.close();
     });
 });
+
+describe('Troca rápida de página e acesso pela lista de participantes', () => {
+    test('sair de uma página antes de ela carregar não gera erro nem desenha a página antiga', async () => {
+        const { pagina, contexto, erros } = await abrirLogado(admin, TELAS.desktop);
+        for (const [antes, depois] of [['presenca', 'participantes'], ['escalas', 'usuarios'], ['dashboard', 'funcoes']]) {
+            await pagina.evaluate(rota => { location.hash = `#/${rota}`; }, antes);
+            await pagina.evaluate(rota => { location.hash = `#/${rota}`; }, depois);
+            await pagina.waitForLoadState('networkidle');
+            await pagina.waitForTimeout(300);
+            assert.equal(await pagina.evaluate(() => location.hash), `#/${depois}`);
+            assert.equal(await pagina.$eval('#main h1', h => h.textContent.trim()),
+                { participantes: 'Participantes', usuarios: 'Usuários', funcoes: 'Funções' }[depois], `${antes} → ${depois}: página antiga desenhou por cima`);
+        }
+        assert.deepEqual(erros, []);
+        await contexto.close();
+    });
+
+    test('Participantes: "Dar acesso" abre o Novo usuário com a pessoa escolhida e cria o login', async () => {
+        const nome = `Pessoa Acesso ${Date.now()}`;
+        const cadastro = await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { nome } });
+        const { pagina, contexto, erros } = await abrirLogado(admin, TELAS.desktop);
+        await abrirPagina(pagina, 'gerenciaParticipantes', TELAS.desktop);
+        await pagina.fill('#main input[type=search]', nome);
+        await pagina.click(`tr[data-id="${cadastro.corpo.id}"] [data-dar-acesso]`);
+        await pagina.waitForSelector('#uPessoa');
+        assert.equal(await pagina.$eval('#uPessoa', s => s.value), String(cadastro.corpo.id), 'pessoa já escolhida');
+
+        await pagina.fill('#uEmail', `acesso.${Date.now()}@exemplo.test`);
+        await pagina.fill('#uSenha', 'Acesso@123');
+        await pagina.fill('#uConfirmar', 'Acesso@123');
+        await pagina.selectOption('#uPerfil', 'SECRETARIA');
+        await pagina.check('input[name="permissoes"][value="participantes"]');
+        await pagina.click('#formUsuario button[type="submit"]');
+        await pagina.waitForFunction(() => location.hash === '#/usuarios');
+
+        const salvo = (await pool.query('SELECT perfil, permissoes FROM usuarios WHERE id_membro = $1', [cadastro.corpo.id])).rows[0];
+        assert.equal(salvo.perfil, 'SECRETARIA');
+        assert.equal(salvo.permissoes.participantes, true);
+        assert.equal(salvo.permissoes.usuarios, false);
+        assert.deepEqual(erros, []);
+        await contexto.close();
+    });
+
+    test('Novo usuário: quem já tem login aparece à parte, com "Editar acesso"', async () => {
+        const nome = `Ja Tem Login ${Date.now()}`;
+        const comLogin = await criarUsuario({ perfil: 'VISUALIZACAO' });
+        await pool.query('UPDATE membros SET nome_completo = $1 WHERE id_membro = $2', [nome, comLogin.id_membro]);
+        const { pagina, contexto, erros } = await abrirLogado(admin, TELAS.desktop);
+        await pagina.evaluate(() => { location.hash = '#/usuarios/novo'; });
+        await pagina.waitForSelector('#uPessoaBusca');
+        await pagina.fill('#uPessoaBusca', nome);
+        assert.equal(await pagina.isVisible('#uJaTemAcesso'), true);
+        assert.match(await pagina.$eval('#uPessoa', s => s.textContent), /Ninguém sem login/);
+        await pagina.click(`#uJaTemAcesso [data-editar-usuario="${comLogin.id}"]`);
+        await pagina.waitForSelector('#uNome');
+        assert.equal(await pagina.$eval('#uNome', i => i.value), nome);
+        assert.deepEqual(erros, []);
+        await contexto.close();
+    });
+
+    test('Novo usuário: a busca que deixa uma pessoa só já a escolhe', async () => {
+        const nome = `Unica Pessoa ${Date.now()}`;
+        const cadastro = await api('/api/participantes', { metodo: 'POST', token: admin.token, corpo: { nome } });
+        const { pagina, contexto } = await abrirLogado(admin, TELAS.desktop);
+        await pagina.evaluate(() => { location.hash = '#/usuarios/novo'; });
+        await pagina.waitForSelector('#uPessoaBusca');
+        await pagina.fill('#uPessoaBusca', nome);
+        assert.equal(await pagina.$eval('#uPessoa', s => s.value), String(cadastro.corpo.id));
+        await contexto.close();
+    });
+});
