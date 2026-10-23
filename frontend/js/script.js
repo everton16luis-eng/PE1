@@ -502,7 +502,7 @@ function sideBar() {
         <div class="brand">
             <img class="brand-logo" src="img/terracota.png" alt="Logo da Igreja Novo Caminho" hidden>
             <div class="brand-icon">✝</div>
-            <div><strong>Igreja Novo Caminho</strong><span>ADMIN</span></div>
+            <div><strong>Igreja Novo Caminho</strong><span>${somenteVoluntario() ? 'MINHA ÁREA' : 'ADMIN'}</span></div>
         </div>
         <nav></nav>
         <div class="sidebar-footer">Sistema de Gestão<br>da Igreja</div>

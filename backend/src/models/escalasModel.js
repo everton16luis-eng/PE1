@@ -16,7 +16,14 @@ async function consultarEscalas(filtro, valores) {
                     'motivo_recusa', ep.motivo_recusa,
                     'ausente', EXISTS (SELECT 1 FROM voluntario_ausencias va
                                        WHERE va.id_voluntario = ep.id_voluntario
-                                         AND es.data_escala BETWEEN va.data_inicio AND va.data_fim)
+                                         AND es.data_escala BETWEEN va.data_inicio AND va.data_fim),
+                    -- Se a vaga veio de uma troca: de quem e quem fez (voluntário ou equipe)
+                    'troca', (SELECT json_build_object('de', mt.nome_completo, 'feita_por', t.feita_por, 'em', t.criado_em)
+                              FROM escala_trocas t
+                              JOIN voluntarios vt ON vt.id_voluntario = t.id_voluntario_saiu
+                              JOIN membros mt ON mt.id_membro = vt.id_membro
+                              WHERE t.id_escala = es.id_escala AND t.id_voluntario_entrou = ep.id_voluntario
+                              ORDER BY t.criado_em DESC LIMIT 1)
                 ) ORDER BY m.nome_completo) FILTER (WHERE ep.id_voluntario IS NOT NULL), '[]') AS participantes,
                 COUNT(ep.*) FILTER (WHERE ep.confirmado IS TRUE)::int AS confirmados,
                 COUNT(ep.*) FILTER (WHERE ep.confirmado IS NOT TRUE AND NOT ep.recusado)::int AS pendentes,
@@ -35,7 +42,93 @@ async function consultarEscalas(filtro, valores) {
     return result.rows;
 }
 
+function registrarTroca(cliente, { idEscala, idSaiu, idEntrou, feitaPor, idUsuario }) {
+    return cliente.query(
+        `INSERT INTO escala_trocas (id_escala, id_voluntario_saiu, id_voluntario_entrou, feita_por, id_usuario)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [idEscala, idSaiu, idEntrou, feitaPor, idUsuario]
+    );
+}
+
+// Quem pode assumir a vaga de um voluntário NESTA escala, quando ele mesmo passa
+// a vaga: voluntário ativo e apto, que atua na mesma função, marcou o dia da
+// semana como disponível, não informou ausência na data e não está em nenhuma
+// outra escala nesse dia ($1 = escala, $2 = quem está passando a vaga).
+const SQL_SUBSTITUTOS = `
+    WITH esc AS (
+        SELECT es.id_escala, es.id_funcao, es.data_escala,
+               (ARRAY['domingo','segunda','terca','quarta','quinta','sexta','sabado'])[EXTRACT(DOW FROM es.data_escala)::int + 1] AS dia
+        FROM escalas es WHERE es.id_escala = $1
+    )
+    SELECT v.id_voluntario, m.nome_completo AS nome
+    FROM esc
+    JOIN voluntario_funcoes vf ON vf.id_funcao = esc.id_funcao
+    JOIN voluntarios v ON v.id_voluntario = vf.id_voluntario
+    JOIN membros m ON m.id_membro = v.id_membro
+    WHERE v.ativo AND m.ativo AND m.apto_voluntario
+      AND v.id_voluntario <> $2
+      AND esc.dia = ANY (v.disponibilidade)
+      AND NOT EXISTS (SELECT 1 FROM voluntario_ausencias a
+                      WHERE a.id_voluntario = v.id_voluntario AND esc.data_escala BETWEEN a.data_inicio AND a.data_fim)
+      AND NOT EXISTS (SELECT 1 FROM escala_participantes ep JOIN escalas e2 ON e2.id_escala = ep.id_escala
+                      WHERE ep.id_voluntario = v.id_voluntario AND e2.data_escala = esc.data_escala AND NOT ep.recusado)
+    ORDER BY m.nome_completo`;
+
+// A vaga é deste voluntário e ainda pode ser passada? (escala futura, evento não realizado)
+async function vagaDoVoluntario(executor, idEscala, idVoluntario, travar = false) {
+    const result = await executor.query(
+        `SELECT es.id_escala, es.data_escala, ${Eventos.SITUACAO.realizado} AS realizado
+         FROM escala_participantes ep
+         JOIN escalas es ON es.id_escala = ep.id_escala
+         LEFT JOIN eventos e ON e.id_evento = es.id_evento
+         WHERE ep.id_escala = $1 AND ep.id_voluntario = $2 AND es.data_escala >= CURRENT_DATE
+         ${travar ? 'FOR UPDATE OF ep, es' : ''}`,
+        [idEscala, idVoluntario]
+    );
+    const vaga = result.rows[0];
+    return vaga && !vaga.realizado ? vaga : null;
+}
+
 const escalasModel = {
+
+    // Voluntário (portal): quem pode assumir a vaga dele. null = a vaga não é dele ou já passou.
+    substitutosParaVaga: async (idEscala, idVoluntario) => {
+        if (!(await vagaDoVoluntario(pool, idEscala, idVoluntario))) return null;
+        return (await pool.query(SQL_SUBSTITUTOS, [idEscala, idVoluntario])).rows;
+    },
+
+    // Voluntário (portal): passa a própria vaga para outro voluntário disponível.
+    // Quem entra fica "aguardando resposta" e confirma pela Minha área dele.
+    // Devolve { erro, status } quando não é permitido, ou { nome } de quem assumiu.
+    passarVaga: async (idEscala, idSaiu, idEntrou, idUsuario) => {
+        const cliente = await pool.connect();
+        try {
+            await cliente.query('BEGIN');
+            const falha = async (status, erro) => { await cliente.query('ROLLBACK'); return { status, erro }; };
+            if (!(await vagaDoVoluntario(cliente, idEscala, idSaiu, true))) {
+                return falha(404, 'Escala não encontrada (ou já passou).');
+            }
+            // Confere de novo, dentro da transação, se a pessoa escolhida ainda está livre
+            const livre = (await cliente.query(SQL_SUBSTITUTOS, [idEscala, idSaiu])).rows.find(s => s.id_voluntario === idEntrou);
+            if (!livre) {
+                return falha(409, 'Essa pessoa não está disponível para esta vaga (dia, função, ausência ou outra escala no mesmo dia).');
+            }
+            await cliente.query(
+                `UPDATE escala_participantes
+                 SET id_voluntario = $3, confirmado = FALSE, recusado = FALSE, motivo_recusa = NULL, respondido_em = NULL
+                 WHERE id_escala = $1 AND id_voluntario = $2`,
+                [idEscala, idSaiu, idEntrou]
+            );
+            await registrarTroca(cliente, { idEscala, idSaiu, idEntrou, feitaPor: 'voluntario', idUsuario });
+            await cliente.query('COMMIT');
+            return { nome: livre.nome };
+        } catch (error) {
+            await cliente.query('ROLLBACK');
+            throw error;
+        } finally {
+            cliente.release();
+        }
+    },
 
     // Dias do mês que têm eventos, com o total de escalas e de pendências
     // (dias que já passaram não contam como pendentes)
@@ -105,7 +198,7 @@ const escalasModel = {
     // surge uma segunda atribuição para a vaga). A resposta do anterior não vale para o
     // novo: a confirmação volta para "aguardando resposta".
     // Devolve { erro, status } quando a troca não é permitida.
-    substituirParticipante: async (idEscala, idAnterior, idNovo) => {
+    substituirParticipante: async (idEscala, idAnterior, idNovo, idUsuario = null) => {
         const cliente = await pool.connect();
         try {
             await cliente.query('BEGIN');
@@ -138,6 +231,7 @@ const escalasModel = {
                  RETURNING *`,
                 [idEscala, idAnterior, idNovo]
             );
+            await registrarTroca(cliente, { idEscala, idSaiu: idAnterior, idEntrou: idNovo, feitaPor: 'equipe', idUsuario });
             await cliente.query('COMMIT');
             return { participante: result.rows[0] };
         } catch (error) {

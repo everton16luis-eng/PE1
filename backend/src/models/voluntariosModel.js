@@ -166,7 +166,13 @@ const voluntariosModel = {
                                   JOIN voluntarios v2 ON v2.id_voluntario = ep2.id_voluntario
                                   JOIN membros m2 ON m2.id_membro = v2.id_membro
                                   JOIN funcoes f2 ON f2.id_funcao = ep2.id_funcao
-                                  WHERE es2.id_evento = es.id_evento AND ep2.id_voluntario <> ep.id_voluntario AND NOT ep2.recusado), '[]') AS colegas
+                                  WHERE es2.id_evento = es.id_evento AND ep2.id_voluntario <> ep.id_voluntario AND NOT ep2.recusado), '[]') AS colegas,
+                        -- Vaga recebida de outro voluntário (troca): de quem veio
+                        (SELECT mt.nome_completo FROM escala_trocas t
+                         JOIN voluntarios vt ON vt.id_voluntario = t.id_voluntario_saiu
+                         JOIN membros mt ON mt.id_membro = vt.id_membro
+                         WHERE t.id_escala = es.id_escala AND t.id_voluntario_entrou = ep.id_voluntario
+                         ORDER BY t.criado_em DESC LIMIT 1) AS assumiu_de
                  FROM escala_participantes ep
                  JOIN escalas es ON es.id_escala = ep.id_escala
                  LEFT JOIN eventos e ON e.id_evento = es.id_evento

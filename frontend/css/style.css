@@ -2630,34 +2630,63 @@ small.motivo {
     font-size: 11px;
 }
 
-/* Modal "Vincular conta a uma pessoa" */
-.opcoes-vinculo {
-    display: grid;
-    gap: 10px;
-}
-
-.vinculo-existente {
-    margin-top: 14px;
-}
-
-.vinculo-lista {
-    max-height: 260px;
+/* Lista de escolha num modal (ex.: "Passar a vaga" na Minha área) */
+.lista-escolha {
+    max-height: 280px;
     margin-top: 10px;
     overflow-y: auto;
 }
 
-.vinculo-opcao {
+.opcao-escolha {
     cursor: pointer;
     min-height: 44px;
 }
 
-.vinculo-opcao:has(input:checked) {
+.opcao-escolha:has(input:checked) {
     background: #f7ece4;
 }
 
-.vinculo-opcao .info {
+.opcao-escolha .info {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+/* Minha área da pessoa comum: como passar a servir */
+.aviso-servir {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 17px;
+    background: #f7ece4;
+    border-color: #ecd6c7;
+}
+
+.aviso-servir > .material-icons {
+    color: var(--navy);
+    font-size: 28px;
+}
+
+.aviso-servir p {
+    margin-top: 4px;
+    color: var(--text);
+    font-size: 13px;
+}
+
+/* Aviso no cartão de escala que veio de uma troca */
+.escala-troca {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #eef3fb;
+    color: #34527d;
+    font-size: 12px;
+}
+
+.escala-troca .material-icons {
+    font-size: 16px;
 }
 
 .panel + .painel-agenda {

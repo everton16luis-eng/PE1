@@ -7,6 +7,7 @@ const Voluntarios = require('../models/voluntariosModel');
 const Usuarios = require('../models/usuariosModel');
 const Participantes = require('../models/participantesModel');
 const Eventos = require('../models/eventosModel');
+const Escalas = require('../models/escalasModel');
 const { responderErro } = require('../config/erros');
 const { gerarHashSenha, conferirSenha } = require('../config/seguranca');
 const Regras = require('../config/regrasVoluntario');
@@ -67,6 +68,42 @@ exports.responderEscala = async (req, res) => {
         res.json(resposta);
     } catch (error) {
         console.error('Erro ao responder escala pelo portal', error);
+        responderErro(res, error);
+    }
+}
+
+// Quem pode assumir a vaga do voluntário nesta escala (só nome; sem contato de ninguém)
+exports.substitutos = async (req, res) => {
+    try {
+        const id = await meuVoluntario(req, res);
+        if (!id) return;
+        if (!Regras.idValido(req.params.idEscala)) return res.status(400).json({ erro: 'Escala inválida.' });
+        const substitutos = await Escalas.substitutosParaVaga(Number(req.params.idEscala), id);
+        if (!substitutos) return res.status(404).json({ erro: 'Escala não encontrada (ou já passou).' });
+        res.json({ substitutos });
+    } catch (error) {
+        console.error('Erro ao listar substitutos', error);
+        responderErro(res, error);
+    }
+}
+
+// O próprio voluntário passa a vaga para outro (combinado entre eles), sem a equipe.
+// Quem assume entra "aguardando resposta"; a troca fica registrada para a liderança.
+exports.passarVaga = async (req, res) => {
+    try {
+        const id = await meuVoluntario(req, res);
+        if (!id) return;
+        if (!Regras.idValido(req.params.idEscala)) return res.status(400).json({ erro: 'Escala inválida.' });
+        const idNovo = Number(req.body?.id_voluntario);
+        if (!Regras.idValido(idNovo)) return res.status(400).json({ erro: 'Escolha quem vai assumir a vaga.' });
+        if (idNovo === id) return res.status(400).json({ erro: 'Escolha outra pessoa para assumir a vaga.' });
+
+        const resultado = await Escalas.passarVaga(Number(req.params.idEscala), id, idNovo, req.usuario.id_usuario);
+        if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
+        res.json({ mensagem: `Vaga passada para ${resultado.nome}. Ele(a) vai confirmar pela Minha área.` });
+    } catch (error) {
+        console.error('Erro ao passar a vaga', error);
+        if (error.code === '23505') return res.status(409).json({ erro: 'Essa pessoa já está nesta escala.' });
         responderErro(res, error);
     }
 }

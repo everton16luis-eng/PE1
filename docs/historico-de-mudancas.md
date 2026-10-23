@@ -81,6 +81,14 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
 - **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
+## Troca de vaga pelo próprio voluntário
+
+- **Passar a vaga:** na Minha área, o voluntário escolhe quem assume a vaga dele, entre os voluntários da mesma função, disponíveis no dia da semana, sem ausência e sem outra escala no mesmo dia. Quem assume entra aguardando resposta e vê de quem veio a vaga.
+- **Registro:** nova tabela `escala_trocas` (migração `trocas.sql`); a substituição feita pela equipe também passa a ser registrada, e o "Ver detalhes" da escala mostra a origem da vaga.
+- **Pessoa recém-cadastrada:** a Minha área explica que quem define o voluntariado é a liderança. O menu do voluntário mostra "MINHA ÁREA" em vez de "ADMIN".
+- **Guia do Voluntário:** apresentação passo a passo em `apresentacao/` (PowerPoint e PDF).
+- **Testes:** `troca-vaga.test.js` (10 testes).
+
 ## Pendências conhecidas
 
 - A tela de **Eventos** salva só o evento; funções e voluntários marcados nela não viram escala (use Escalas → Nova escala).

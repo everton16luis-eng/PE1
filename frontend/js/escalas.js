@@ -362,6 +362,7 @@ async function gerenciarEscala(idEscala, { destacar = null, aoAlterar = null, ao
                         <strong>${temPermissao('voluntarios') ? `<a href="#" class="link-ficha" data-ficha="${p.id_voluntario}">${escapar(p.nome)}</a>` : escapar(p.nome)}</strong>
                         <small>${p.confirmado ? 'Presença confirmada' : p.recusado ? `Recusou: ${escapar(p.motivo_recusa || 'sem motivo')}` : 'Aguardando confirmação'}</small>
                         ${p.ausente ? '<span class="badge pending">Informou ausência nesta data</span>' : ''}
+                        ${p.troca ? `<span class="badge acesso" title="${escapar(dataHoraCurta(p.troca.em))}">Assumiu a vaga de ${escapar(p.troca.de)}${p.troca.feita_por === 'voluntario' ? ' (troca entre voluntários)' : ''}</span>` : ''}
                     </div>
                     ${editavel ? `<button type="button" class="action-btn com-texto" data-substituir="${p.id_voluntario}">
                         <span class="material-icons">swap_horiz</span>Substituir</button>` : ''}

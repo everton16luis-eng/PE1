@@ -130,7 +130,7 @@ exports.substituirParticipante = async (req, res) => {
         if (!Number.isInteger(idNovo) || idNovo <= 0) return res.status(400).json({ erro: 'Escolha o voluntário que vai assumir a vaga.' });
         if (idNovo === idAnterior) return res.status(400).json({ erro: 'Escolha um voluntário diferente do atual.' });
 
-        const resultado = await Escalas.substituirParticipante(idEscala, idAnterior, idNovo);
+        const resultado = await Escalas.substituirParticipante(idEscala, idAnterior, idNovo, req.usuario.id_usuario);
         if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
         res.json(await Escalas.buscarEscala(idEscala));
     } catch (error) {

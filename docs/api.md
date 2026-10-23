@@ -123,6 +123,8 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 |---|---|---|---|
 | GET | `/portal` | login | **Voluntário** (a pessoa do login tem ficha de voluntário, servindo ou pausada): mesma estrutura da ficha, **sem** `observacoes` e `acesso`, mais `classificacao: "voluntario"` e `eventos`. Demais logins: `{ classificacao: "membro" \| "visitante", nome, eventos }`, conforme a classificação da pessoa. `eventos` = 12 próximos eventos a partir de hoje, por data e horário |
 | PATCH | `/portal/escalas/:idEscala` | portal | `{ resposta: "confirmar" \| "pendente" \| "recusar", motivo? }` — só escalas **futuras** e do próprio voluntário (senão 404) |
+| GET | `/portal/escalas/:idEscala/substitutos` | portal | `{ substitutos: [{ id_voluntario, nome }] }` — quem pode assumir a vaga: voluntário ativo e apto da **mesma função**, que marcou o **dia da semana** como disponível, **sem ausência** na data e **sem outra escala** no mesmo dia. Só o nome (nenhum contato). 404 se a vaga não é do voluntário ou já passou |
+| POST | `/portal/escalas/:idEscala/passar` | portal | `{ id_voluntario }` — o próprio voluntário passa a vaga (sem a equipe). Quem assume entra **aguardando resposta**; a troca vai para `escala_trocas` (`feita_por: "voluntario"`). 409 se a pessoa não está livre, 404 se a vaga não é dele |
 | PUT | `/portal/preferencias` | portal | `{ disponibilidade: [dia], telefone?, email? }` — ao menos um dia |
 | POST | `/portal/ausencias` | portal | `{ data_inicio, data_fim, motivo? }` — fim ≥ início e ≥ hoje; devolve `conflitos` |
 | DELETE | `/portal/ausencias/:idAusencia` | portal | Só as próprias |

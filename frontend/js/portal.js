@@ -64,14 +64,87 @@ function areaDoParticipante(main, dados, primeiroNome) {
     ]);
     cards.classList.add('cards-duas');
 
+    // Quem acabou de criar a conta: como passa a servir (decisão da liderança)
+    const servir = document.createElement('section');
+    servir.className = 'panel aviso-servir';
+    servir.innerHTML = `
+        <span class="material-icons" aria-hidden="true">volunteer_activism</span>
+        <div><strong>Quer servir como voluntário?</strong>
+        <p>Fale com a liderança da igreja. Quando ela definir você como voluntário, suas escalas aparecem aqui, nesta mesma conta.</p></div>`;
+
     main.replaceChildren(
         headerInterno(`Olá, ${primeiroNome}!`, 'Acompanhe a programação da igreja'),
         cards,
+        servir,
         painelProximosEventos(eventos, {
             titulo: 'Próximos eventos da igreja',
             descricao: 'Programação em ordem de data e horário'
         })
     );
+}
+
+// "Passar a vaga": o voluntário escolhe quem assume a vaga dele (combinado entre eles).
+// A lista vem do servidor: mesma função, disponível no dia, sem ausência e sem outra escala.
+async function passarVaga(idEscala, descricao, aoConcluir) {
+    const { modal, fechar } = abrirModal('Passar a vaga', descricao, '<p class="vazio">Procurando quem está livre nesse dia...</p>');
+    let substitutos;
+    try {
+        substitutos = (await enviarDados(`portal/escalas/${idEscala}/substitutos`, 'GET')).substitutos;
+    } catch (erro) {
+        modal.querySelector('.modal-corpo').innerHTML = `<p class="vazio">${escapar(erro.message)}</p>`;
+        return;
+    }
+
+    const corpo = modal.querySelector('.modal-corpo');
+    if (!substitutos.length) {
+        corpo.innerHTML = `
+            <p class="vazio">Ninguém da sua função está livre nesse dia (disponível, sem ausência e sem outra escala).</p>
+            <p class="subtitulo">Use "Não posso ir" para avisar a liderança, que vai procurar um substituto.</p>
+            <div class="form-actions"><button type="button" class="primary" data-fechar>Entendi</button></div>`;
+        corpo.querySelector('[data-fechar]').addEventListener('click', fechar);
+        return;
+    }
+
+    corpo.innerHTML = `
+        <form novalidate>
+            <p class="subtitulo">Combine antes com a pessoa (por WhatsApp ou telefone). Ela assume a sua vaga, fica como
+               <strong>aguardando resposta</strong> e confirma pela Minha área dela. A liderança vê a troca.</p>
+            <input class="search" type="search" id="buscaSubstituto" placeholder="Buscar pelo nome..." aria-label="Buscar voluntário">
+            <div class="list lista-escolha" role="radiogroup" aria-label="Quem pode assumir a vaga">
+                ${substitutos.map(s => `
+                    <label class="list-row opcao-escolha" data-nome="${escapar(normalizarTexto(s.nome))}">
+                        <input type="radio" name="substituto" value="${s.id_voluntario}">
+                        <div class="mini-avatar">${escapar(s.nome.charAt(0).toUpperCase())}</div>
+                        <div class="info"><strong>${escapar(s.nome)}</strong><small>Livre nesse dia</small></div>
+                    </label>`).join('')}
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
+                <button type="submit" class="primary"><span class="material-icons">swap_horiz</span>Passar a vaga</button>
+            </div>
+        </form>`;
+
+    const form = corpo.querySelector('form');
+    corpo.querySelector('#buscaSubstituto').addEventListener('input', event => {
+        const termo = normalizarTexto(event.target.value);
+        corpo.querySelectorAll('.opcao-escolha').forEach(op => { op.hidden = Boolean(termo) && !op.dataset.nome.includes(termo); });
+    });
+    corpo.querySelector('[data-cancelar]').addEventListener('click', fechar);
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const escolhido = form.querySelector('input[name="substituto"]:checked');
+        if (!escolhido) return mensagemFormulario(form, 'Escolha quem vai assumir a sua vaga.');
+        const nome = escolhido.closest('.opcao-escolha').querySelector('strong').textContent;
+        if (!confirm(`Passar a sua vaga para ${nome}? Você sai desta escala.`)) return;
+        try {
+            const resposta = await enviarDados(`portal/escalas/${idEscala}/passar`, 'POST', { id_voluntario: Number(escolhido.value) });
+            fechar();
+            alert(resposta.mensagem);
+            aoConcluir();
+        } catch (erro) {
+            mensagemFormulario(form, erro.message);
+        }
+    });
 }
 
 async function gerenciaMinhaArea() {
@@ -119,10 +192,12 @@ async function gerenciaMinhaArea() {
                     </p>
                     ${p.observacoes ? `<p class="escala-obs">${escapar(p.observacoes)}</p>` : ''}
                     ${p.recusado ? `<p class="escala-obs">Seu motivo: ${escapar(p.motivo_recusa || '')}</p>` : ''}
+                    ${p.assumiu_de ? `<p class="escala-troca"><span class="material-icons">swap_horiz</span>Você assumiu a vaga de ${escapar(p.assumiu_de)}</p>` : ''}
                     <div class="acoes">
                         ${p.confirmado ? '' : '<button type="button" class="primary" data-resposta="confirmar"><span class="material-icons">check</span>Confirmar presença</button>'}
                         ${p.recusado ? '' : '<button type="button" class="secondary" data-resposta="recusar"><span class="material-icons">event_busy</span>Não posso ir</button>'}
                         ${p.recusado ? '<button type="button" class="secondary" data-resposta="pendente">Mudei de ideia</button>' : ''}
+                        <button type="button" class="secondary" data-passar><span class="material-icons">swap_horiz</span>Passar a vaga</button>
                         ${p.colegas.length ? `<button type="button" class="secondary" data-equipe><span class="material-icons">groups</span>Equipe (${p.colegas.length})</button>` : ''}
                     </div>
                     <ul class="equipe" hidden>
@@ -216,6 +291,10 @@ async function gerenciaMinhaArea() {
         if (event.target.closest('[data-equipe]')) {
             const lista = cartao.querySelector('.equipe');
             lista.hidden = !lista.hidden;
+            return;
+        }
+        if (event.target.closest('[data-passar]')) {
+            passarVaga(cartao.dataset.escala, `${cartao.querySelector('h3').textContent} — ${cartao.querySelector('.escala-data strong').textContent}`, recarregar);
             return;
         }
         const botao = event.target.closest('[data-resposta]');

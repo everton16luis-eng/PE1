@@ -68,10 +68,13 @@ Isso executa, em ordem:
 4. `db:cadastro` — dados pessoais do visitante e ligação visitante → membro.
 5. `db:seed` — ~6 meses de histórico + 2 meses de agenda; complementos; logins do portal.
 6. `db:pessoas` — base universal de pessoas (leva visitantes, crianças e logins para o cadastro único).
+7. `db:acesso` — contas da tela de login como usuário padrão.
+8. `db:relatorios` — histórico de relatórios com arquivo.
+9. `db:trocas` — histórico de trocas de vaga nas escalas.
 
 Todas as migrações **só acrescentam** estruturas e podem ser rodadas mais de uma vez. O seed não roda duas vezes no mesmo banco (verifica o usuário `admin@novocaminho.org`). Detalhes em [Banco de dados](banco-de-dados.md).
 
-> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`, `db:pessoas`) e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
+> **Em produção** rode só as migrações (`db:presenca`, `db:paginas`, `db:voluntario`, `db:cadastro`, `db:pessoas`, `db:acesso`, `db:relatorios`, `db:trocas`) e crie o primeiro administrador pela tela de registro: quando não existe nenhum administrador ativo, o primeiro cadastro vira administrador automaticamente.
 
 ## 4. Rodar
 

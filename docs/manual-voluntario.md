@@ -4,14 +4,20 @@
 
 A **Minha área** é o seu espaço como voluntário. Por ela você vê as suas escalas, confirma presença, avisa quando não puder ir e mantém os seus dados atualizados. Funciona bem no celular.
 
+## Primeiro acesso: criar a conta
+
+1. Abra o endereço do sistema que a igreja passou e toque na aba **Registro**.
+2. Preencha nome completo, telefone, e-mail e uma senha (mínimo de 6 caracteres), aceite os termos e toque em **Cadastrar**.
+3. Pronto: a conta já está ativa. Ainda não há escalas — a Minha área mostra a programação da igreja.
+4. Quem define quem serve como voluntário é a **liderança**. Quando ela definir você, as escalas aparecem **nesta mesma conta** (não crie outra).
+
 ## Como entrar
 
-1. Abra o endereço do sistema que a secretaria passou.
-2. Digite o **e-mail** que foi cadastrado para você (ou o seu telefone) e a **senha inicial** que recebeu.
+1. Abra o endereço do sistema.
+2. Digite o **e-mail** (ou o telefone) e a **senha**.
 3. Marque **Lembrar de mim** se o aparelho for só seu.
-4. No primeiro acesso, **troque a senha** (veja abaixo).
 
-Não tem login? Peça à secretaria para criar o seu **acesso ao portal**.
+Esqueceu a senha? Fale com a liderança para redefinir.
 
 ## O que você vê
 
@@ -39,7 +45,9 @@ Os botões do cartão:
 - **Mudei de ideia:** desfaz a recusa, e a escala volta a aguardar resposta.
 - **Equipe:** mostra quem mais está escalado no mesmo culto ou evento.
 
-Só dá para responder escalas que ainda não aconteceram.
+- **Passar a vaga:** combinou com outro voluntário (por WhatsApp, por exemplo) para ficar no seu lugar? Toque em **Passar a vaga** e escolha a pessoa. Só aparecem voluntários da mesma função, disponíveis naquele dia da semana, sem ausência na data e sem outra escala no mesmo dia. Você sai da escala; quem assume vê "Você assumiu a vaga de…" e confirma na Minha área dele. A liderança vê a troca.
+
+Só dá para responder ou passar escalas que ainda não aconteceram.
 
 ## Minhas ausências
 
