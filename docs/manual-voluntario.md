@@ -21,7 +21,7 @@ Esqueceu a senha? Fale com a liderança para redefinir.
 
 ## Avisos e notificações no celular
 
-O **sininho** no alto da tela mostra quantos avisos você ainda não leu. Toque nele para ver: escala nova, escala alterada ou cancelada, vaga que alguém passou para você e o lembrete da véspera (a partir das 18h).
+O **sininho** no alto da tela mostra quantos avisos você ainda não leu. Toque nele para ver: escala nova, escala alterada ou cancelada, vaga que alguém passou para você e o lembrete da véspera (a partir das 18h). Os avisos lidos ficam na lista até você tocar em **Limpar lidas**.
 
 Para receber os avisos **no celular, mesmo com o sistema fechado**:
 

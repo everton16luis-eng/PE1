@@ -77,6 +77,18 @@ describe('Central de avisos (sininho)', () => {
         assert.equal((await api('/api/notificacoes', { token: secretaria.token })).corpo.nao_lidas, 0);
     });
 
+    test('limpar lidas apaga só os lidos do próprio login', async () => {
+        await Servico.avisar([secretaria.id, admin.id], { tipo: 'teste', titulo: 'Fica sem ler', mensagem: 'x' });
+        const limpar = await api('/api/notificacoes/lidas', { metodo: 'DELETE', token: secretaria.token, corpo: {} });
+        assert.equal(limpar.status, 200);
+        assert.ok(limpar.corpo.removidos >= 1);
+        const lista = (await api('/api/notificacoes', { token: secretaria.token })).corpo;
+        assert.ok(lista.notificacoes.every(n => !n.lida), 'nenhum lido sobra');
+        assert.ok(lista.notificacoes.some(n => n.titulo === 'Fica sem ler'), 'não lido continua');
+        const doAdmin = (await api('/api/notificacoes', { token: admin.token })).corpo;
+        assert.ok(doAdmin.notificacoes.some(n => n.titulo === 'Fica sem ler'), 'outro login intacto');
+    });
+
     test('voluntário e usuário padrão (sem área de gestão) também têm a central', async () => {
         const v = await criarUsuario({ perfil: 'VOLUNTARIO', permissoes: NENHUMA });
         const comum = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA });

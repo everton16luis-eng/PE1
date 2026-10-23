@@ -91,11 +91,11 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 
 ## Notificações
 
-- **Central de avisos (sininho)** em todas as telas, inclusive no celular, com contador, "marcar todos como lidos" e toque para abrir a tela do aviso.
+- **Central de avisos (sininho)** em todas as telas, inclusive no celular, com contador, "marcar todos como lidos", "limpar lidas" e toque para abrir a tela do aviso.
 - **Web Push** (celular e computador, sem aplicativo): ativar/desativar por aparelho, aviso de teste, service worker `sw.js`, manifesto e ícones para "Adicionar à tela inicial" (PWA). Dependência nova: `web-push`.
 - **Avisos automáticos:** escala nova, retirada, evento alterado ou removido, vaga recebida, troca entre voluntários, recusa (para a liderança) e lembretes às 18h (véspera e resumo de pendências), sem repetir.
 - **Banco:** migração `notificacoes.sql`; chaves VAPID com `npm run push:chaves`.
-- **Testes:** `notificacoes.test.js` (16 testes).
+- **Testes:** `notificacoes.test.js` (17 testes).
 
 ## Pendências conhecidas
 

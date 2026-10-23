@@ -369,6 +369,13 @@ img {
     font-size: 13px;
 }
 
+.avisos-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px 14px;
+}
+
 .link-botao {
     padding: 0;
     border: 0;

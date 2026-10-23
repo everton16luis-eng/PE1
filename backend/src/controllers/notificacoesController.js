@@ -41,6 +41,16 @@ exports.marcarTodasLidas = async (req, res) => {
     }
 }
 
+exports.limparLidas = async (req, res) => {
+    try {
+        const removidos = await Notificacoes.limparLidas(req.usuario.id_usuario);
+        res.json({ ok: true, removidos });
+    } catch (error) {
+        console.error('Erro ao limpar avisos lidos', error);
+        responderErro(res, error);
+    }
+}
+
 // Chave pública VAPID (o navegador precisa dela para ativar o push)
 exports.chave = (req, res) => {
     res.json({ chave: Servico.CHAVE_PUBLICA, disponivel: Servico.pushConfigurado });

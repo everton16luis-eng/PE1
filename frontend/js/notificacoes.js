@@ -140,7 +140,10 @@ async function abrirAvisos() {
             </section>
             <div class="avisos-topo">
                 <strong>${dados.nao_lidas ? `${dados.nao_lidas} não lido(s)` : 'Tudo lido'}</strong>
-                ${dados.nao_lidas ? '<button type="button" class="link-botao" data-todas>Marcar todos como lidos</button>' : ''}
+                <span class="avisos-acoes">
+                    ${dados.nao_lidas ? '<button type="button" class="link-botao" data-todas>Marcar todos como lidos</button>' : ''}
+                    ${dados.notificacoes.some(n => n.lida) ? '<button type="button" class="link-botao" data-limpar>Limpar lidas</button>' : ''}
+                </span>
             </div>
             <ul class="lista-avisos">
                 ${dados.notificacoes.map(n => `
@@ -184,6 +187,9 @@ async function abrirAvisos() {
                 setTimeout(desenhar, 1500);
             } else if (botao.matches('[data-todas]')) {
                 await enviarDados('notificacoes/lidas', 'POST', {});
+                aparelho = await desenhar();
+            } else if (botao.matches('[data-limpar]')) {
+                await enviarDados('notificacoes/lidas', 'DELETE', {});
                 aparelho = await desenhar();
             } else if (botao.matches('[data-aviso]')) {
                 await enviarDados(`notificacoes/${botao.dataset.aviso}/lida`, 'POST', {});

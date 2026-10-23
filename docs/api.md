@@ -204,6 +204,7 @@ Cada login só vê e altera os **próprios** avisos e aparelhos (o id vem do tok
 | GET | `/notificacoes` | login | `{ nao_lidas, notificacoes (30 mais recentes: tipo, titulo, mensagem, rota, lida, criado_em), aparelhos, push_disponivel }` |
 | POST | `/notificacoes/:id/lida` | login | Marca um aviso como lido (404 se não for do login) |
 | POST | `/notificacoes/lidas` | login | Marca todos como lidos |
+| DELETE | `/notificacoes/lidas` | login | Apaga os avisos já lidos do login (`{ removidos }`); os não lidos ficam |
 | GET | `/notificacoes/push/chave` | login | `{ chave, disponivel }` — chave pública VAPID para ativar o push |
 | POST | `/notificacoes/push` | login | `{ inscricao: { endpoint (https), keys: { p256dh, auth } }, aparelho? }` — ativa neste aparelho. 503 sem chaves VAPID no servidor |
 | DELETE | `/notificacoes/push` | login | `{ endpoint }` — desativa neste aparelho |

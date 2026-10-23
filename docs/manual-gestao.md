@@ -31,7 +31,7 @@ O sininho no alto de todas as telas mostra os avisos não lidos. A liderança (a
 - **troca de vaga** feita entre voluntários;
 - às 18h, o resumo das **confirmações pendentes** dos próximos 2 dias.
 
-Toque num aviso para abrir a tela certa. Para receber também no celular: sininho → **Ativar neste aparelho**. Os voluntários são avisados sozinhos quando são escalados, retirados, quando o evento muda de dia ou horário ou é removido, e na véspera. A opção **Notificações** em Configurações liga ou pausa esses lembretes automáticos.
+Toque num aviso para abrir a tela certa. Avisos lidos continuam na lista (sem destaque) até você tocar em **Limpar lidas**; os não lidos nunca são apagados por esse botão. Para receber também no celular: sininho → **Ativar neste aparelho**. Os voluntários são avisados sozinhos quando são escalados, retirados, quando o evento muda de dia ou horário ou é removido, e na véspera. A opção **Notificações** em Configurações liga ou pausa esses lembretes automáticos.
 
 ## Dashboard
 

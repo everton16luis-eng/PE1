@@ -4,7 +4,7 @@ Sistema web para a gestão de uma igreja: membros e visitantes, voluntários e s
 
 - **Backend:** Node.js + Express 5, padrão MVC (rotas → controllers → models), PostgreSQL via `pg`.
 - **Frontend:** HTML, CSS e JavaScript puros, em uma única página (`index.html`) que troca o conteúdo por funções `gerencia...()`; responsivo do celular ao desktop.
-- **Testes:** 337 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
+- **Testes:** 338 testes automatizados (`node:test` + `playwright-core`) de segurança, SQL injection, regras de negócio e layout.
 
 ## Funcionalidades
 

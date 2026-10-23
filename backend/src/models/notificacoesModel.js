@@ -44,6 +44,12 @@ const notificacoesModel = {
         await pool.query('UPDATE notificacoes SET lida = TRUE WHERE id_usuario = $1 AND NOT lida', [idUsuario]);
     },
 
+    // Apaga só os avisos já lidos: os não lidos nunca somem sem serem vistos
+    limparLidas: async (idUsuario) => {
+        const result = await pool.query('DELETE FROM notificacoes WHERE id_usuario = $1 AND lida', [idUsuario]);
+        return result.rowCount;
+    },
+
     // ---------------------------------------------------------
     // Aparelhos (Web Push)
     // ---------------------------------------------------------
