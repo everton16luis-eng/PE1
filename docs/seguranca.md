@@ -100,7 +100,7 @@ Além disso, o sistema recusa deixar a igreja sem nenhum administrador ativo.
 
 | Item | Situação | Recomendação |
 |---|---|---|
-| HTTPS | O servidor fala HTTP | Publicar atrás de um proxy com HTTPS (Nginx, Caddy, serviço de hospedagem) |
+| HTTPS | O servidor fala HTTP | Publicar atrás de um proxy com HTTPS (Nginx, Caddy, serviço de hospedagem). Sem HTTPS, as notificações no celular e a câmera (leitura do QR nas Turmas) não funcionam |
 | CORS | Aberto (`cors()`) | Restringir à origem do site se a API for usada só por ele |
 | Content-Security-Policy | Não definida (há estilos em linha) | Definir após remover os `style="..."` em linha |
 | Token no navegador | `localStorage`/`sessionStorage` | Aceitável com o escape de XSS atual; para mais segurança, migrar para cookie `HttpOnly` |

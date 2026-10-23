@@ -1,6 +1,6 @@
 # Igreja Novo Caminho — Sistema de Gestão
 
-Sistema web para a gestão de uma igreja: membros e visitantes, voluntários e suas escalas, ministério infantil (crianças, turmas e lista de presença), relatórios, usuários e configurações — com um **portal próprio para o voluntário** confirmar escalas e informar ausências.
+Sistema web para a gestão de uma igreja: cadastro único de pessoas, voluntários e suas escalas, eventos, ministério infantil (crianças, lista de presença e **recepção nas turmas com etiqueta e QR code**), avisos no celular, relatórios, usuários e configurações — com uma **Minha área** para o voluntário confirmar escalas, passar a vaga e informar ausências.
 
 - **Backend:** Node.js + Express 5, padrão MVC (rotas → controllers → models), PostgreSQL via `pg`.
 - **Frontend:** HTML, CSS e JavaScript puros, em uma única página (`index.html`) que troca o conteúdo por funções `gerencia...()`; responsivo do celular ao desktop.
@@ -10,19 +10,21 @@ Sistema web para a gestão de uma igreja: membros e visitantes, voluntários e s
 
 | Área | O que faz |
 |---|---|
-| Login | Entrada por e-mail ou telefone, cadastro com aprovação do administrador, sessão com token assinado |
+| Login | Entrada por e-mail ou telefone e cadastro pela própria pessoa (a conta já entra, sem áreas de gestão); sessão com token assinado |
 | Dashboard | Totais, escalas da semana, confirmações pendentes, gráfico do mês, próximos eventos |
-| Eventos | Criação de eventos e lista de todos os eventos |
+| Eventos | Criar, editar e remover eventos; próximos e realizados (o realizado vira histórico) |
 | Lista de presença | Entrada e saída de membros nas turmas, por data |
-| Participantes | Membros e visitantes, cadastro (membro pode já virar voluntário) |
-| Voluntários | Lista, cadastro e **ficha completa** (escalas, histórico, ausências, acesso ao portal) |
-| Escalas | Calendário mensal, escalas do dia, confirmação, nova escala com verificação de ausências |
+| Participantes | **Cadastro único de pessoas** (visitantes e membros); classificação, apto ao voluntariado e acesso ao sistema (Dar/Editar acesso) |
+| Voluntários | Pessoas ativas e aptas, **ficha completa** (escalas, histórico, ausências, acesso ao portal) |
+| Escalas | Calendário, escalas do dia, confirmações pendentes, substituição, nova escala com verificação de ausências |
 | Funções | Funções dos voluntários, vagas da equipe e dias de uso |
-| Crianças / Turmas | Cadastro com responsável e autorizações; turmas por faixa etária |
-| Relatórios | 7 relatórios com filtros, pré-visualização e exportação PDF, Excel e CSV |
+| Crianças | Menores de 18 pelo cadastro único, ficha com responsáveis e autorizações, **quem pode buscar** a criança; turmas por faixa etária |
+| **Turmas** | Recepção das crianças no culto: abertura só com evento, entrada com **quem deixou**, **duas etiquetas** (criança e retirada), saída lendo o **QR pela câmera** com confirmação, encerramento automático às 23h59 e alertas |
+| Avisos | Sininho com a central de avisos e **notificações no celular** (Web Push, sem aplicativo); lembretes da véspera |
+| Relatórios | 8 tipos (inclusive Turmas, separado por evento) e o relatório por evento, com filtros, pré-visualização, PDF, Excel e CSV e histórico dos arquivos gerados |
 | Usuários | Perfis e permissões por área, com proteção contra escalada de privilégio |
 | Configurações | Dados da igreja, preferências e **backup real** do banco (manual e automático) |
-| Minha área (portal) | O voluntário vê as próprias escalas, confirma ou recusa, informa ausências, troca a senha; membros e visitantes veem os próximos eventos da igreja |
+| Minha área | O voluntário vê as próprias escalas, confirma ou recusa, **passa a vaga**, informa ausências e troca a senha; membros e visitantes veem os próximos eventos |
 
 ## Início rápido
 
@@ -68,7 +70,7 @@ Acesse `http://localhost:3000` e entre com um dos usuários de teste (senha `Tes
 
 ```
 ├── backend/
-│   ├── database/        migrações (.sql), seeds e executor de scripts
+│   ├── database/        migrações (.sql), instalacao.sql (banco limpo), seeds e executor de scripts
 │   └── src/
 │       ├── config/      conexão, segurança, backup, erros, regras compartilhadas
 │       ├── middlewares/ autenticação, permissões e bloqueio do portal
@@ -80,9 +82,12 @@ Acesse `http://localhost:3000` e entre com um dos usuários de teste (senha `Tes
 │   ├── index.html       página única
 │   ├── css/style.css    estilos (responsivos)
 │   ├── js/              um arquivo por área + script.js (núcleo e rotas)
-│   └── img/             logo
+│   ├── sw.js            service worker (notificações no celular)
+│   ├── manifest.webmanifest  instalar na tela inicial (PWA)
+│   └── img/             logo e ícones
 ├── tests/               testes automatizados e banco de testes
 ├── backups/             backups gerados (fora do git)
+├── arquivos/            relatórios gerados (fora do git)
 └── docs/                documentação
 ```
 

@@ -40,11 +40,15 @@ Apoio em `backend/src/config/`:
 | `erros.js` | `responderErro(res, error)`: traduz erros do banco em mensagens amigáveis, sem detalhes internos |
 | `backup.js` | Executa o `pg_dump` e grava em `backups/` |
 | `regrasVoluntario.js` | Validações compartilhadas entre a ficha e o portal (ausência, resposta à escala, disponibilidade) |
+| `acesso.js` | Áreas, permissões padrão e `ehEquipeDeGestao` (quem é da equipe de gestão) |
+| `notificacoes.js` | Avisos do sistema (`Avisos`), envio do Web Push e os lembretes da véspera |
+| `atendimento.js` | Encerramento automático das turmas (ao iniciar e a cada minuto) e o aviso do alerta à administração |
+| `documentos.js` / `pdf.js` | Montagem dos relatórios (PDF, Excel, CSV), gravação em `arquivos/relatorios/` e o gerador de PDF |
 
 Middlewares em `backend/src/middlewares/autenticacao.js`:
 
 - `exigirLogin` — valida o token, recarrega o usuário do banco (usuário desativado perde o acesso na hora) e guarda em `req.usuario`.
-- `restringirAreaDeGestao` — quem não é da equipe de gestão (perfil Voluntário e usuário padrão sem áreas) só acessa `/auth/me` e `/portal/*`. A regra fica em `config/acesso.js`.
+- `restringirAreaDeGestao` — quem não é da equipe de gestão (perfil Voluntário e usuário padrão sem áreas) só acessa `/auth/me`, `/portal/*`, `/notificacoes/*` e `/atendimento/*` (nas Turmas, o controller confere em cada chamada se a pessoa opera aquela turma). A regra fica em `config/acesso.js`.
 - `exigirAlgumaPermissao(...areas)` — passa com qualquer uma das áreas (ex.: lista de turmas, usada por Crianças e Relatórios).
 - `exigirPermissao(area)` — administrador sempre passa; os demais precisam da área marcada em `usuarios.permissoes`.
 - `exigirPerfil(...perfis)` — usado em Configurações (só administrador altera).
@@ -69,6 +73,10 @@ Middlewares em `backend/src/middlewares/autenticacao.js`:
 | `js/participantes.js`, `voluntarios.js`, `funcoes.js`, `escalas.js`, `criancas.js`, `usuarios.js`, `configuracoes.js`, `relatorios.js` | Uma área cada |
 | `js/voluntario.js` | Ficha do voluntário + utilitários usados também pelo portal |
 | `js/portal.js` | Minha área: escalas do voluntário (portal) ou próximos eventos para membros e visitantes |
+| `js/atendimento.js` | Turmas: lista das turmas, sessão (entrada, saída, etiquetas) e as abas da gestão (sessões, alertas, responsáveis) |
+| `js/leitor-qr.js` | `lerQrCode()`: abre a câmera e lê o QR (leitor do navegador ou `/vendor/jsQR.js`) |
+| `js/notificacoes.js` | Sininho, central de avisos e ativação do Web Push no aparelho |
+| `sw.js` / `manifest.webmanifest` | Service worker (recebe as notificações) e o manifesto para instalar na tela inicial |
 
 Os arquivos de área são carregados **antes** do `script.js`, que dá a partida (`carregarDashboard()`).
 
@@ -78,8 +86,8 @@ Cada página é uma função assíncrona que:
 
 1. registra a rota no histórico (`registrarRota('participantes')`) — **sempre na primeira linha**, antes de qualquer `await`;
 2. marca o item do menu (`marcarMenuAtivo('gerenciaParticipantes')`);
-3. busca os dados (`buscarDados('participantes', padrao)`);
-4. monta os elementos e troca o conteúdo de `#main` com `main.replaceChildren(...)`;
+3. guarda `const ativa = paginaAtiva();` e busca os dados (`buscarDados('participantes', padrao)`);
+4. **depois de cada `await`, `if (!ativa()) return;`** — se a pessoa já foi para outra página, a página antiga não desenha por cima da nova; depois monta os elementos e troca o conteúdo de `#main` com `main.replaceChildren(...)`;
 5. liga os eventos (cliques, formulários).
 
 ### Rotas e botões Voltar/Avançar
@@ -99,7 +107,8 @@ Cada página é uma função assíncrona que:
 | `buscarDados(rota, padrao)` | GET com token; em erro devolve `padrao`; 401 leva ao login |
 | `enviarDados(rota, metodo, corpo)` | POST/PUT/PATCH/DELETE com token; lança `Error` com a mensagem da API |
 | `escapar(texto)` | **Obrigatório** em todo texto vindo do banco dentro de `innerHTML` (evita XSS) |
-| `temPermissao(area)` | Mostra/esconde partes da tela conforme o usuário |
+| `temPermissao(area)` | Mostra/esconde partes da tela conforme o usuário (`'turmas'` = gestão das crianças ou responsável de alguma turma) |
+| `paginaAtiva()` | Devolve uma função que diz se a página ainda é a aberta (use depois de cada `await`) |
 | `headerInterno(titulo, descricao)` / `headerComVoltar(...)` | Cabeçalho padrão das páginas |
 | `cardsEstatisticas([[cor, icone, valor, rotulo], ...])` | Linha de cards de totais |
 | `configurarFiltros(container, corresponde, { exigirInteracao })` | Busca + botões de filtro de tabelas. Com `exigirInteracao`, as linhas só aparecem após busca ou clique em filtro (Participantes, Voluntários, Funções, Crianças) |
@@ -117,11 +126,11 @@ Exemplo: uma página "Departamentos".
 2. `backend/src/controllers/departamentosController.js` — validações e respostas; use `responderErro` no `catch`.
 3. `backend/src/routes/departamentosRoutes.js` — rotas com `exigirPermissao('voluntarios')` (ou a área adequada).
 4. Em `server.js`, `app.use('/api', departamentosRoutes)` **depois** de `exigirLogin` e `restringirAreaDeGestao`.
-5. Se precisar de tabela/coluna nova, crie um `.sql` em `backend/database/` (só `CREATE ... IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) e um script `db:...` no `package.json`.
+5. Se precisar de tabela/coluna nova, crie um `.sql` em `backend/database/` (só `CREATE ... IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) e um script `db:...` no `package.json`. Depois de aplicá-lo, rode `npm run db:gerar-instalacao` para o `instalacao.sql` (banco limpo) continuar completo.
 
 **Frontend**
 
-6. `frontend/js/departamentos.js` com `async function gerenciaDepartamentos() { registrarRota('departamentos'); marcarMenuAtivo('gerenciaDepartamentos'); ... }`.
+6. `frontend/js/departamentos.js` com `async function gerenciaDepartamentos() { registrarRota('departamentos'); const ativa = paginaAtiva(); marcarMenuAtivo('gerenciaDepartamentos'); ... }` (e `if (!ativa()) return;` depois de cada `await`).
 7. Inclua o `<script>` em `index.html` **antes** de `script.js`.
 8. Em `script.js`: adicione a rota em `ROTAS` e o item na lista `paginas` de `sideBar()` (id, ícone do Material Icons, nome, função, permissão).
 9. Use as classes existentes (`panel`, `cards`, `table-responsive`, `form-grid`, `checkbox-card`…) para manter o padrão visual e a responsividade.

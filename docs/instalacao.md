@@ -33,6 +33,7 @@ cp backend/src/.env.example backend/src/.env
 | `DB_NAME_TESTE` | não | Nome do banco de testes (padrão: `<DB_NAME>_teste`) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | para notificações no celular | Chaves do Web Push. Gere com `npm run push:chaves` (grava no `.env`, uma vez por servidor). Sem elas, só a central de avisos (sininho) funciona |
 | `LEMBRETE_HORA` | não (18) | Hora local em que saem os lembretes da véspera |
+| `PASTA_ARQUIVOS` | não (`arquivos/` na raiz) | Pasta onde ficam os relatórios gerados (subpasta `relatorios/`). Fora do git; inclua no backup do servidor |
 
 Para gerar uma chave forte:
 
@@ -146,6 +147,8 @@ Funcionam no Android (Chrome, Edge, Firefox, Samsung Internet) e no computador *
 | Backup falha em Configurações | `pg_dump` não encontrado | Instale as ferramentas do PostgreSQL ou defina `PG_DUMP_PATH` |
 | Textos como "Recep‡Æo" no banco | Script SQL rodado no terminal do Windows (CP850) | Rode os scripts com `node backend/database/executar.js arquivo.sql` (sempre UTF-8). O seed corrige os textos já afetados |
 | Testes de layout falham ao abrir o navegador | Chrome/Edge não instalado | Instale um dos dois |
+| Botão "Ler QR" não abre a câmera | Endereço sem https (ex.: `http://192.168…`) ou câmera bloqueada no navegador | Use o endereço https (ou `localhost` nos testes) e libere a câmera no cadeado ao lado do endereço; sem câmera, digite o código de retirada |
+| `relation "turma_sessoes" does not exist` | Migração das Turmas não aplicada | `npm run db:atendimento` |
 | `relation "turmas" does not exist` | Migrações não aplicadas | `npm run db:presenca && npm run db:paginas && npm run db:voluntario && npm run db:cadastro && npm run db:pessoas` |
 
 ## Restaurar um backup
