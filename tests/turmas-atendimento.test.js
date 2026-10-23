@@ -347,3 +347,70 @@ describe('Administração dos vínculos', () => {
         assert.equal((await api(`/api/atendimento/admin/turmas/${turmaA}/voluntarios`, { metodo: 'PUT', token: admin.token, corpo: { voluntarios: ['x'] } })).status, 400);
     });
 });
+
+describe('Relatório de turmas (separado por evento)', () => {
+    const baixar = async (token, id) => {
+        const r = await fetch(`${require('./apoio').base}/api/relatorios/historico/${id}/arquivo`, { headers: { Authorization: `Bearer ${token}` } });
+        return { status: r.status, conteudo: Buffer.from(await r.arrayBuffer()) };
+    };
+
+    test('agrupa por evento e turma, com entradas, saídas, quem buscou, encerramento e alertas', async () => {
+        const r = await api('/api/relatorios/turmas?inicio=2031-03-01&fim=2031-03-31', { token: admin.token });
+        assert.equal(r.status, 200);
+        const nomes = r.corpo.eventos.map(e => e.evento);
+        assert.ok(nomes.some(n => n.startsWith('Culto noite')) && nomes.some(n => n.startsWith('Vigília')), JSON.stringify(nomes));
+        assert.ok(r.corpo.eventos.every(e => e.data >= '2031-03-01' && e.data <= '2031-03-31'), 'respeita o período');
+        const noite = r.corpo.eventos.find(e => e.evento.startsWith('Culto noite'));
+        assert.equal(noite.resumo.turmas, 1);
+        assert.equal(noite.resumo.automaticas, 1);
+        assert.equal(noite.resumo.alertas, 1);
+        const sessao = noite.sessoes[0];
+        assert.match(sessao.encerramento, /limite diário/);
+        assert.equal(sessao.alerta.status, 'tratado');
+        assert.equal(sessao.atendimentos[0].situacao, 'Saída automática — NÃO conferida');
+        assert.equal(sessao.atendimentos[0].saida, '23:59');
+        // sessão sem nenhuma criança também aparece
+        const tarde = r.corpo.eventos.find(e => e.evento.startsWith('Culto tarde'));
+        assert.equal(tarde.sessoes[0].atendimentos.length, 0);
+        assert.ok(r.corpo.linhas.some(l => l.situacao === 'Nenhuma criança recebida'));
+    });
+
+    test('saída conferida mostra quem buscou; filtros por turma e encerramento', async () => {
+        const turmaDoA = await api(`/api/relatorios/turmas?id_turma=${turmaA}`, { token: admin.token });
+        assert.ok(turmaDoA.corpo.linhas.length && turmaDoA.corpo.linhas.every(l => l.turma.startsWith('Turma A')));
+        const conferida = turmaDoA.corpo.linhas.find(l => l.tipo_saida === 'manual' && l.retirada);
+        assert.ok(conferida, 'a saída com pessoa autorizada aparece com quem buscou');
+        assert.match(conferida.situacao, /conferido/);
+        const automaticas = await api('/api/relatorios/turmas?encerramento=automatico', { token: admin.token });
+        assert.ok(automaticas.corpo.linhas.length && automaticas.corpo.linhas.every(l => String(l.tipo_encerramento).startsWith('automatico')));
+    });
+
+    test('exige Relatórios e Crianças; voluntário não acessa', async () => {
+        const soRelatorios = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, relatorios: true } });
+        const comCriancas = await criarUsuario({ perfil: 'SECRETARIA', permissoes: { ...NENHUMA, relatorios: true, criancas: true } });
+        assert.equal((await api('/api/relatorios/turmas', { token: soRelatorios.token })).status, 403);
+        assert.equal((await api('/api/relatorios/gerar', { metodo: 'POST', token: soRelatorios.token, corpo: { tipo: 'turmas', formato: 'csv' } })).status, 403);
+        assert.equal((await api('/api/relatorios/turmas', { token: comCriancas.token })).status, 200);
+        assert.equal((await api('/api/relatorios/turmas', { token: voluntario.token })).status, 403);
+        // o arquivo gerado por quem pode não abre para quem não pode
+        const gerado = await api('/api/relatorios/gerar', { metodo: 'POST', token: comCriancas.token, corpo: { tipo: 'turmas', formato: 'csv' } });
+        assert.equal(gerado.status, 201);
+        assert.equal((await baixar(soRelatorios.token, gerado.corpo.id_relatorio)).status, 403);
+    });
+
+    test('gera PDF, Excel (uma seção por evento) e CSV', async () => {
+        const filtros = { inicio: '2031-03-01', fim: '2031-03-31' };
+        const pdf = await api('/api/relatorios/gerar', { metodo: 'POST', token: admin.token, corpo: { tipo: 'turmas', formato: 'pdf', filtros } });
+        assert.equal(pdf.status, 201);
+        assert.equal((await baixar(admin.token, pdf.corpo.id_relatorio)).conteudo.subarray(0, 4).toString(), '%PDF');
+        const excel = await api('/api/relatorios/gerar', { metodo: 'POST', token: admin.token, corpo: { tipo: 'turmas', formato: 'excel', filtros } });
+        const html = (await baixar(admin.token, excel.corpo.id_relatorio)).conteudo.toString('utf8');
+        assert.ok((html.match(/<h3>/g) || []).length >= 3, 'uma seção por evento');
+        assert.match(html, /Vigília/);
+        assert.match(html, /NÃO conferida/);
+        const csv = await api('/api/relatorios/gerar', { metodo: 'POST', token: admin.token, corpo: { tipo: 'turmas', formato: 'csv', filtros } });
+        const texto = (await baixar(admin.token, csv.corpo.id_relatorio)).conteudo.toString('utf8');
+        assert.match(texto.split('\r\n')[0], /"Data";"Evento";"Turma";"Criança"/);
+        assert.equal(csv.corpo.total_registros, 3, 'conta só as crianças atendidas (a sessão vazia não conta)');
+    });
+});

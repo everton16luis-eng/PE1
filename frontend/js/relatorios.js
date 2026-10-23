@@ -8,13 +8,15 @@ const TIPOS_RELATORIO = {
     escalas: { nome: 'Escalas', icone: 'calendar_month', cor: ['#f1eaff', '#7853d5'], descricao: 'Escalas criadas, funções, datas e confirmações', permissao: 'relatorios' },
     presencas: { nome: 'Presenças', icone: 'assignment_turned_in', cor: ['#e5f8ee', '#2ea36b'], descricao: 'Entradas e saídas registradas nas turmas', permissao: 'relatorios' },
     criancas: { nome: 'Crianças', icone: 'escalator_warning', cor: ['#fdeaea', '#c34e4e'], descricao: 'Crianças, responsáveis, turmas e presença', permissao: 'relatorios' },
+    turmas: { nome: 'Turmas', icone: 'child_care', cor: ['#e5f8ee', '#22955e'], descricao: 'Atendimento das turmas por evento: entradas, saídas, quem buscou, encerramentos e alertas', permissao: 'relatorios', tambem: 'criancas' },
     funcoes: { nome: 'Funções', icone: 'engineering', cor: ['#fff4df', '#c98a24'], descricao: 'Funções, vagas e voluntários', permissao: 'relatorios' },
     usuarios: { nome: 'Usuários', icone: 'manage_accounts', cor: ['#e8f1ff', '#3975c6'], descricao: 'Usuários, perfis e status', permissao: 'usuarios' }
 };
 
 const FORMATOS = { pdf: 'PDF', excel: 'Excel', csv: 'CSV' };
 
-const tiposPermitidos = () => Object.entries(TIPOS_RELATORIO).filter(([, t]) => temPermissao(t.permissao));
+// "tambem" = área a mais exigida (o relatório de turmas traz dados das crianças)
+const tiposPermitidos = () => Object.entries(TIPOS_RELATORIO).filter(([, t]) => temPermissao(t.permissao) && (!t.tambem || temPermissao(t.tambem)));
 
 function periodoTexto(inicio, fim) {
     if (!inicio && !fim) return 'Período: todos os registros';
@@ -282,6 +284,8 @@ async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {
         escalas: select('status', 'Status', status(['confirmadas', 'Confirmadas'], ['pendentes', 'Pendentes / ausentes'], ['recusadas', 'Recusadas'])) + select('id_funcao', 'Função', opcoesFuncao),
         presencas: select('id_turma', 'Turma', opcoesTurma),
         criancas: select('id_turma', 'Turma', opcoesTurma) + select('status', 'Status', status(['ativos', 'Ativos'], ['inativos', 'Inativos'])),
+        turmas: select('id_turma', 'Turma', opcoesTurma)
+            + select('encerramento', 'Sessão', status(['aberta', 'Ainda aberta'], ['manual', 'Encerrada pelo voluntário'], ['automatico', 'Encerrada automaticamente (alerta)'], ['administrativo', 'Encerrada pela administração'])),
         funcoes: select('status', 'Status', status(['ativas', 'Ativas'], ['inativas', 'Inativas'])) + select('vagas', 'Vagas', status(['com_vagas', 'Com vagas'], ['lotadas', 'Lotadas'])),
         usuarios: select('perfil', 'Perfil', `<option value="">Todos</option>${Object.entries(PERFIS).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}`)
             + select('status', 'Status', status(['ativos', 'Ativos'], ['inativos', 'Inativos'], ['pendentes', 'Pendentes']))
@@ -402,9 +406,18 @@ async function gerarRelatorio(tipoInicial = 'participantes', filtrosIniciais = {
             // Todas as colunas (a tabela rola na horizontal) e as primeiras linhas
             const colunas = relatorio.colunas;
             const LINHAS_PREVIEW = 20;
+            // Turmas: uma linha de título a cada evento (o relatório sai separado por evento)
+            let eventoAtual = null;
+            const titulo = l => {
+                if (!relatorio.eventos || l.id_evento === eventoAtual) return '';
+                eventoAtual = l.id_evento;
+                const e = relatorio.eventos.find(x => x.id_evento === l.id_evento);
+                return `<tr class="linha-grupo"><td colspan="${colunas.length}"><strong>${escapar(e.evento)} — ${formatarDataSimples(e.data)}${e.hora_inicio ? ` · ${e.hora_inicio}` : ''}</strong>
+                    <small>${e.resumo.turmas} turma(s) · ${e.resumo.entradas} entrada(s) · ${e.resumo.conferidas} conferida(s) · ${e.resumo.automaticas} automática(s) · ${e.resumo.alertas} alerta(s)</small></td></tr>`;
+            };
             $('previewTabela').innerHTML = `
                 <thead><tr>${colunas.map(c => `<th>${escapar(c.titulo)}</th>`).join('')}</tr></thead>
-                <tbody>${relatorio.linhas.slice(0, LINHAS_PREVIEW).map(l => `<tr>${colunas.map(c => `<td>${escapar(valorCelula(l[c.chave]))}</td>`).join('')}</tr>`).join('')
+                <tbody>${relatorio.linhas.slice(0, LINHAS_PREVIEW).map(l => `${titulo(l)}<tr>${colunas.map(c => `<td>${escapar(valorCelula(l[c.chave]))}</td>`).join('')}</tr>`).join('')
                     || `<tr><td colspan="${colunas.length}" class="vazio">Nenhum registro com esses filtros.</td></tr>`}</tbody>
                 ${relatorio.linhas.length > LINHAS_PREVIEW ? `<tfoot><tr><td colspan="${colunas.length}" class="vazio">Mostrando ${LINHAS_PREVIEW} de ${relatorio.linhas.length}. Gere o relatório para ver todos.</td></tr></tfoot>` : ''}`;
         } catch (erro) {

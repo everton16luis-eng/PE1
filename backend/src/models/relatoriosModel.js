@@ -22,6 +22,54 @@ function periodo(w, coluna, f) {
     if (f.fim) w.add(`${coluna} <= ?`, f.fim);
 }
 
+const ENCERRAMENTOS = {
+    manual: 'pelo voluntário', administrativo: 'pela administração',
+    automatico_limite_diario: 'automático: limite diário atingido', automatico_fim_evento: 'automático: evento encerrado sem fechamento da turma'
+};
+const SAIDAS = { manual: 'Entregue (código de retirada conferido)', automatica: 'Saída automática — NÃO conferida', administrativa: 'Saída registrada pela administração' };
+const MOTIVOS_ALERTA = { limite_diario: 'limite diário atingido', fim_evento: 'evento encerrado sem fechamento da turma', sessao_abandonada: 'sessão abandonada' };
+
+// Relatório de turmas separado por evento: evento → turmas atendidas → crianças, com os totais
+function agruparTurmasPorEvento(linhas) {
+    const eventos = [];
+    const porEvento = new Map();
+    const porSessao = new Map();
+    for (const l of linhas) {
+        if (!porEvento.has(l.id_evento)) {
+            const evento = { id_evento: l.id_evento, evento: l.evento, data: l.data, hora_inicio: l.hora_inicio, hora_fim: l.hora_fim, sessoes: [] };
+            porEvento.set(l.id_evento, evento);
+            eventos.push(evento);
+        }
+        if (!porSessao.has(l.id_sessao)) {
+            const sessao = {
+                id_sessao: l.id_sessao, turma: l.turma, aberta_as: l.aberta_as, aberta_por: l.aberta_por, encerramento: l.encerramento,
+                motivo_encerramento: l.motivo_encerramento, atendimentos: [],
+                alerta: l.alerta_motivo ? {
+                    motivo: MOTIVOS_ALERTA[l.alerta_motivo] || l.alerta_motivo, prioritario: l.alerta_prioritario, status: l.alerta_status,
+                    tratado_por: l.alerta_tratado_por, observacao: l.alerta_observacao
+                } : null
+            };
+            porSessao.set(l.id_sessao, sessao);
+            porEvento.get(l.id_evento).sessoes.push(sessao);
+        }
+        if (l.id_atendimento) porSessao.get(l.id_sessao).atendimentos.push(l);
+    }
+    for (const e of eventos) {
+        const todos = e.sessoes.flatMap(s => s.atendimentos);
+        e.resumo = {
+            turmas: e.sessoes.length,
+            criancas: new Set(todos.map(a => a.crianca)).size,
+            entradas: todos.length,
+            conferidas: todos.filter(a => a.tipo_saida === 'manual').length,
+            automaticas: todos.filter(a => a.tipo_saida === 'automatica').length,
+            administrativas: todos.filter(a => a.tipo_saida === 'administrativa').length,
+            presentes: todos.filter(a => !a.saida).length,
+            alertas: e.sessoes.filter(s => s.alerta).length
+        };
+    }
+    return eventos;
+}
+
 const RELATORIOS = {
     participantes: {
         titulo: 'Participantes',
@@ -170,6 +218,68 @@ const RELATORIOS = {
         }
     },
 
+    // Atendimento das turmas: uma linha por criança atendida (ou pela sessão sem crianças).
+    // Os horários saem no fuso da igreja; "agrupar" monta a separação por evento (PDF/Excel).
+    turmas: {
+        titulo: 'Turmas',
+        colunas: [['data', 'Data'], ['evento', 'Evento'], ['turma', 'Turma'], ['crianca', 'Criança'], ['idade', 'Idade'],
+            ['entrada', 'Entrada'], ['entrada_por', 'Entrada registrada por'], ['saida', 'Saída'], ['situacao', 'Situação da saída'],
+            ['retirada', 'Entregue a'], ['saida_por', 'Saída registrada por'], ['sessao', 'Sessão da turma']],
+        consulta(f) {
+            const w = construtor();
+            periodo(w, 'j.data_evento', f);
+            if (f.id_turma) w.add('s.id_turma = ?', f.id_turma);
+            if (f.encerramento === 'aberta') w.add("s.status = 'aberta'");
+            if (f.encerramento === 'manual') w.add("s.tipo_encerramento = 'manual'");
+            if (f.encerramento === 'automatico') w.add("s.tipo_encerramento LIKE 'automatico%'");
+            if (f.encerramento === 'administrativo') w.add("s.tipo_encerramento = 'administrativo'");
+            return [`WITH z AS (SELECT COALESCE((SELECT fuso_horario FROM configuracoes_igreja ORDER BY id LIMIT 1), 'America/Sao_Paulo') AS fuso)
+                     SELECT j.id_evento, s.id_sessao, a.id_atendimento,
+                            to_char(j.data_evento, 'YYYY-MM-DD') AS data, j.nome AS evento,
+                            to_char(j.hora_inicio, 'HH24:MI') AS hora_inicio, to_char(j.hora_fim, 'HH24:MI') AS hora_fim,
+                            t.nome AS turma, s.status AS status_sessao, s.tipo_encerramento, s.motivo_encerramento,
+                            to_char(s.aberta_em AT TIME ZONE z.fuso, 'HH24:MI') AS aberta_as, ua.nome AS aberta_por,
+                            to_char(s.encerrada_em AT TIME ZONE z.fuso, 'DD/MM/YYYY HH24:MI') AS encerrada_as, ue.nome AS encerrada_por,
+                            al.motivo AS alerta_motivo, al.status AS alerta_status, al.prioritario AS alerta_prioritario,
+                            ut.nome AS alerta_tratado_por, al.observacao_tratamento AS alerta_observacao,
+                            cm.nome_completo AS crianca, date_part('year', age(cm.data_nascimento))::int AS idade,
+                            to_char(a.entrada_em AT TIME ZONE z.fuso, 'HH24:MI') AS entrada, uen.nome AS entrada_por,
+                            to_char(a.saida_em AT TIME ZONE z.fuso, 'HH24:MI') AS saida, a.tipo_saida,
+                            r.nome_completo AS retirada_por, r.parentesco AS retirada_parentesco, usa.nome AS saida_por
+                     FROM turma_sessoes s
+                     CROSS JOIN z
+                     JOIN cadastroturmas t ON t.id_turma = s.id_turma
+                     JOIN vw_eventos_janela j ON j.id_evento = s.id_evento
+                     LEFT JOIN usuarios ua ON ua.id_usuario = s.aberta_por
+                     LEFT JOIN usuarios ue ON ue.id_usuario = s.encerrada_por
+                     LEFT JOIN turma_alertas al ON al.id_sessao = s.id_sessao
+                     LEFT JOIN usuarios ut ON ut.id_usuario = al.tratado_por
+                     LEFT JOIN turma_atendimentos a ON a.id_sessao = s.id_sessao
+                     LEFT JOIN criancas c ON c.id_crianca = a.id_crianca
+                     LEFT JOIN membros cm ON cm.id_membro = c.id_membro
+                     LEFT JOIN usuarios uen ON uen.id_usuario = a.entrada_por
+                     LEFT JOIN usuarios usa ON usa.id_usuario = a.saida_por
+                     LEFT JOIN responsaveis r ON r.id_responsavel = a.id_responsavel_retirada
+                     ${w.where()}
+                     ORDER BY j.data_evento DESC, j.inicio_em DESC, j.id_evento DESC, t.nome, s.id_sessao, a.entrada_em NULLS LAST, a.id_atendimento`, w.valores];
+        },
+        // Textos das colunas (situação, quem buscou, sessão)
+        preparar(l) {
+            const encerramento = l.status_sessao === 'aberta' ? 'ainda aberta'
+                : `encerrada ${l.encerrada_as} — ${ENCERRAMENTOS[l.tipo_encerramento] || 'encerrada'}${l.encerrada_por ? ` (${l.encerrada_por})` : ''}`;
+            return {
+                ...l,
+                crianca: l.crianca || '—',
+                situacao: !l.id_atendimento ? 'Nenhuma criança recebida'
+                    : !l.saida ? 'Ainda presente' : SAIDAS[l.tipo_saida] || l.tipo_saida,
+                retirada: l.retirada_por ? `${l.retirada_por}${l.retirada_parentesco ? ` (${l.retirada_parentesco})` : ''}` : '',
+                sessao: `Aberta ${l.aberta_as} por ${l.aberta_por || '—'}; ${encerramento}`,
+                encerramento
+            };
+        },
+        agrupar: agruparTurmasPorEvento
+    },
+
     usuarios: {
         titulo: 'Usuários',
         colunas: [['nome', 'Nome'], ['email', 'E-mail'], ['perfil', 'Perfil'], ['status', 'Status'], ['ultimo_acesso', 'Último acesso'], ['criado_em', 'Criado em']],
@@ -196,11 +306,13 @@ const relatoriosModel = {
         const relatorio = RELATORIOS[tipo];
         const [sql, valores] = relatorio.consulta(filtros);
         const result = await pool.query(sql, valores);
+        const linhas = relatorio.preparar ? result.rows.map(relatorio.preparar) : result.rows;
         return {
             tipo,
             titulo: relatorio.titulo,
             colunas: relatorio.colunas.map(([chave, titulo]) => ({ chave, titulo })),
-            linhas: result.rows
+            linhas,
+            ...(relatorio.agrupar ? { eventos: relatorio.agrupar(linhas) } : {})
         };
     },
 

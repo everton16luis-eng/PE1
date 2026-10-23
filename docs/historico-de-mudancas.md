@@ -81,6 +81,11 @@ Registro do que foi construído e corrigido em outubro de 2026, na ordem em que 
 - **Rotas mudaram:** `POST /participantes/:id/membro` e `PATCH /participantes/:id` (o id é o da pessoa).
 - **Testes:** 11 novos (`base-universal.test.js`); total 298.
 
+## Relatório de Turmas
+
+- Novo tipo **Turmas** em Relatórios, separado por evento (PDF e Excel com uma seção por evento; CSV em linhas), com filtros por turma e situação da sessão. Exige Relatórios e Crianças, também no download do histórico.
+- **Testes:** 4 novos em `turmas-atendimento.test.js`.
+
 ## Turmas: recepção das crianças com etiqueta e retirada conferida
 
 - **Página Turmas:** voluntário responsável abre a turma no evento (só com evento em andamento ou nos próximos 30 min), registra entrada conferindo a criança, imprime as etiquetas (criança + responsável, mesmo código e QR), registra a saída validando o código e a pessoa autorizada, e encerra a turma.

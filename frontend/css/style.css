@@ -3818,6 +3818,18 @@ button.secondary.perigo {
     margin-top: 12px;
 }
 
+/* Pré-visualização de relatório separada por evento */
+.linha-grupo td {
+    background: #f7ece4;
+    text-align: left;
+}
+
+.linha-grupo small {
+    display: block;
+    color: var(--muted);
+    font-weight: 400;
+}
+
 .codigo-input::placeholder {
     font-family: inherit;
     font-size: 15px;

@@ -204,7 +204,7 @@ Liberado também para quem não é da equipe de gestão (perfil Voluntário ou u
 | GET | `/relatorios/evento/:id` | `relatorios` | Dados do relatório do evento (pré-visualização), mesmo formato de `GET /eventos/:id` |
 | POST | `/relatorios/gerar` | `relatorios` | `{ tipo: "evento", id_evento }` (PDF) ou `{ tipo, formato: "pdf"\|"excel"\|"csv", filtros?, opcoes? }`. Gera no servidor, grava o arquivo em `arquivos/relatorios/` e o registro em `relatorios_gerados` (tudo ou nada) |
 | GET | `/relatorios/historico/:id/arquivo` | `relatorios` (`usuarios` também exige `usuarios`) | O arquivo salvo, sem gerar de novo (`?download=1` = anexo). 404 sem arquivo; 409 se o conteúdo não confere com o hash registrado |
-| GET | `/relatorios/:tipo` | `relatorios` (`usuarios` também exige `usuarios`) | `{ tipo, titulo, colunas, linhas, filtros }`. Filtros não reconhecidos são **ignorados** |
+| GET | `/relatorios/:tipo` | `relatorios` (`usuarios` também exige `usuarios`; `turmas` também exige `criancas`) | `{ tipo, titulo, colunas, linhas, filtros }`. Filtros não reconhecidos são **ignorados** |
 
 Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos onde há data):
 
@@ -217,6 +217,9 @@ Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos
 | `criancas` | `id_turma`, `status=ativos\|inativos` (o período conta as presenças) |
 | `funcoes` | `status=ativas\|inativas`, `vagas=com_vagas\|lotadas` |
 | `usuarios` | `perfil`, `status=ativos\|inativos\|pendentes` |
+| `turmas` | `id_turma`, `encerramento=aberta\|manual\|automatico\|administrativo` (o período é a data do evento). A resposta traz também `eventos`: a separação por evento → turmas atendidas → crianças, com os totais de cada evento |
+
+**Relatório de turmas:** uma linha por criança atendida (data, evento, turma, criança, entrada e quem registrou, saída, situação da saída — conferida, automática ou pela administração —, quem buscou, quem registrou a saída e a sessão). Sessões sem criança também aparecem. No PDF e no Excel sai **separado por evento** (resumo do evento, cada turma com abertura, encerramento e alerta, e a tabela das crianças); no CSV, uma linha por criança. O total do histórico conta só as crianças atendidas.
 
 ## Usuários
 

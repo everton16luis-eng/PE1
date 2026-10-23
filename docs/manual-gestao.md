@@ -122,13 +122,15 @@ Para administradores e quem tem a área **Crianças** (tudo), e para os **volunt
 
 ## Relatórios
 
-1. Escolha o tipo: Participantes, Voluntários, Escalas, Presenças, Crianças, Funções ou Usuários.
+1. Escolha o tipo: Participantes, Voluntários, Escalas, Presenças, Crianças, **Turmas**, Funções ou Usuários.
 2. Use **Configurar** para escolher período, filtros e formato:
    - **PDF:** abre a impressão. Escolha "Salvar como PDF" e permita pop-ups para o site;
    - **Excel;**
    - **CSV:** separado por ponto e vírgula, abre direto no Excel em português.
 3. A **pré-visualização** mostra as primeiras linhas com os filtros atuais.
 4. **Relatórios recentes** permite visualizar ou baixar de novo os relatórios gerados.
+
+**Relatório de Turmas** (exige também a área Crianças): o atendimento das turmas **separado por evento**. Para cada evento, os totais (turmas atendidas, crianças, saídas conferidas, automáticas e pela administração, ainda presentes, alertas) e, para cada turma, quem abriu, como e quando foi encerrada, o alerta (e o tratamento) e as crianças com entrada, saída, situação, quem buscou e quem registrou. Filtre por período (data do evento), turma e situação da sessão (por exemplo, só as encerradas automaticamente).
 
 ## Usuários
 

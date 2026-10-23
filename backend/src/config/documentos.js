@@ -202,6 +202,82 @@ function montarRelatorioEvento({ evento, funcoes, resumo }, meta) {
     return pdf.gerar();
 }
 
+// ---------- Relatório de turmas, separado por evento
+// dados = relatoriosModel.gerar('turmas'): linhas (uma por criança atendida) + eventos agrupados.
+// CSV: as linhas (evento e data em cada uma). PDF e Excel: uma seção por evento.
+function montarRelatorioTurmas(dados, formato, meta) {
+    if (formato === 'csv') return montarTabela(dados, formato, meta);
+    const opcoes = meta.opcoes || {};
+    const titulo = 'Relatório de Turmas';
+    const horario = e => (e.hora_inicio ? ` • ${e.hora_inicio}${e.hora_fim ? ' às ' + e.hora_fim : ''}` : '');
+    const totais = dados.eventos.reduce((t, e) => {
+        for (const chave of Object.keys(e.resumo)) t[chave] = (t[chave] || 0) + e.resumo[chave];
+        return t;
+    }, {});
+    const numerosDoEvento = r => [[r.turmas, 'Turmas atendidas'], [r.criancas, 'Crianças recebidas'], [r.entradas, 'Entradas'],
+        [r.conferidas, 'Saídas conferidas'], [r.automaticas, 'Saídas automáticas'], [r.administrativas, 'Saídas pela administração'],
+        [r.presentes, 'Ainda presentes'], [r.alertas, 'Alertas']];
+    const colunas = ['Criança', 'Idade', 'Entrada', 'Entrada por', 'Saída', 'Situação da saída', 'Entregue a', 'Saída por'];
+    const linhaCrianca = a => [a.crianca, a.idade ?? '', a.entrada || '', a.entrada_por || '', a.saida || '—', a.situacao, a.retirada || '—', a.saida_por || (a.tipo_saida === 'automatica' ? 'sistema' : '—')];
+    const textoAlerta = al => `Alerta${al.prioritario ? ' PRIORITÁRIO' : ''}: ${al.motivo} — ${al.status === 'tratado' ? `tratado por ${al.tratado_por || '—'}: ${al.observacao || ''}` : 'pendente de tratamento'}`;
+
+    if (formato === 'excel') {
+        const tabela = s => `<table border="1"><thead><tr>${colunas.map(c => `<th>${escaparHtml(c)}</th>`).join('')}</tr></thead>
+            <tbody>${s.atendimentos.map(a => `<tr>${linhaCrianca(a).map(v => `<td>${escaparHtml(v)}</td>`).join('')}</tr>`).join('')
+                || `<tr><td colspan="${colunas.length}">Nenhuma criança recebida.</td></tr>`}</tbody></table>`;
+        const html = `<html><head><meta charset="UTF-8"><title>${escaparHtml(titulo)}</title></head><body>
+            ${opcoes.cabecalho ? `<h2>${escaparHtml(meta.nomeIgreja)} — ${escaparHtml(titulo)}</h2>` : ''}
+            ${opcoes.periodo ? `<p>${escaparHtml(periodoTexto(meta.inicio, meta.fim))}</p>` : ''}
+            ${opcoes.resumo ? `<p>${dados.eventos.length} evento(s) • ${totais.turmas || 0} turma(s) atendida(s) • ${totais.entradas || 0} entrada(s) • ${totais.automaticas || 0} saída(s) automática(s) • ${totais.alertas || 0} alerta(s)</p>` : ''}
+            ${opcoes.observacoes ? `<p>${escaparHtml(opcoes.observacoes)}</p>` : ''}
+            ${dados.eventos.map(e => `
+                <h3>${escaparHtml(e.evento)} — ${escaparHtml(dataComSemana(e.data))}${escaparHtml(horario(e))}</h3>
+                <p>${numerosDoEvento(e.resumo).map(([n, r]) => `${escaparHtml(r)}: ${n}`).join(' • ')}</p>
+                ${e.sessoes.map(s => `
+                    <h4>${escaparHtml(s.turma)} — aberta ${escaparHtml(s.aberta_as)} por ${escaparHtml(s.aberta_por || '—')}; ${escaparHtml(s.encerramento)}</h4>
+                    ${s.motivo_encerramento ? `<p>Motivo do encerramento: ${escaparHtml(s.motivo_encerramento)}</p>` : ''}
+                    ${s.alerta ? `<p><b>${escaparHtml(textoAlerta(s.alerta))}</b></p>` : ''}
+                    ${tabela(s)}`).join('')}`).join('<br>') || '<p>Nenhum atendimento de turma com esses filtros.</p>'}
+            ${opcoes.dataGeracao ? `<p>Gerado em ${escaparHtml(dataHoraBr(meta.geradoEm))} por ${escaparHtml(meta.usuario)}</p>` : ''}
+            </body></html>`;
+        return Buffer.from('﻿' + html, 'utf8');
+    }
+
+    const pdf = new DocumentoPdf({ titulo, autor: meta.usuario, paisagem: true, rodape: `${meta.nomeIgreja} — ${titulo}` });
+    if (opcoes.cabecalho) pdf.cabecalho(meta.nomeIgreja);
+    pdf.titulo(titulo);
+    if (opcoes.periodo) pdf.paragrafo(periodoTexto(meta.inicio, meta.fim), { tamanho: 9, corTexto: CORES.suave });
+    if (opcoes.dataGeracao) pdf.paragrafo(`Gerado em ${dataHoraBr(meta.geradoEm)} por ${meta.usuario}`, { tamanho: 9, corTexto: CORES.suave });
+    if (opcoes.resumo) {
+        pdf.numeros([[dados.eventos.length, 'Eventos'], [totais.turmas || 0, 'Turmas atendidas'], [totais.entradas || 0, 'Entradas'],
+            [totais.conferidas || 0, 'Saídas conferidas'], [totais.automaticas || 0, 'Saídas automáticas'], [totais.alertas || 0, 'Alertas']], 6);
+    }
+    if (opcoes.observacoes) pdf.paragrafo(opcoes.observacoes, { tamanho: 9 });
+    pdf.paragrafo('Saída conferida = o voluntário validou o código de retirada da etiqueta do responsável. Saída automática = a turma ficou aberta e o sistema '
+        + 'encerrou; não é entrega conferida.', { tamanho: 8.5, corTexto: CORES.suave });
+    if (!dados.eventos.length) pdf.paragrafo('Nenhum atendimento de turma com esses filtros.', { tamanho: 10 });
+
+    for (const e of dados.eventos) {
+        // Título, números e o começo da primeira turma ficam na mesma página
+        pdf.espaco(230);
+        pdf.secao(`${e.evento} — ${dataComSemana(e.data)}${horario(e)}`);
+        pdf.numeros(numerosDoEvento(e.resumo), 4);
+        for (const s of e.sessoes) {
+            pdf.espaco(70);
+            pdf.paragrafo(`${s.turma} — aberta ${s.aberta_as} por ${s.aberta_por || '—'}; ${s.encerramento}`, { tamanho: 10.5, negrito: true, depois: 1 });
+            if (s.motivo_encerramento) pdf.paragrafo(`Motivo do encerramento: ${s.motivo_encerramento}`, { tamanho: 9, corTexto: CORES.suave, depois: 1 });
+            if (s.alerta) pdf.paragrafo(textoAlerta(s.alerta), { tamanho: 9, negrito: true, corTexto: '#9b1c1c', depois: 2 });
+            pdf.tabela(
+                [{ titulo: 'Criança', peso: 2.2 }, { titulo: 'Idade', peso: 0.6 }, { titulo: 'Entrada', peso: 0.7 }, { titulo: 'Entrada por', peso: 1.4 },
+                 { titulo: 'Saída', peso: 0.7 }, { titulo: 'Situação da saída', peso: 2.3 }, { titulo: 'Entregue a', peso: 1.8 }, { titulo: 'Saída por', peso: 1.3 }],
+                s.atendimentos.map(linhaCrianca),
+                { vazio: 'Nenhuma criança recebida nesta turma.' }
+            );
+        }
+    }
+    return pdf.gerar();
+}
+
 // ---------- Armazenamento
 // Caminho relativo à pasta de arquivos → caminho absoluto (sem sair da pasta)
 function caminhoSeguro(relativo) {
@@ -233,4 +309,4 @@ function remover(relativo) {
     if (absoluto) fs.rmSync(absoluto, { force: true });
 }
 
-module.exports = { FORMATOS, montarTabela, montarRelatorioEvento, salvar, ler, remover, slug, carimbo, dataBr };
+module.exports = { FORMATOS, montarTabela, montarRelatorioEvento, montarRelatorioTurmas, salvar, ler, remover, slug, carimbo, dataBr };

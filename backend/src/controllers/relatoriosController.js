@@ -18,6 +18,7 @@ function lerFiltros(q) {
         status: opcao(q.status, ['ativos', 'inativos', 'pendentes', 'confirmadas', 'recusadas', 'ativas', 'inativas']),
         vagas: opcao(q.vagas, ['com_vagas', 'lotadas']),
         perfil: opcao(q.perfil, PERFIS),
+        encerramento: opcao(q.encerramento, ['aberta', 'manual', 'automatico', 'administrativo']),
         id_funcao: Number.isInteger(Number(q.id_funcao)) && Number(q.id_funcao) > 0 ? Number(q.id_funcao) : null,
         id_turma: Number.isInteger(Number(q.id_turma)) && Number(q.id_turma) > 0 ? Number(q.id_turma) : null
     };
@@ -26,6 +27,18 @@ function lerFiltros(q) {
 
 function podeVerUsuarios(usuario) {
     return usuario.perfil === 'ADMINISTRADOR' || usuario.permissoes?.usuarios;
+}
+
+// Turmas traz dados das crianças (entrada, saída e quem buscou): além de Relatórios, exige a área Crianças
+function podeVerTurmas(usuario) {
+    return usuario.perfil === 'ADMINISTRADOR' || usuario.permissoes?.criancas;
+}
+
+// Tipo que o login não pode ver (ou null): mesma regra na pré-visualização, na geração e no download
+function bloqueio(tipo, usuario) {
+    if (tipo === 'usuarios' && !podeVerUsuarios(usuario)) return 'Você não tem permissão para o relatório de usuários.';
+    if (tipo === 'turmas' && !podeVerTurmas(usuario)) return 'O relatório de turmas exige também a área Crianças.';
+    return null;
 }
 
 exports.getResumo = async (req, res) => {
@@ -42,9 +55,8 @@ exports.getDados = async (req, res) => {
     try {
         const tipo = req.params.tipo;
         if (!Relatorios.tipos.includes(tipo)) return res.status(404).json({ erro: 'Tipo de relatório inexistente.' });
-        if (tipo === 'usuarios' && !podeVerUsuarios(req.usuario)) {
-            return res.status(403).json({ erro: 'Você não tem permissão para o relatório de usuários.' });
-        }
+        const proibido = bloqueio(tipo, req.usuario);
+        if (proibido) return res.status(403).json({ erro: proibido });
 
         const filtros = lerFiltros(req.query);
         if (filtros.inicio && filtros.fim && filtros.inicio > filtros.fim) {
@@ -97,9 +109,8 @@ exports.gerar = async (req, res) => {
         const formato = porEvento ? 'pdf' : b.formato;
         if (!porEvento && !Relatorios.tipos.includes(b.tipo)) return res.status(404).json({ erro: 'Tipo de relatório inexistente.' });
         if (!Documentos.FORMATOS[formato]) return res.status(400).json({ erro: 'Formato de relatório inválido.' });
-        if (b.tipo === 'usuarios' && !podeVerUsuarios(req.usuario)) {
-            return res.status(403).json({ erro: 'Você não tem permissão para o relatório de usuários.' });
-        }
+        const proibido = bloqueio(b.tipo, req.usuario);
+        if (proibido) return res.status(403).json({ erro: proibido });
 
         const configuracao = await Configuracoes.buscar().catch(() => null);
         const meta = { nomeIgreja: configuracao?.nome_igreja || 'Igreja Novo Caminho', usuario: req.usuario.nome };
@@ -133,7 +144,9 @@ exports.gerar = async (req, res) => {
             };
             registro = {
                 tipo: b.tipo, formato, id_evento: null, titulo: `Relatório de ${dados.titulo}`,
-                data_inicial: inicio || null, data_final: fim || null, filtros: outros, total_registros: dados.linhas.length
+                data_inicial: inicio || null, data_final: fim || null, filtros: outros,
+                // Turmas: uma linha por criança atendida (as sessões sem criança não contam)
+                total_registros: b.tipo === 'turmas' ? dados.linhas.filter(l => l.id_atendimento).length : dados.linhas.length
             };
         }
 
@@ -141,7 +154,9 @@ exports.gerar = async (req, res) => {
         const salvo = await Relatorios.registrar({ ...registro, id_usuario: req.usuario.id_usuario }, cliente);
         meta.geradoEm = salvo.gerado_em;
 
-        const conteudo = porEvento ? Documentos.montarRelatorioEvento(dados, meta) : Documentos.montarTabela(dados, formato, meta);
+        const conteudo = porEvento ? Documentos.montarRelatorioEvento(dados, meta)
+            : b.tipo === 'turmas' ? Documentos.montarRelatorioTurmas(dados, formato, meta)
+            : Documentos.montarTabela(dados, formato, meta);
         const base = porEvento ? `relatorio-evento-${Documentos.slug(dados.evento.nome)}-${dados.evento.data_evento}` : `relatorio-${b.tipo}`;
         const extensao = Documentos.FORMATOS[formato].extensao;
         const nomeArquivo = `${base}-gerado-${Documentos.carimbo(new Date(salvo.gerado_em))}.${extensao}`;
@@ -169,9 +184,8 @@ exports.getArquivo = async (req, res) => {
         if (!idValido(req.params.id)) return res.status(400).json({ erro: 'Relatório inválido.' });
         const registro = await Relatorios.buscarRegistro(Number(req.params.id));
         if (!registro) return res.status(404).json({ erro: 'Relatório não encontrado.' });
-        if (registro.tipo === 'usuarios' && !podeVerUsuarios(req.usuario)) {
-            return res.status(403).json({ erro: 'Você não tem permissão para o relatório de usuários.' });
-        }
+        const proibido = bloqueio(registro.tipo, req.usuario);
+        if (proibido) return res.status(403).json({ erro: proibido });
         if (!registro.arquivo) {
             return res.status(404).json({ erro: 'Este relatório foi registrado antes do armazenamento de arquivos e não tem documento salvo.' });
         }
