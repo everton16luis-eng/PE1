@@ -196,11 +196,13 @@ async function gerenciaMinhaArea() {
                     ${p.observacoes ? `<p class="escala-obs">${escapar(p.observacoes)}</p>` : ''}
                     ${p.recusado ? `<p class="escala-obs">Seu motivo: ${escapar(p.motivo_recusa || '')}</p>` : ''}
                     ${p.assumiu_de ? `<p class="escala-troca"><span class="material-icons">swap_horiz</span>Você assumiu a vaga de ${escapar(p.assumiu_de)}</p>` : ''}
+                    ${p.bloqueada ? avisoSomenteConsulta(p.realizada) : ''}
                     <div class="acoes">
+                        ${p.bloqueada ? '' : `
                         ${p.confirmado ? '' : '<button type="button" class="primary" data-resposta="confirmar"><span class="material-icons">check</span>Confirmar presença</button>'}
                         ${p.recusado ? '' : '<button type="button" class="secondary" data-resposta="recusar"><span class="material-icons">event_busy</span>Não posso ir</button>'}
                         ${p.recusado ? '<button type="button" class="secondary" data-resposta="pendente">Mudei de ideia</button>' : ''}
-                        <button type="button" class="secondary" data-passar><span class="material-icons">swap_horiz</span>Passar a vaga</button>
+                        <button type="button" class="secondary" data-passar><span class="material-icons">swap_horiz</span>Passar a vaga</button>`}
                         ${p.colegas.length ? `<button type="button" class="secondary" data-equipe><span class="material-icons">groups</span>Equipe (${p.colegas.length})</button>` : ''}
                     </div>
                     <ul class="equipe" hidden>

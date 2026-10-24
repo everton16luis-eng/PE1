@@ -56,6 +56,13 @@ exports.getMinhaArea = async (req, res) => {
     }
 }
 
+// Escala que não pode ser alterada: 409 com o motivo se o evento já começou; senão 404
+async function escalaIndisponivel(res, idEscala) {
+    const situacao = await Escalas.situacaoDaEscala(idEscala);
+    if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
+    return res.status(404).json({ erro: 'Escala não encontrada.' });
+}
+
 exports.responderEscala = async (req, res) => {
     try {
         const id = await meuVoluntario(req, res);
@@ -64,13 +71,19 @@ exports.responderEscala = async (req, res) => {
         const { dados, erro } = Regras.lerResposta(req.body);
         if (erro) return res.status(400).json({ erro });
 
-        // O voluntário só responde escalas futuras e que são dele
-        const resposta = await Voluntarios.responderEscala(id, Number(req.params.idEscala), dados, true);
-        if (!resposta) return res.status(404).json({ erro: 'Escala não encontrada (ou já passou).' });
-        // "Não posso ir": a liderança é avisada na hora, com o motivo
+        // O voluntário só responde escalas dele, antes do início do evento
+        const { estava_recusado: estavaRecusado, ...resposta } = await Voluntarios.responderEscala(id, Number(req.params.idEscala), dados) || {};
+        if (!resposta.id_escala) return escalaIndisponivel(res, Number(req.params.idEscala));
+        // A liderança acompanha as duas mudanças: "Não posso ir" (com o motivo) e
+        // "Mudei de ideia" (desfez a recusa: confirmou ou voltou a aguardar resposta)
         if (dados.recusado) {
             avisarDepois(async () => Avisos.recusa({
                 nome: await Notificacoes.nomeDoVoluntario(id), motivo: dados.motivo,
+                info: await Notificacoes.escalaInfo(Number(req.params.idEscala))
+            }));
+        } else if (estavaRecusado) {
+            avisarDepois(async () => Avisos.recusaDesfeita({
+                nome: await Notificacoes.nomeDoVoluntario(id), confirmado: dados.confirmado,
                 info: await Notificacoes.escalaInfo(Number(req.params.idEscala))
             }));
         }
@@ -88,7 +101,7 @@ exports.substitutos = async (req, res) => {
         if (!id) return;
         if (!Regras.idValido(req.params.idEscala)) return res.status(400).json({ erro: 'Escala inválida.' });
         const substitutos = await Escalas.substitutosParaVaga(Number(req.params.idEscala), id);
-        if (!substitutos) return res.status(404).json({ erro: 'Escala não encontrada (ou já passou).' });
+        if (!substitutos) return escalaIndisponivel(res, Number(req.params.idEscala));
         res.json({ substitutos });
     } catch (error) {
         console.error('Erro ao listar substitutos', error);
@@ -108,6 +121,7 @@ exports.passarVaga = async (req, res) => {
         if (idNovo === id) return res.status(400).json({ erro: 'Escolha outra pessoa para assumir a vaga.' });
 
         const resultado = await Escalas.passarVaga(Number(req.params.idEscala), id, idNovo, req.usuario.id_usuario);
+        if (resultado.erro && resultado.status === 404) return escalaIndisponivel(res, Number(req.params.idEscala));
         if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
         // Quem assumiu e a liderança são avisados
         avisarDepois(async () => Avisos.vagaPassada({

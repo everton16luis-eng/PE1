@@ -108,8 +108,8 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 |---|---|---|---|
 | GET | `/voluntarios/:id` | `voluntarios` | Ficha: dados, `funcoes`, `disponibilidade`, `observacoes`, `acesso` (login do portal), `estatisticas` (`realizadas`, `presentes`, `proximas`, `aguardando`, `recusadas`, `ultima`, `proxima`), `proximas` (com `colegas`), `historico` (30 últimas), `ausencias` (futuras), `por_funcao` |
 | PUT | `/voluntarios/:id` | `voluntarios` | `{ funcoes, disponibilidade, id_departamento?, ativo?, telefone?, email?, observacoes? }` — devolve a ficha atualizada |
-| PATCH | `/voluntarios/:id/escalas/:idEscala` | `voluntarios` | `{ resposta: "confirmar" \| "pendente" \| "recusar", motivo? }` — `motivo` obrigatório para recusar. Vale também para escalas passadas |
-| DELETE | `/voluntarios/:id/escalas/:idEscala` | `voluntarios` | Retira o voluntário de uma escala **futura** |
+| PATCH | `/voluntarios/:id/escalas/:idEscala` | `voluntarios` | `{ resposta: "confirmar" \| "pendente" \| "recusar", motivo? }` — `motivo` obrigatório para recusar. **409** se o evento já começou (escala somente consulta) |
+| DELETE | `/voluntarios/:id/escalas/:idEscala` | `voluntarios` | Retira o voluntário da escala. **409** se o evento já começou |
 | POST | `/voluntarios/:id/ausencias` | `voluntarios` | `{ data_inicio, data_fim, motivo? }` — devolve a ausência e `conflitos` (escalas no período) |
 | DELETE | `/voluntarios/:id/ausencias/:idAusencia` | `voluntarios` | Remove a ausência (só se for desse voluntário) |
 | POST | `/voluntarios/:id/acesso` | `voluntarios` **e** `usuarios` | `{ email, senha }` — cria login de perfil `VOLUNTARIO`, sem permissões de gestão, ligado ao membro. 409 se já tiver acesso ou e-mail repetido |
@@ -139,6 +139,8 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 | PUT | `/funcoes/:id` | `voluntarios` | Mesmo corpo do POST |
 
 ## Escalas
+
+> **Escala somente consulta.** Depois que o evento **começa** (em andamento) ou **termina**, a escala dele não aceita mais alterações: incluir, retirar, substituir ou passar a vaga, confirmar/desconfirmar, responder e criar escala nesse evento respondem **409** com a mensagem *"Este evento já foi realizado. Sua escala está disponível somente para consulta e não pode mais ser alterada."* (ou "…está em andamento…"). A regra fica em `eventosModel.SITUACAO` / `SITUACAO_ESCALA`, no fuso `America/Sao_Paulo`: o evento termina na hora de término (no dia seguinte quando o término é antes ou igual ao início — atravessa a meia-noite); sem hora de término, vale até o fim do dia. Escala sem evento usa a própria data e o horário de chegada. As consultas devolvem `bloqueada` (e `realizado`/`realizada`) para a tela desabilitar os controles. Evento em andamento: só nome, tipo e término podem ser ajustados (`PUT /eventos/:id`); não pode ser removido.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|

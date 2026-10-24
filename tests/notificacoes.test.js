@@ -160,6 +160,32 @@ describe('Avisos disparados pelo sistema', () => {
         assert.equal(doAdmin[0].rota, 'escalas');
         assert.ok((await avisosDe(lider, 'recusa')).length, 'equipe com a área Escalas');
         assert.equal((await avisosDe(secretaria, 'recusa', 0)).length, 0, 'quem não cuida de escalas não recebe');
+
+        // "Mudei de ideia" e confirmou: os mesmos que souberam da recusa ficam sabendo
+        const confirmou = await api(`/api/portal/escalas/${v.id_escala}`, { metodo: 'PATCH', token: v.token, corpo: { resposta: 'confirmar' } });
+        assert.equal(confirmou.status, 200);
+        assert.equal(confirmou.corpo.estava_recusado, undefined, 'campo interno não vai para o navegador');
+        const desfeita = await avisosDe(admin, 'recusa_desfeita');
+        assert.match(desfeita[0].titulo, /vai poder ir/);
+        assert.match(desfeita[0].mensagem, /confirmou presença/);
+        assert.equal(desfeita[0].rota, 'escalas');
+        assert.ok((await avisosDe(lider, 'recusa_desfeita')).length, 'equipe com a área Escalas');
+        assert.equal((await avisosDe(secretaria, 'recusa_desfeita', 0)).length, 0, 'quem não cuida de escalas não recebe');
+    });
+
+    test('"Mudei de ideia" voltando para aguardar resposta também avisa; confirmar sem ter recusado não avisa', async () => {
+        const v = await voluntarioEscalado(3);
+        const confirmarDireto = await api(`/api/portal/escalas/${v.id_escala}`, { metodo: 'PATCH', token: v.token, corpo: { resposta: 'confirmar' } });
+        assert.equal(confirmarDireto.status, 200);
+        const antes = (await avisosDe(admin, 'recusa_desfeita', 0)).length;
+
+        await api(`/api/portal/escalas/${v.id_escala}`, { metodo: 'PATCH', token: v.token, corpo: { resposta: 'recusar', motivo: 'Imprevisto' } });
+        const pendente = await api(`/api/portal/escalas/${v.id_escala}`, { metodo: 'PATCH', token: v.token, corpo: { resposta: 'pendente' } });
+        assert.equal(pendente.status, 200);
+        const avisos = await avisosDe(admin, 'recusa_desfeita', antes + 1);
+        assert.equal(avisos.length, antes + 1, 'um aviso só pela mudança de ideia (confirmar direto não avisou)');
+        assert.match(avisos[0].titulo, /mudou de ideia/);
+        assert.match(avisos[0].mensagem, /aguardando resposta/);
     });
 
     test('nova escala: cada voluntário escalado é avisado', async () => {

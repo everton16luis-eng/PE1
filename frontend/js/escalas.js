@@ -289,7 +289,8 @@ async function gerenciaEscalas(dataInicial = dataDeHoje(), visao = 'calendario')
                     <td>${escapar(es.funcao)}</td>
                     <td>${formatarHora(es.horario)}${es.hora_fim ? ' - ' + formatarHora(es.hora_fim) : ''}</td>
                     <td>${status}${recusas}${falta}</td>
-                    <td><button type="button" data-detalhes="${es.id_escala}">Ver detalhes</button></td>
+                    <td><button type="button" data-detalhes="${es.id_escala}">${es.bloqueada ? 'Consultar' : 'Ver detalhes'}</button>
+                        ${es.bloqueada ? seloSomenteConsulta({ realizada: es.realizado }) : ''}</td>
                 </tr>`;
         }).join('') || '<tr><td colspan="5" class="vazio">Nenhuma escala neste dia.</td></tr>';
     }
@@ -356,13 +357,14 @@ async function gerenciarEscala(idEscala, { destacar = null, aoAlterar = null, ao
     let escala;
 
     function desenhar() {
-        const editavel = !escala.realizado;
+        // O backend diz se a escala ainda aceita alterações (evento não começou)
+        const editavel = !escala.bloqueada;
         const ocupadas = escala.participantes.length - escala.recusados;
         modal.querySelector('.modal-header h2').textContent = `${escala.funcao || 'Função'} — ${escala.evento || 'Escala sem evento'}`;
         modal.querySelector('.modal-header p').textContent =
             `${tituloDoDia(escala.data_escala)} • chegada às ${formatarHora(escala.horario)} • ${ocupadas} de ${escala.qtd_voluntarios} vaga(s) ocupada(s)`;
         corpo.innerHTML = `
-            ${escala.realizado ? '<p class="subtitulo">Este evento já foi realizado: não é possível substituir voluntários (a confirmação de presença continua disponível).</p>' : ''}
+            ${editavel ? '' : avisoSomenteConsulta(escala.realizado)}
             <div class="list">${escala.participantes.map(p => `
                 <div class="list-row ${p.id_voluntario === destacar ? 'linha-destacada' : ''}" data-linha="${p.id_voluntario}">
                     <div class="mini-avatar">${escapar(p.nome.charAt(0))}</div>
@@ -375,10 +377,10 @@ async function gerenciarEscala(idEscala, { destacar = null, aoAlterar = null, ao
                     ${editavel ? `<button type="button" class="action-btn com-texto" data-substituir="${p.id_voluntario}">
                         <span class="material-icons">swap_horiz</span>Substituir</button>` : ''}
                     <label class="switch" title="Confirmado">
-                        <input type="checkbox" data-voluntario="${p.id_voluntario}" ${p.confirmado ? 'checked' : ''} aria-label="Confirmar ${escapar(p.nome)}">
+                        <input type="checkbox" data-voluntario="${p.id_voluntario}" ${p.confirmado ? 'checked' : ''} ${editavel ? '' : 'disabled'} aria-label="Confirmar ${escapar(p.nome)}">
                         <span class="slider"></span>
                     </label>
-                    <div class="substituicao" data-caixa-substituir="${p.id_voluntario}" hidden></div>
+                    ${editavel ? `<div class="substituicao" data-caixa-substituir="${p.id_voluntario}" hidden></div>` : ''}
                 </div>`).join('') || '<p class="vazio">Ninguém escalado.</p>'}</div>
             ${escala.observacoes ? `<p class="subtitulo" style="margin-top:14px;">${escapar(escala.observacoes)}</p>` : ''}
             <p class="mensagem-lista" data-mensagem role="status"></p>
@@ -585,8 +587,10 @@ async function novaEscala(dataSugerida = dataDeHoje()) {
         const dados = await buscarDados(`escalas/dia?data=${$('eData').value}`, { eventos: [] });
         eventosDoDia = dados.eventos;
         $('eEvento').innerHTML = eventosDoDia.map(e =>
-            `<option value="${e.id_evento}">${escapar(e.nome)} — ${formatarHora(e.hora_inicio)}</option>`).join('')
+            `<option value="${e.id_evento}" ${e.iniciado ? 'disabled' : ''}>${escapar(e.nome)} — ${formatarHora(e.hora_inicio)}${e.iniciado ? ` (${e.realizado ? 'realizado' : 'em andamento'}: somente consulta)` : ''}</option>`).join('')
             + '<option value="novo">+ Criar novo evento</option>';
+        // Sem evento selecionável, já começa em "novo evento"
+        if (!eventosDoDia.some(e => !e.iniciado)) $('eEvento').value = 'novo';
         alternarNovoEvento();
     }
 

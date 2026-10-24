@@ -116,6 +116,16 @@ const Avisos = {
         tipo: 'recusa', rota: 'escalas',
         titulo: `${nome} não poderá ir`,
         mensagem: `${resumoEscala(info)}. Motivo: ${motivo}`
+    }),
+
+    // Voluntário desfez a recusa ("mudei de ideia"): confirmou ou voltou a aguardar resposta.
+    // Os mesmos que receberam a recusa ficam sabendo que a vaga não está mais em aberto.
+    recusaDesfeita: async ({ nome, confirmado, info }) => avisar(await Notificacoes.lideranca(), {
+        tipo: 'recusa_desfeita', rota: 'escalas',
+        titulo: confirmado ? `${nome} vai poder ir` : `${nome} mudou de ideia`,
+        mensagem: confirmado
+            ? `Desfez a recusa e confirmou presença: ${resumoEscala(info)}.`
+            : `Desfez a recusa e voltou para "aguardando resposta": ${resumoEscala(info)}.`
     })
 };
 

@@ -90,7 +90,9 @@ exports.novaEscala = async (req, res) => {
             return res.status(400).json({ erro: 'Há voluntário(s) que não estão ativos e aptos para esta função. Atualize a lista e tente de novo.' });
         }
 
-        const escala = await Escalas.criar(dados);
+        // Não cria escala em evento que já começou (o model confere dentro da transação)
+        const { escala, erro, status } = await Escalas.criar(dados);
+        if (erro) return res.status(status).json({ erro });
         // Aviso para os voluntários escalados (sem atrasar a resposta)
         avisarDepois(async () => Avisos.novaEscala(voluntarios, await Notificacoes.escalaInfo(escala.id_escala)));
         res.status(201).json(escala);
@@ -159,7 +161,12 @@ exports.confirmarParticipante = async (req, res) => {
         if (!Number.isInteger(idEscala) || !Number.isInteger(idVoluntario)) return res.status(400).json({ erro: 'Escala inválida.' });
 
         const participante = await Escalas.confirmarParticipante(idEscala, idVoluntario, Boolean(req.body.confirmado));
-        if (!participante) return res.status(404).json({ erro: 'Voluntário não está nesta escala.' });
+        if (!participante) {
+            // Não alterou: escala travada (evento já começou) ou voluntário fora da escala
+            const situacao = await Escalas.situacaoDaEscala(idEscala);
+            if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
+            return res.status(404).json({ erro: 'Voluntário não está nesta escala.' });
+        }
         res.json(participante);
     } catch (error) {
         console.error('Erro ao confirmar voluntário', error);

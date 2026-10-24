@@ -132,7 +132,8 @@ describe('Portal: responder escalas', () => {
         const passada = (await api('/api/portal', { token: voluntario.token })).corpo.historico[0];
         if (!passada) return;
         const r = await api(`/api/portal/escalas/${passada.id_escala}`, { metodo: 'PATCH', token: voluntario.token, corpo: { resposta: 'confirmar' } });
-        assert.equal(r.status, 404);
+        assert.equal(r.status, 409);
+        assert.match(r.corpo.erro, /já foi realizado.*somente para consulta/);
     });
 
     test('respostas e ids inválidos', async () => {
@@ -259,7 +260,7 @@ describe('Ficha do voluntário (gestão)', () => {
     test('não retira o voluntário de escala que já passou', async () => {
         const passada = (await api(`/api/voluntarios/${outro.id_voluntario}`, { token: gestor.token })).corpo.historico[0];
         if (!passada) return;
-        assert.equal((await api(`/api/voluntarios/${outro.id_voluntario}/escalas/${passada.id_escala}`, { metodo: 'DELETE', token: gestor.token })).status, 404);
+        assert.equal((await api(`/api/voluntarios/${outro.id_voluntario}/escalas/${passada.id_escala}`, { metodo: 'DELETE', token: gestor.token })).status, 409);
     });
 });
 

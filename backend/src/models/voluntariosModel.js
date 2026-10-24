@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { CRITERIOS } = require('./pessoasModel');
+const { SITUACAO_ESCALA } = require('./eventosModel');
 
 // Voluntários = pessoas da base universal ATIVAS e APTAS ao voluntariado.
 // A ficha (tabela voluntarios: funções, disponibilidade, escalas) complementa a
@@ -150,16 +151,20 @@ const voluntariosModel = {
                         COUNT(*) FILTER (WHERE es.data_escala < CURRENT_DATE)::int AS realizadas,
                         COUNT(*) FILTER (WHERE es.data_escala < CURRENT_DATE AND ep.confirmado)::int AS presentes,
                         COUNT(*) FILTER (WHERE es.data_escala >= CURRENT_DATE)::int AS proximas,
-                        COUNT(*) FILTER (WHERE es.data_escala >= CURRENT_DATE AND NOT ep.confirmado AND NOT ep.recusado)::int AS aguardando,
+                        -- Aguardando = ainda dá para responder (o evento não começou)
+                        COUNT(*) FILTER (WHERE NOT ${SITUACAO_ESCALA.bloqueada} AND NOT ep.confirmado AND NOT ep.recusado)::int AS aguardando,
                         COUNT(*) FILTER (WHERE ep.recusado)::int AS recusadas,
                         MAX(es.data_escala) FILTER (WHERE es.data_escala < CURRENT_DATE) AS ultima,
                         MIN(es.data_escala) FILTER (WHERE es.data_escala >= CURRENT_DATE) AS proxima
                  FROM escala_participantes ep JOIN escalas es ON es.id_escala = ep.id_escala
+                 LEFT JOIN eventos e ON e.id_evento = es.id_evento
                  WHERE ep.id_voluntario = $1`,
                 [id]),
             pool.query(
                 `SELECT es.id_escala, es.id_evento, es.data_escala, es.horario, e.nome AS evento, e.hora_inicio, e.hora_fim,
                         f.nome AS funcao, ep.confirmado, ep.recusado, ep.motivo_recusa, es.observacoes,
+                        -- Evento já começou: a escala é só consulta (sem confirmar, recusar, passar ou retirar)
+                        ${SITUACAO_ESCALA.bloqueada} AS bloqueada, ${SITUACAO_ESCALA.realizada} AS realizada,
                         COALESCE((SELECT json_agg(json_build_object('nome', m2.nome_completo, 'funcao', f2.nome) ORDER BY f2.nome, m2.nome_completo)
                                   FROM escala_participantes ep2
                                   JOIN escalas es2 ON es2.id_escala = ep2.id_escala
@@ -257,26 +262,35 @@ const voluntariosModel = {
         );
     },
 
-    // Confirma, volta para pendente ou recusa — só escalas desse voluntário
-    responderEscala: async (id, idEscala, { confirmado, recusado, motivo }, somenteFuturas) => {
+    // Confirma, volta para pendente ou recusa — só escalas desse voluntário e só
+    // antes do início do evento (depois disso a escala é histórico: somente consulta).
+    // Vale para a ficha (equipe) e para o portal (o próprio voluntário).
+    // Devolve também "estava_recusado" (a situação ANTES desta resposta), para avisar
+    // a liderança quando o voluntário desfaz uma recusa ("mudei de ideia").
+    responderEscala: async (id, idEscala, { confirmado, recusado, motivo }) => {
         const result = await pool.query(
-            `UPDATE escala_participantes ep
+            `WITH antes AS (
+                 SELECT recusado FROM escala_participantes WHERE id_escala = $2 AND id_voluntario = $1
+             )
+             UPDATE escala_participantes ep
              SET confirmado = $3, recusado = $4, motivo_recusa = $5, respondido_em = CURRENT_TIMESTAMP
-             FROM escalas es
+             FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
              WHERE ep.id_escala = es.id_escala AND ep.id_escala = $2 AND ep.id_voluntario = $1
-               AND ($6::boolean IS FALSE OR es.data_escala >= CURRENT_DATE)
-             RETURNING ep.id_escala, ep.confirmado, ep.recusado, ep.motivo_recusa`,
-            [id, idEscala, confirmado, recusado, motivo, somenteFuturas]
+               AND NOT ${SITUACAO_ESCALA.bloqueada}
+             RETURNING ep.id_escala, ep.confirmado, ep.recusado, ep.motivo_recusa,
+                       COALESCE((SELECT recusado FROM antes), FALSE) AS estava_recusado`,
+            [id, idEscala, confirmado, recusado, motivo]
         );
         return result.rows[0];
     },
 
+    // Retira o voluntário da escala — só antes do início do evento (histórico preservado)
     removerDaEscala: async (id, idEscala) => {
         const result = await pool.query(
             `DELETE FROM escala_participantes ep
-             USING escalas es
+             USING escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
              WHERE ep.id_escala = es.id_escala AND ep.id_escala = $2 AND ep.id_voluntario = $1
-               AND es.data_escala >= CURRENT_DATE
+               AND NOT ${SITUACAO_ESCALA.bloqueada}
              RETURNING ep.id_escala`,
             [id, idEscala]
         );

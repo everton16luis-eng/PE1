@@ -260,7 +260,10 @@ describe('Minha área: experiência pela classificação real do login', () => {
         const chaves = eventos.map(e => `${String(e.data_evento).slice(0, 10)} ${e.hora_inicio || '99'}`);
         assert.deepEqual(chaves, [...chaves].sort(), 'eventos fora de ordem de data/horário');
         for (const e of eventos) {
-            assert.ok(new Date(e.data_evento).toLocaleDateString('sv-SE') >= hoje, 'evento passado na lista');
+            // Evento de ontem só aparece se ainda está acontecendo (atravessa a meia-noite)
+            const data = new Date(e.data_evento).toLocaleDateString('sv-SE');
+            const atravessaMeiaNoite = e.hora_inicio && e.hora_fim && e.hora_fim <= e.hora_inicio;
+            assert.ok(data >= hoje || atravessaMeiaNoite, 'evento passado na lista');
             assert.ok(e.nome);
         }
     };

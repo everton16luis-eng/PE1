@@ -31,14 +31,38 @@ class eventos {
     }
 }
 
-// Situação temporal do evento, calculada pelo horário real (nunca por um status manual).
-// Sem horário de término, o evento vale até o fim do dia; sem início, desde o começo do dia.
+// Situação temporal do evento, calculada pelo horário real (nunca por um status manual),
+// sempre no fuso da igreja (America/Sao_Paulo), qualquer que seja o fuso do servidor.
+// - Início: data + hora de início (sem hora de início, o começo do dia).
+// - Término: data + hora de término; se o término for antes (ou igual) ao início, o
+//   evento atravessa a meia-noite e termina no dia seguinte. Sem hora de término, o
+//   evento vale até o fim do dia (não se presume que terminou antes).
+// - Realizado: o horário de término já foi atingido. Em andamento: começou e não terminou.
 // "e" é o apelido da tabela eventos na consulta.
-const FIM_DO_EVENTO = "(e.data_evento + COALESCE(e.hora_fim, TIME '23:59:59'))";
+const AGORA = "(now() AT TIME ZONE 'America/Sao_Paulo')";
 const INICIO_DO_EVENTO = "(e.data_evento + COALESCE(e.hora_inicio, TIME '00:00'))";
+const FIM_DO_EVENTO = `(CASE
+    WHEN e.hora_fim IS NULL THEN e.data_evento + TIME '23:59:59.999'
+    WHEN e.hora_inicio IS NOT NULL AND e.hora_fim <= e.hora_inicio THEN e.data_evento + 1 + e.hora_fim
+    ELSE e.data_evento + e.hora_fim END)`;
 const SITUACAO = {
-    realizado: `(${FIM_DO_EVENTO} < LOCALTIMESTAMP)`,
-    emAndamento: `(${INICIO_DO_EVENTO} <= LOCALTIMESTAMP AND ${FIM_DO_EVENTO} >= LOCALTIMESTAMP)`
+    realizado: `(${FIM_DO_EVENTO} <= ${AGORA})`,
+    emAndamento: `(${INICIO_DO_EVENTO} <= ${AGORA} AND ${FIM_DO_EVENTO} > ${AGORA})`,
+    // Já começou (em andamento ou realizado): a escala fica só para consulta
+    iniciado: `(${INICIO_DO_EVENTO} <= ${AGORA})`
+};
+
+// Mesma regra para uma escala ("es"), pelo evento dela. Escala sem evento usa a
+// própria data e o horário de chegada (e vale até o fim desse dia).
+const SITUACAO_ESCALA = {
+    bloqueada: `COALESCE(${SITUACAO.iniciado}, (es.data_escala + COALESCE(es.horario, TIME '00:00')) <= ${AGORA})`,
+    realizada: `COALESCE(${SITUACAO.realizado}, (es.data_escala + TIME '23:59:59.999') <= ${AGORA})`
+};
+
+// Mensagens únicas para o bloqueio (backend e tela usam o mesmo texto)
+const MENSAGENS_BLOQUEIO = {
+    realizado: 'Este evento já foi realizado. Sua escala está disponível somente para consulta e não pode mais ser alterada.',
+    andamento: 'Este evento está em andamento. Sua escala está disponível somente para consulta e não pode mais ser alterada.'
 };
 
 // Situação de um voluntário na escala, só pelos estados gravados no banco.
@@ -92,6 +116,8 @@ function resumirEvento(escalas) {
 const eventoModel = {
 
     SITUACAO,
+    SITUACAO_ESCALA,
+    MENSAGENS_BLOQUEIO,
     situacaoDoParticipante,
     resumirEvento,
 
@@ -147,10 +173,13 @@ const eventoModel = {
         }));
     },
 
-    // Só a situação temporal (para barrar alterações em eventos realizados)
+    // Só a situação temporal (para barrar alterações em eventos que já começaram)
     buscarSituacao: async (id, executor = pool) => {
         const result = await executor.query(
-            `SELECT e.id_evento, ${SITUACAO.realizado} AS realizado FROM eventos e WHERE e.id_evento = $1`,
+            `SELECT e.id_evento, ${SITUACAO.realizado} AS realizado, ${SITUACAO.emAndamento} AS em_andamento,
+                    ${SITUACAO.iniciado} AS iniciado,
+                    to_char(e.data_evento, 'YYYY-MM-DD') AS data_evento, to_char(e.hora_inicio, 'HH24:MI') AS hora_inicio
+             FROM eventos e WHERE e.id_evento = $1`,
             [id]
         );
         return result.rows[0];
@@ -198,12 +227,16 @@ const eventoModel = {
         return { evento, ...resumirEvento(escalas) };
     },
 
-    // Só altera evento que ainda não terminou (null = não encontrado ou já realizado)
+    // Altera evento que ainda não começou. Durante o evento só vale ajuste que não mexe
+    // na escala: mesma data e mesmo início (ex.: corrigir o horário de término).
+    // Evento realizado não muda. null = não encontrado ou não permitido.
     atualizarEvento: async (id, { nome, data_evento, hora_inicio, hora_fim, tipo_evento }) => {
         const result = await pool.query(
             `UPDATE eventos e
              SET nome = $2, data_evento = $3, hora_inicio = $4, hora_fim = $5, tipo_evento = $6
              WHERE e.id_evento = $1 AND NOT ${SITUACAO.realizado}
+               AND (NOT ${SITUACAO.iniciado}
+                    OR (e.data_evento = $3::date AND e.hora_inicio IS NOT DISTINCT FROM $4::time))
              RETURNING *`,
             [id, nome, data_evento, hora_inicio, hora_fim, tipo_evento]
         );
@@ -215,17 +248,19 @@ const eventoModel = {
     },
 
     // Remove o evento com suas escalas (os voluntários escalados saem junto).
-    // Evento já realizado é histórico: devolve { realizado: true } e não apaga nada.
+    // Evento que já começou (em andamento ou realizado) é histórico: devolve
+    // { realizado } / { emAndamento } e não apaga nada.
     removerEvento: async (id) => {
         const cliente = await pool.connect();
         try {
             await cliente.query('BEGIN');
             const situacao = (await cliente.query(
-                `SELECT ${SITUACAO.realizado} AS realizado FROM eventos e WHERE e.id_evento = $1 FOR UPDATE`, [id]
+                `SELECT ${SITUACAO.realizado} AS realizado, ${SITUACAO.iniciado} AS iniciado
+                 FROM eventos e WHERE e.id_evento = $1 FOR UPDATE`, [id]
             )).rows[0];
-            if (!situacao || situacao.realizado) {
+            if (!situacao || situacao.iniciado) {
                 await cliente.query('ROLLBACK');
-                return situacao ? { realizado: true } : null;
+                return situacao ? (situacao.realizado ? { realizado: true } : { emAndamento: true }) : null;
             }
             // Atendimento de turma é histórico das crianças: o evento não pode sumir
             const atendimento = await cliente.query('SELECT 1 FROM turma_sessoes WHERE id_evento = $1 LIMIT 1', [id]);

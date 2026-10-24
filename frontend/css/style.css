@@ -4127,3 +4127,31 @@ button.secondary.perigo {
         display: none;
     }
 }
+
+/* Escala de evento que já começou ou terminou: somente consulta */
+.aviso-somente-consulta {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border: 1px solid #f1d9b8;
+    border-radius: 10px;
+    background: #fff8ee;
+    color: #7a4a10;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.aviso-somente-consulta .material-icons {
+    font-size: 18px;
+}
+
+.escala-card .aviso-somente-consulta {
+    margin: 10px 0 0;
+}
+
+.switch input:disabled + .slider {
+    cursor: not-allowed;
+    opacity: .55;
+}

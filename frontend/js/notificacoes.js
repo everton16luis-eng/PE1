@@ -102,7 +102,7 @@ function esquecerAparelhoAoSair() {
 const ICONES_AVISO = {
     escala_nova: 'event_available', escala_retirada: 'event_busy', escala_alterada: 'edit_calendar',
     escala_removida: 'event_busy', vaga_recebida: 'swap_horiz', troca_voluntarios: 'swap_horiz',
-    recusa: 'person_off', lembrete: 'alarm', pendencias: 'pending_actions', teste: 'notifications_active',
+    recusa: 'person_off', recusa_desfeita: 'how_to_reg', lembrete: 'alarm', pendencias: 'pending_actions', teste: 'notifications_active',
     turma_alerta: 'warning'
 };
 

@@ -1,4 +1,5 @@
 const Voluntarios = require('../models/voluntariosModel');
+const Escalas = require('../models/escalasModel');
 const Notificacoes = require('../models/notificacoesModel');
 const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
@@ -147,9 +148,15 @@ exports.responderEscala = async (req, res) => {
         const { dados, erro } = Regras.lerResposta(req.body);
         if (erro) return res.status(400).json({ erro });
 
-        const resposta = await Voluntarios.responderEscala(id, idEscala, dados, false);
-        if (!resposta) return res.status(404).json({ erro: 'Este voluntário não está nessa escala.' });
-        res.json(resposta);
+        const resposta = await Voluntarios.responderEscala(id, idEscala, dados);
+        if (!resposta) {
+            const situacao = await Escalas.situacaoDaEscala(idEscala);
+            if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
+            return res.status(404).json({ erro: 'Este voluntário não está nessa escala.' });
+        }
+        // A própria equipe fez a mudança: sem aviso para a liderança
+        const { estava_recusado: _estavaRecusado, ...dadosResposta } = resposta;
+        res.json(dadosResposta);
     } catch (error) {
         console.error('Erro ao responder escala', error);
         responderErro(res, error);
@@ -163,7 +170,11 @@ exports.removerDaEscala = async (req, res) => {
         if (!idEscala) return;
         const info = await Notificacoes.escalaInfo(idEscala);
         const removido = await Voluntarios.removerDaEscala(id, idEscala);
-        if (!removido) return res.status(404).json({ erro: 'Escala futura não encontrada para este voluntário.' });
+        if (!removido) {
+            const situacao = await Escalas.situacaoDaEscala(idEscala);
+            if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
+            return res.status(404).json({ erro: 'Este voluntário não está nessa escala.' });
+        }
         if (info) avisarDepois(() => Avisos.escalaRetirada([id], info));
         res.json({ mensagem: 'Voluntário retirado da escala.' });
     } catch (error) {

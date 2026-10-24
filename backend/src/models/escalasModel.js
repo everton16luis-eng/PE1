@@ -6,7 +6,8 @@ const Eventos = require('./eventosModel');
 async function consultarEscalas(filtro, valores) {
     const result = await pool.query(
         `SELECT es.id_escala, es.id_evento, e.nome AS evento, e.hora_inicio, e.hora_fim, e.tipo_evento,
-                to_char(es.data_escala, 'YYYY-MM-DD') AS data_escala, ${Eventos.SITUACAO.realizado} AS realizado,
+                to_char(es.data_escala, 'YYYY-MM-DD') AS data_escala,
+                ${Eventos.SITUACAO_ESCALA.realizada} AS realizado, ${Eventos.SITUACAO_ESCALA.bloqueada} AS bloqueada,
                 es.id_funcao, f.nome AS funcao, es.horario, es.qtd_voluntarios, es.observacoes,
                 COALESCE(json_agg(json_build_object(
                     'id_voluntario', ep.id_voluntario,
@@ -74,22 +75,39 @@ const SQL_SUBSTITUTOS = `
                       WHERE ep.id_voluntario = v.id_voluntario AND e2.data_escala = esc.data_escala AND NOT ep.recusado)
     ORDER BY m.nome_completo`;
 
-// A vaga é deste voluntário e ainda pode ser passada? (escala futura, evento não realizado)
+// A vaga é deste voluntário e ainda pode ser passada? (o evento ainda não começou)
 async function vagaDoVoluntario(executor, idEscala, idVoluntario, travar = false) {
     const result = await executor.query(
-        `SELECT es.id_escala, es.data_escala, ${Eventos.SITUACAO.realizado} AS realizado
+        `SELECT es.id_escala, es.data_escala, ${Eventos.SITUACAO_ESCALA.bloqueada} AS bloqueada
          FROM escala_participantes ep
          JOIN escalas es ON es.id_escala = ep.id_escala
          LEFT JOIN eventos e ON e.id_evento = es.id_evento
-         WHERE ep.id_escala = $1 AND ep.id_voluntario = $2 AND es.data_escala >= CURRENT_DATE
+         WHERE ep.id_escala = $1 AND ep.id_voluntario = $2
          ${travar ? 'FOR UPDATE OF ep, es' : ''}`,
         [idEscala, idVoluntario]
     );
     const vaga = result.rows[0];
-    return vaga && !vaga.realizado ? vaga : null;
+    return vaga && !vaga.bloqueada ? vaga : null;
 }
 
+// Situação de uma escala para alterações: undefined (não existe) ou
+// { bloqueada, realizada }. Bloqueada = o evento já começou (em andamento ou realizado).
+async function situacaoDaEscala(idEscala, executor = pool) {
+    const result = await executor.query(
+        `SELECT ${Eventos.SITUACAO_ESCALA.bloqueada} AS bloqueada, ${Eventos.SITUACAO_ESCALA.realizada} AS realizada
+         FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
+         WHERE es.id_escala = $1`,
+        [idEscala]
+    );
+    return result.rows[0];
+}
+
+const mensagemBloqueio = situacao => Eventos.MENSAGENS_BLOQUEIO[situacao?.realizada ? 'realizado' : 'andamento'];
+
 const escalasModel = {
+
+    situacaoDaEscala,
+    mensagemBloqueio,
 
     // Voluntário (portal): quem pode assumir a vaga dele. null = a vaga não é dele ou já passou.
     substitutosParaVaga: async (idEscala, idVoluntario) => {
@@ -158,8 +176,9 @@ const escalasModel = {
 
     eventosDoDia: async (data) => {
         const result = await pool.query(
-            `SELECT id_evento, nome, hora_inicio, hora_fim, tipo_evento
-             FROM eventos WHERE data_evento = $1 ORDER BY hora_inicio`,
+            `SELECT e.id_evento, e.nome, e.hora_inicio, e.hora_fim, e.tipo_evento,
+                    ${Eventos.SITUACAO.iniciado} AS iniciado, ${Eventos.SITUACAO.realizado} AS realizado
+             FROM eventos e WHERE e.data_evento = $1 ORDER BY e.hora_inicio`,
             [data]
         );
         return result.rows;
@@ -187,7 +206,7 @@ const escalasModel = {
              JOIN membros m ON m.id_membro = v.id_membro
              WHERE ep.confirmado IS NOT TRUE AND ep.recusado IS NOT TRUE
                AND es.data_escala >= CURRENT_DATE
-               AND NOT COALESCE(${Eventos.SITUACAO.realizado}, FALSE)
+               AND NOT ${Eventos.SITUACAO_ESCALA.bloqueada}
              ORDER BY es.data_escala ASC, e.hora_inicio ASC NULLS LAST, es.horario, f.nome, m.nome_completo`
         );
         return result.rows;
@@ -203,7 +222,8 @@ const escalasModel = {
         try {
             await cliente.query('BEGIN');
             const escala = (await cliente.query(
-                `SELECT es.id_escala, es.id_funcao, ${Eventos.SITUACAO.realizado} AS realizado
+                `SELECT es.id_escala, es.id_funcao, ${Eventos.SITUACAO_ESCALA.bloqueada} AS bloqueada,
+                        ${Eventos.SITUACAO_ESCALA.realizada} AS realizada
                  FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
                  WHERE es.id_escala = $1 FOR UPDATE OF es`,
                 [idEscala]
@@ -211,7 +231,7 @@ const escalasModel = {
             const falha = async (status, erro) => { await cliente.query('ROLLBACK'); return { status, erro }; };
 
             if (!escala) return falha(404, 'Escala não encontrada.');
-            if (escala.realizado) return falha(409, 'O evento desta escala já foi realizado. O histórico não pode ser alterado.');
+            if (escala.bloqueada) return falha(409, mensagemBloqueio(escala));
 
             const atuais = (await cliente.query(
                 'SELECT id_voluntario FROM escala_participantes WHERE id_escala = $1', [idEscala]
@@ -286,7 +306,20 @@ const escalasModel = {
             await cliente.query('BEGIN');
 
             let idEvento = e.id_evento;
-            if (!idEvento) {
+            const falha = async (status, erro) => { await cliente.query('ROLLBACK'); return { status, erro }; };
+            if (idEvento) {
+                const evento = (await cliente.query(
+                    `SELECT ${Eventos.SITUACAO.iniciado} AS iniciado, ${Eventos.SITUACAO.realizado} AS realizada
+                     FROM eventos e WHERE e.id_evento = $1 FOR UPDATE`, [idEvento]
+                )).rows[0];
+                if (!evento) return falha(400, 'Evento inexistente.');
+                if (evento.iniciado) return falha(409, mensagemBloqueio(evento));
+            } else {
+                const jaComecou = (await cliente.query(
+                    `SELECT ($1::date + $2::time) <= (now() AT TIME ZONE 'America/Sao_Paulo') AS iniciado`,
+                    [e.data, e.evento.hora_inicio]
+                )).rows[0].iniciado;
+                if (jaComecou) return falha(409, 'Não é possível criar escala para um evento que já começou ou já passou. Escolha uma data e um horário futuros.');
                 idEvento = (await cliente.query(
                     `INSERT INTO eventos (nome, data_evento, hora_inicio, hora_fim, tipo_evento)
                      VALUES ($1, $2, $3, $4, $5) RETURNING id_evento`,
@@ -312,7 +345,7 @@ const escalasModel = {
             }
 
             await cliente.query('COMMIT');
-            return escala;
+            return { escala };
         } catch (error) {
             await cliente.query('ROLLBACK');
             throw error;
@@ -321,12 +354,15 @@ const escalasModel = {
         }
     },
 
+    // Só altera antes do início do evento (o WHERE garante, mesmo chamando a API direto)
     confirmarParticipante: async (idEscala, idVoluntario, confirmado) => {
         const result = await pool.query(
-            `UPDATE escala_participantes
+            `UPDATE escala_participantes ep
              SET confirmado = $3, recusado = FALSE, motivo_recusa = NULL, respondido_em = CURRENT_TIMESTAMP
-             WHERE id_escala = $1 AND id_voluntario = $2
-             RETURNING *`,
+             FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
+             WHERE es.id_escala = ep.id_escala AND ep.id_escala = $1 AND ep.id_voluntario = $2
+               AND NOT ${Eventos.SITUACAO_ESCALA.bloqueada}
+             RETURNING ep.*`,
             [idEscala, idVoluntario, confirmado]
         );
         return result.rows[0];

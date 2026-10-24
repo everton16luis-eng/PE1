@@ -57,7 +57,9 @@ exports.getDetalhesEvento = async (req, res) => {
     }
 }
 
-const MENSAGEM_REALIZADO = 'Este evento já foi realizado. Os dados históricos não podem ser alterados nem removidos.';
+const MENSAGEM_REALIZADO = Eventos.MENSAGENS_BLOQUEIO.realizado;
+const MENSAGEM_ANDAMENTO = 'Este evento está em andamento. Só é possível ajustar o nome, o tipo e o horário de término; '
+    + 'a data, o início e a escala não podem mais ser alterados.';
 
 exports.novoEvento = async (req, res) => {
     try {
@@ -104,6 +106,7 @@ exports.atualizarEvento = async (req, res) => {
         if (!evento) {
             const situacao = await Eventos.buscarSituacao(id);
             if (situacao?.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
+            if (situacao?.em_andamento) return res.status(409).json({ erro: MENSAGEM_ANDAMENTO });
             return res.status(404).json({ erro: 'Evento não encontrado.' });
         }
         // Mudou o dia ou o horário de início: os escalados são avisados
@@ -129,6 +132,7 @@ exports.removerEvento = async (req, res) => {
         const resultado = await Eventos.removerEvento(id);
         if (!resultado) return res.status(404).json({ erro: 'Evento não encontrado.' });
         if (resultado.realizado) return res.status(409).json({ erro: MENSAGEM_REALIZADO });
+        if (resultado.emAndamento) return res.status(409).json({ erro: Eventos.MENSAGENS_BLOQUEIO.andamento });
         if (resultado.comAtendimento) return res.status(409).json({ erro: 'Este evento tem atendimento de turma registrado (entrada e saída de crianças) e não pode ser removido.' });
         if (antes?.voluntarios.length) avisarDepois(() => Avisos.eventoRemovido(antes.voluntarios, antes));
         res.json({ mensagem: 'Evento removido.', ...resultado });

@@ -1285,8 +1285,11 @@ async function gerenciaEvento() {
                         <div class="acoes">
                             <button type="button" class="btn-editar" data-editar-evento="${evento.id_evento}" aria-label="Editar ${escapar(evento.nome)}">
                                 <span class="material-icons">edit</span>Editar</button>
-                            <button type="button" class="btn-remover" data-remover-evento="${evento.id_evento}" aria-label="Remover ${escapar(evento.nome)}">
-                                <span class="material-icons">delete</span>Remover</button>
+                            ${evento.em_andamento
+                                // Em andamento: a escala já é só consulta; o evento não pode ser removido
+                                ? seloSomenteConsulta({ realizada: false })
+                                : `<button type="button" class="btn-remover" data-remover-evento="${evento.id_evento}" aria-label="Remover ${escapar(evento.nome)}">
+                                <span class="material-icons">delete</span>Remover</button>`}
                         </div>
                     </td>
                 </tr>
@@ -1371,7 +1374,9 @@ async function gerenciaEvento() {
                     <div class="form-group"><label for="edInicio">Horário de início</label><input type="time" id="edInicio"></div>
                     <div class="form-group"><label for="edFim">Horário de término</label><input type="time" id="edFim"></div>
                 </div>
-                ${evento.total_escalas ? `<p class="subtitulo">As ${evento.total_escalas} escala(s) deste evento acompanham a nova data.</p>` : ''}
+                ${evento.em_andamento
+                    ? `${avisoSomenteConsulta(false)}<p class="subtitulo">Durante o evento só é possível ajustar o nome, o tipo e o horário de término.</p>`
+                    : (evento.total_escalas ? `<p class="subtitulo">As ${evento.total_escalas} escala(s) deste evento acompanham a nova data.</p>` : '')}
                 <div class="form-actions">
                     <button type="button" class="btn-cancel" data-cancelar>Cancelar</button>
                     <button type="submit" class="primary"><span class="material-icons">save</span>Salvar</button>
@@ -1384,6 +1389,8 @@ async function gerenciaEvento() {
         campo('edTipo').value = TIPOS_EVENTO[evento.tipo_evento] ? evento.tipo_evento : 'evento';
         campo('edInicio').value = formatarHora(evento.hora_inicio);
         campo('edFim').value = formatarHora(evento.hora_fim);
+        // Em andamento: data e início ficam travados (o backend também recusa)
+        campo('edData').disabled = campo('edInicio').disabled = Boolean(evento.em_andamento);
         modal.querySelector('[data-cancelar]').addEventListener('click', fechar);
 
         form.addEventListener('submit', async e => {

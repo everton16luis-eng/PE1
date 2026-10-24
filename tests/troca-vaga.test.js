@@ -107,7 +107,7 @@ describe('Passar a vaga: quem aparece na lista', () => {
         const passada = (await pool.query(
             `SELECT ep.id_escala FROM escala_participantes ep JOIN escalas es ON es.id_escala = ep.id_escala
              WHERE ep.id_voluntario = $1 AND es.data_escala < CURRENT_DATE LIMIT 1`, [maria.id_voluntario])).rows[0];
-        if (passada) assert.equal((await substitutos(maria.token, passada.id_escala)).status, 404, 'escala que já passou');
+        if (passada) assert.equal((await substitutos(maria.token, passada.id_escala)).status, 409, 'escala que já passou: somente consulta');
         assert.equal((await substitutos(maria.token, 'abc')).status, 400);
 
         const comum = await criarUsuario({ perfil: 'VISUALIZACAO', permissoes: NENHUMA });

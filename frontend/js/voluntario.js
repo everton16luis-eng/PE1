@@ -19,6 +19,26 @@ function situacaoEscala(p, passada = false) {
     return passada ? '<span class="badge inactive">Ausente</span>' : '<span class="badge pending">Aguardando resposta</span>';
 }
 
+// Escala de evento que já começou (em andamento) ou terminou: somente consulta.
+// Quem decide é o backend ("bloqueada" / "realizada"), que também recusa qualquer alteração.
+const MENSAGENS_ESCALA_BLOQUEADA = {
+    realizado: 'Este evento já foi realizado. Sua escala está disponível somente para consulta e não pode mais ser alterada.',
+    andamento: 'Este evento está em andamento. Sua escala está disponível somente para consulta e não pode mais ser alterada.'
+};
+const mensagemEscalaBloqueada = realizada => MENSAGENS_ESCALA_BLOQUEADA[realizada ? 'realizado' : 'andamento'];
+
+// Selo curto para listas (ex.: ações da ficha do voluntário)
+function seloSomenteConsulta(p) {
+    return `<span class="badge inactive" title="${escapar(mensagemEscalaBloqueada(p.realizada))}">
+        ${p.realizada ? 'Realizado' : 'Em andamento'} • somente consulta</span>`;
+}
+
+// Aviso completo (topo de telas e janelas de escala)
+function avisoSomenteConsulta(realizada) {
+    return `<p class="aviso-somente-consulta" role="note">
+        <span class="material-icons" aria-hidden="true">lock</span>${escapar(mensagemEscalaBloqueada(realizada))}</p>`;
+}
+
 // Pergunta o motivo da recusa; devolve o texto ou null se cancelar
 function pedirMotivoRecusa(descricao) {
     return new Promise(resolve => {
@@ -168,10 +188,11 @@ async function fichaVoluntario(id) {
                                 <td>${formatarHora(p.horario)}</td>
                                 <td>${situacaoEscala(p)}${p.recusado ? `<small class="motivo">${escapar(p.motivo_recusa || '')}</small>` : ''}</td>
                                 <td class="acoes-escala">
+                                    ${p.bloqueada ? seloSomenteConsulta(p) : `
                                     ${p.confirmado ? '' : `<button type="button" class="action-btn" data-resposta="confirmar" data-escala="${p.id_escala}" title="Marcar como confirmado" aria-label="Confirmar"><span class="material-icons">check</span></button>`}
                                     ${!p.confirmado && !p.recusado ? '' : `<button type="button" class="action-btn" data-resposta="pendente" data-escala="${p.id_escala}" title="Voltar para aguardando" aria-label="Voltar para aguardando"><span class="material-icons">undo</span></button>`}
                                     ${p.recusado ? '' : `<button type="button" class="action-btn" data-resposta="recusar" data-escala="${p.id_escala}" title="Registrar recusa" aria-label="Registrar recusa"><span class="material-icons">event_busy</span></button>`}
-                                    <button type="button" class="action-btn" data-retirar="${p.id_escala}" title="Retirar da escala" aria-label="Retirar da escala"><span class="material-icons">person_remove</span></button>
+                                    <button type="button" class="action-btn" data-retirar="${p.id_escala}" title="Retirar da escala" aria-label="Retirar da escala"><span class="material-icons">person_remove</span></button>`}
                                 </td>
                             </tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhuma escala futura.</td></tr>'}
                     </tbody>

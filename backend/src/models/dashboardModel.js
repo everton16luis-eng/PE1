@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { SITUACAO } = require('./eventosModel');
+const { SITUACAO_ESCALA } = require('./eventosModel');
 
 class resumoDashboard {
     constructor(total_visitantes, total_membros, total_voluntarios, total_escalas) {
@@ -136,7 +136,7 @@ const dashboardModel = {
         });
     },
 
-    // Próximos voluntários escalados que ainda não confirmaram (em eventos que ainda não terminaram)
+    // Próximos voluntários escalados que ainda não confirmaram (em eventos que ainda não começaram: depois do início a escala é só consulta)
     confirmacoesPendentes: async () => {
         const result = await pool.query(
             `SELECT m.nome_completo AS nome, f.nome AS funcao, es.data_escala
@@ -148,7 +148,7 @@ const dashboardModel = {
              INNER JOIN membros m ON m.id_membro = v.id_membro
              WHERE ep.confirmado IS NOT TRUE AND NOT ep.recusado
                AND es.data_escala >= CURRENT_DATE
-               AND NOT COALESCE(${SITUACAO.realizado}, FALSE)
+               AND NOT ${SITUACAO_ESCALA.bloqueada}
              ORDER BY es.data_escala ASC, m.nome_completo ASC
              LIMIT 5`
         );
