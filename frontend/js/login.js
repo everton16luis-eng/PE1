@@ -72,7 +72,7 @@ function mostrarLogin() {
                             <label for="registroSenha">Senha</label>
                             <div class="inputBox">
                                 <span class="material-icons">lock</span>
-                                <input id="registroSenha" type="password" autocomplete="new-password" placeholder="Mínimo de 6 caracteres" minlength="6" required>
+                                <input id="registroSenha" type="password" autocomplete="new-password" placeholder="Crie uma senha forte" minlength="8" maxlength="128" required>
                             </div>
                         </div>
                         <div class="login-campo">
@@ -147,6 +147,10 @@ function mostrarLogin() {
         }
     });
 
+    // Requisitos da senha à vista durante o cadastro (o backend confere as mesmas regras)
+    const campoSenhaRegistro = app.querySelector('#registroSenha');
+    ligarRegrasSenha(campoSenhaRegistro, campoSenhaRegistro.closest('.inputBox'));
+
     app.querySelector('#formRegistro').addEventListener('submit', async event => {
         event.preventDefault();
         const mensagem = app.querySelector('#mensagemRegistro');
@@ -162,8 +166,10 @@ function mostrarLogin() {
             mensagem.textContent = 'Informe nome e e-mail.';
             return;
         }
-        if (dados.senha.length < 6) {
-            mensagem.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+        const senhaFraca = erroSenhaFraca(dados.senha);
+        if (senhaFraca) {
+            mensagem.textContent = senhaFraca;
+            app.querySelector('#registroSenha').focus();
             return;
         }
         if (dados.senha !== app.querySelector('#registroConfirmar').value) {

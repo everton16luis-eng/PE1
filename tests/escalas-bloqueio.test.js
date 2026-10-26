@@ -67,8 +67,9 @@ before(async () => {
     const equipe = [[vol[0], false], [vol[1], true]];
     eventos.passado = await criarCenario('Bloqueio: realizado',
         "(t - INTERVAL '1 day')::date AS data, TIME '19:00' AS inicio, TIME '21:00' AS fim", equipe);
+    // Hoje, o dia todo: em andamento a qualquer hora em que o teste rodar (sem atravessar a meia-noite)
     eventos.andamento = await criarCenario('Bloqueio: em andamento',
-        "(t - INTERVAL '1 hour')::date AS data, (t - INTERVAL '1 hour')::time AS inicio, (t + INTERVAL '1 hour')::time AS fim", equipe);
+        "t::date AS data, TIME '00:00' AS inicio, TIME '23:59' AS fim", equipe);
     // Começou ontem e termina hoje (atravessa a meia-noite): término <= início
     eventos.madrugada = await criarCenario('Bloqueio: atravessa a meia-noite',
         "(t - INTERVAL '23 hours')::date AS data, (t + INTERVAL '1 hour')::time AS inicio, (t + INTERVAL '1 hour')::time AS fim", equipe);

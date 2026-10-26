@@ -199,12 +199,12 @@ describe('Portal: ausências, preferências e senha', () => {
     });
 
     test('trocar senha exige a senha atual', async () => {
-        assert.equal((await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: 'errada', nova_senha: 'NovaSenha1' } })).status, 400);
+        assert.equal((await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: 'errada', nova_senha: 'NovaSenha@1' } })).status, 400);
         assert.equal((await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: SENHA, nova_senha: '123' } })).status, 400);
-        assert.equal((await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: SENHA, nova_senha: 'NovaSenha1' } })).status, 200);
-        const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: voluntario.email, senha: 'NovaSenha1' } });
+        assert.equal((await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: SENHA, nova_senha: 'NovaSenha@1' } })).status, 200);
+        const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: voluntario.email, senha: 'NovaSenha@1' } });
         assert.equal(login.status, 200);
-        await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: 'NovaSenha1', nova_senha: SENHA } });
+        await api('/api/portal/senha', { metodo: 'PUT', token: voluntario.token, corpo: { senha_atual: 'NovaSenha@1', nova_senha: SENHA } });
     });
 });
 
@@ -269,36 +269,36 @@ describe('Acesso ao portal criado pela gestão', () => {
     before(async () => { alvo = await voluntarioComEscalas(2); });
 
     test('sem permissão de usuários não cria acesso', async () => {
-        const r = await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: gestor.token, corpo: { email: 'x@exemplo.test', senha: 'Senha123' } });
+        const r = await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: gestor.token, corpo: { email: 'x@exemplo.test', senha: 'Senha@123' } });
         assert.equal(r.status, 403);
     });
 
     test('cria acesso de perfil Voluntário, sem permissões de gestão', async () => {
         const email = `portal.${Date.now()}@exemplo.test`;
-        const r = await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: admin.token, corpo: { email, senha: 'Senha123' } });
+        const r = await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: admin.token, corpo: { email, senha: 'Senha@123' } });
         assert.equal(r.status, 201);
         const salvo = (await pool.query('SELECT perfil, permissoes, id_membro FROM usuarios WHERE email = $1', [email])).rows[0];
         assert.equal(salvo.perfil, 'VOLUNTARIO');
         assert.equal(salvo.id_membro, alvo.id_membro);
         assert.ok(Object.values(salvo.permissoes).every(p => p === false));
 
-        const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: 'Senha123' } });
+        const login = await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: 'Senha@123' } });
         assert.equal(login.status, 200);
         assert.equal((await api('/api/portal', { token: login.corpo.token })).corpo.id_voluntario, alvo.id_voluntario);
         assert.equal((await api('/api/usuarios', { token: login.corpo.token })).status, 403);
 
         // Segundo acesso para o mesmo voluntário → 409
-        assert.equal((await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: admin.token, corpo: { email: `outro.${email}`, senha: 'Senha123' } })).status, 409);
+        assert.equal((await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'POST', token: admin.token, corpo: { email: `outro.${email}`, senha: 'Senha@123' } })).status, 409);
 
         // Bloquear o acesso derruba o login na hora
         assert.equal((await api(`/api/voluntarios/${alvo.id_voluntario}/acesso`, { metodo: 'PATCH', token: admin.token, corpo: { ativo: false } })).status, 200);
         assert.equal((await api('/api/portal', { token: login.corpo.token })).status, 401);
-        assert.equal((await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: 'Senha123' } })).status, 403);
+        assert.equal((await api('/api/auth/login', { metodo: 'POST', corpo: { login: email, senha: 'Senha@123' } })).status, 403);
     });
 
     test('e-mail e senha do acesso são validados', async () => {
         const novo = await voluntarioComEscalas(3);
-        for (const corpo of [{ email: 'invalido', senha: 'Senha123' }, { email: 'ok@exemplo.test', senha: '123' }, { email: admin.email, senha: 'Senha123' }]) {
+        for (const corpo of [{ email: 'invalido', senha: 'Senha@123' }, { email: 'ok@exemplo.test', senha: '123' }, { email: admin.email, senha: 'Senha@123' }]) {
             const r = await api(`/api/voluntarios/${novo.id_voluntario}/acesso`, { metodo: 'POST', token: admin.token, corpo });
             assert.ok([400, 409].includes(r.status), `esperado 400/409, veio ${r.status}`);
         }

@@ -35,7 +35,7 @@ Apoio em `backend/src/config/`:
 | Arquivo | Para quê |
 |---|---|
 | `db.js` | Pool de conexões do PostgreSQL (lê `backend/src/.env`) |
-| `seguranca.js` | Hash de senha (scrypt) e token assinado (HMAC-SHA256) |
+| `seguranca.js` | Regra de senha forte (`validarSenha`), hash de senha (scrypt, assíncrono, custo gravado no hash) e token assinado (HMAC-SHA256) |
 | `limiteLogin.js` | Bloqueio temporário após muitas tentativas de login |
 | `erros.js` | `responderErro(res, error)`: traduz erros do banco em mensagens amigáveis, sem detalhes internos |
 | `backup.js` | Executa o `pg_dump` e grava em `backups/` |

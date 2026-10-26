@@ -11,7 +11,7 @@ const Escalas = require('../models/escalasModel');
 const Notificacoes = require('../models/notificacoesModel');
 const { Avisos, avisarDepois } = require('../config/notificacoes');
 const { responderErro } = require('../config/erros');
-const { gerarHashSenha, conferirSenha } = require('../config/seguranca');
+const { gerarHashSenha, conferirSenha, validarSenha } = require('../config/seguranca');
 const Regras = require('../config/regrasVoluntario');
 
 const PROXIMOS_EVENTOS = 12;
@@ -56,9 +56,10 @@ exports.getMinhaArea = async (req, res) => {
     }
 }
 
-// Escala que não pode ser alterada: 409 com o motivo se o evento já começou; senão 404
-async function escalaIndisponivel(res, idEscala) {
-    const situacao = await Escalas.situacaoDaEscala(idEscala);
+// Escala que não pode ser alterada: 409 com o motivo se a escala é do voluntário e o
+// evento já começou; senão 404 (escala de outra pessoa ou inexistente)
+async function escalaIndisponivel(res, idEscala, idVoluntario) {
+    const situacao = await Escalas.situacaoDaEscala(idEscala, idVoluntario);
     if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
     return res.status(404).json({ erro: 'Escala não encontrada.' });
 }
@@ -73,7 +74,7 @@ exports.responderEscala = async (req, res) => {
 
         // O voluntário só responde escalas dele, antes do início do evento
         const { estava_recusado: estavaRecusado, ...resposta } = await Voluntarios.responderEscala(id, Number(req.params.idEscala), dados) || {};
-        if (!resposta.id_escala) return escalaIndisponivel(res, Number(req.params.idEscala));
+        if (!resposta.id_escala) return escalaIndisponivel(res, Number(req.params.idEscala), id);
         // A liderança acompanha as duas mudanças: "Não posso ir" (com o motivo) e
         // "Mudei de ideia" (desfez a recusa: confirmou ou voltou a aguardar resposta)
         if (dados.recusado) {
@@ -101,7 +102,7 @@ exports.substitutos = async (req, res) => {
         if (!id) return;
         if (!Regras.idValido(req.params.idEscala)) return res.status(400).json({ erro: 'Escala inválida.' });
         const substitutos = await Escalas.substitutosParaVaga(Number(req.params.idEscala), id);
-        if (!substitutos) return escalaIndisponivel(res, Number(req.params.idEscala));
+        if (!substitutos) return escalaIndisponivel(res, Number(req.params.idEscala), id);
         res.json({ substitutos });
     } catch (error) {
         console.error('Erro ao listar substitutos', error);
@@ -121,7 +122,7 @@ exports.passarVaga = async (req, res) => {
         if (idNovo === id) return res.status(400).json({ erro: 'Escolha outra pessoa para assumir a vaga.' });
 
         const resultado = await Escalas.passarVaga(Number(req.params.idEscala), id, idNovo, req.usuario.id_usuario);
-        if (resultado.erro && resultado.status === 404) return escalaIndisponivel(res, Number(req.params.idEscala));
+        if (resultado.erro && resultado.status === 404) return escalaIndisponivel(res, Number(req.params.idEscala), id);
         if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
         // Quem assumiu e a liderança são avisados
         avisarDepois(async () => Avisos.vagaPassada({
@@ -190,11 +191,12 @@ exports.trocarSenha = async (req, res) => {
     try {
         const atual = typeof req.body.senha_atual === 'string' ? req.body.senha_atual : '';
         const nova = typeof req.body.nova_senha === 'string' ? req.body.nova_senha : '';
-        if (nova.length < 6) return res.status(400).json({ erro: 'A nova senha deve ter pelo menos 6 caracteres.' });
-        if (!conferirSenha(atual, await Usuarios.buscarHash(req.usuario.id_usuario))) {
+        const senhaFraca = validarSenha(nova);
+        if (senhaFraca) return res.status(400).json({ erro: senhaFraca.replace('A senha', 'A nova senha') });
+        if (!(await conferirSenha(atual, await Usuarios.buscarHash(req.usuario.id_usuario)))) {
             return res.status(400).json({ erro: 'Senha atual incorreta.' });
         }
-        await Usuarios.trocarSenha(req.usuario.id_usuario, gerarHashSenha(nova));
+        await Usuarios.trocarSenha(req.usuario.id_usuario, await gerarHashSenha(nova));
         res.json({ mensagem: 'Senha alterada.' });
     } catch (error) {
         console.error('Erro ao trocar senha', error);

@@ -92,12 +92,16 @@ async function vagaDoVoluntario(executor, idEscala, idVoluntario, travar = false
 
 // Situação de uma escala para alterações: undefined (não existe) ou
 // { bloqueada, realizada }. Bloqueada = o evento já começou (em andamento ou realizado).
-async function situacaoDaEscala(idEscala, executor = pool) {
-    const result = await executor.query(
+// Com idVoluntario, só devolve a situação se ele estiver nessa escala (para quem não
+// está nela, a escala "não existe": não se revela nada sobre a escala dos outros).
+async function situacaoDaEscala(idEscala, idVoluntario = null) {
+    const result = await pool.query(
         `SELECT ${Eventos.SITUACAO_ESCALA.bloqueada} AS bloqueada, ${Eventos.SITUACAO_ESCALA.realizada} AS realizada
          FROM escalas es LEFT JOIN eventos e ON e.id_evento = es.id_evento
-         WHERE es.id_escala = $1`,
-        [idEscala]
+         WHERE es.id_escala = $1
+           AND ($2::int IS NULL OR EXISTS (SELECT 1 FROM escala_participantes ep
+                                           WHERE ep.id_escala = es.id_escala AND ep.id_voluntario = $2))`,
+        [idEscala, idVoluntario]
     );
     return result.rows[0];
 }

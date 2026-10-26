@@ -9,6 +9,8 @@ require('dotenv').config({ path: path.join(__dirname, '../backend/src/.env'), qu
 // Antes de carregar a API: troca para o banco de testes
 process.env.DB_NAME = process.env.DB_NAME_TESTE || `${process.env.DB_NAME}_teste`;
 process.env.AUTH_SECRET = process.env.AUTH_SECRET || 'segredo-dos-testes';
+// Custo menor do scrypt só nos testes (cada usuário de teste faz hash e login); a produção usa o padrão
+process.env.SENHA_SCRYPT_N = process.env.SENHA_SCRYPT_N || '16384';
 
 const crypto = require('crypto');
 const app = require('../backend/src/server');
@@ -67,7 +69,7 @@ async function criarUsuario({ perfil = 'SECRETARIA', permissoes = NENHUMA, ativo
     const result = await pool.query(
         `INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo, permissoes, id_membro)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id_usuario`,
-        [`Teste ${perfil}`, email, gerarHashSenha(SENHA), perfil, ativo, permissoes, id_membro]
+        [`Teste ${perfil}`, email, await gerarHashSenha(SENHA), perfil, ativo, permissoes, id_membro]
     );
     const usuario = { id: result.rows[0].id_usuario, email, id_membro };
     if (ativo) {

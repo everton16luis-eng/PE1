@@ -500,6 +500,48 @@ function headerComVoltar(nome, descricao, voltar) {
     return header;
 }
 
+// ====================
+//   SENHA FORTE     ===
+// ====================
+// Mesmas regras do backend (backend/src/config/seguranca.js), que também recusa
+// a senha fraca: a tela só ajuda a pessoa a acertar antes de enviar.
+const REGRAS_SENHA = [
+    ['tamanho', 'Pelo menos 8 caracteres', s => [...s].length >= 8],
+    ['minuscula', 'Uma letra minúscula', s => /\p{Ll}/u.test(s)],
+    ['maiuscula', 'Uma letra maiúscula', s => /\p{Lu}/u.test(s)],
+    ['numero', 'Um número', s => /\p{Nd}/u.test(s)],
+    ['simbolo', 'Um símbolo (ex.: ! @ # $ % & * ?)', s => /[^\p{L}\p{N}\s]/u.test(s)]
+];
+
+// Mensagem com o que falta na senha, ou null se ela é forte
+function erroSenhaFraca(senha) {
+    const texto = String(senha || '');
+    if ([...texto].length > 128) return 'A senha pode ter no máximo 128 caracteres.';
+    const faltando = REGRAS_SENHA.filter(([, , cumpre]) => !cumpre(texto)).map(([, regra]) => regra.toLowerCase());
+    return faltando.length ? `A senha precisa ter ${faltando.join(', ')}.` : null;
+}
+
+// Lista de requisitos logo abaixo do campo de senha (ou de "ancora", quando o campo está
+// dentro de uma caixa com ícone), marcando ✓ conforme a pessoa digita
+function ligarRegrasSenha(campo, ancora = campo) {
+    const lista = document.createElement('ul');
+    lista.className = 'regras-senha';
+    lista.setAttribute('aria-live', 'polite');
+    lista.innerHTML = REGRAS_SENHA.map(([chave, regra]) =>
+        `<li data-regra="${chave}"><span class="material-icons" aria-hidden="true">radio_button_unchecked</span>${regra}</li>`).join('');
+    const atualizar = () => REGRAS_SENHA.forEach(([chave, , cumpre]) => {
+        const ok = cumpre(campo.value);
+        const item = lista.querySelector(`[data-regra="${chave}"]`);
+        item.classList.toggle('cumprida', ok);
+        item.querySelector('.material-icons').textContent = ok ? 'check_circle' : 'radio_button_unchecked';
+    });
+    campo.setAttribute('aria-describedby', [campo.getAttribute('aria-describedby'), lista.id = `regras-${campo.id}`].filter(Boolean).join(' '));
+    ancora.insertAdjacentElement('afterend', lista);
+    campo.addEventListener('input', atualizar);
+    atualizar();
+    return atualizar;
+}
+
 //  Mostra mensagem de erro/sucesso abaixo de um formulário
 function mensagemFormulario(form, texto, erro = true) {
     let campo = form.querySelector('.mensagem-form');

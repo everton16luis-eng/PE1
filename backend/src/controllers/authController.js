@@ -3,7 +3,7 @@ const Usuarios = require('../models/usuariosModel');
 const Atendimento = require('../models/atendimentoModel');
 const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
-const { gerarHashSenha, conferirSenha, gerarToken } = require('../config/seguranca');
+const { gerarHashSenha, conferirSenha, senhaPrecisaAtualizar, validarSenha, gerarToken } = require('../config/seguranca');
 const Limite = require('../config/limiteLogin');
 const { PERMISSOES_ADMIN, PERMISSOES_PADRAO, ehEquipeDeGestao } = require('../config/acesso');
 
@@ -24,7 +24,7 @@ exports.login = async (req, res) => {
         }
 
         const usuario = await Usuarios.buscarParaLogin(login);
-        if (!usuario || !conferirSenha(senha, usuario.senha_hash)) {
+        if (!usuario || !(await conferirSenha(senha, usuario.senha_hash))) {
             Limite.registrarFalha(req.ip, login);
             return res.status(401).json({ erro: 'Login ou senha incorretos.' });
         }
@@ -33,6 +33,11 @@ exports.login = async (req, res) => {
             return res.status(403).json({ erro: 'Seu acesso está bloqueado. Fale com a secretaria da igreja.' });
         }
 
+        // Senha guardada com um custo antigo: refaz o hash com o custo atual
+        // (a senha está certa agora; ninguém precisa trocar de senha por isso)
+        if (senhaPrecisaAtualizar(usuario.senha_hash)) {
+            await Usuarios.trocarSenha(usuario.id_usuario, await gerarHashSenha(senha));
+        }
         await Usuarios.registrarAcesso(usuario.id_usuario);
         res.json({ token: gerarToken(usuario), usuario: await Usuarios.buscarPorId(usuario.id_usuario) });
     } catch (error) {
@@ -53,9 +58,9 @@ exports.registro = async (req, res) => {
         const telefone = String(req.body.telefone || '').trim() || null;
         const senha = String(req.body.senha || '');
 
-        if (!nome || !email || senha.length < 6) {
-            return res.status(400).json({ erro: 'Informe nome, e-mail e uma senha com pelo menos 6 caracteres.' });
-        }
+        if (!nome || !email) return res.status(400).json({ erro: 'Informe nome e e-mail.' });
+        const senhaFraca = validarSenha(senha);
+        if (senhaFraca) return res.status(400).json({ erro: senhaFraca });
 
         const primeiroAcesso = (await Usuarios.contarAdministradoresAtivos()) === 0;
 
@@ -69,7 +74,7 @@ exports.registro = async (req, res) => {
                 nome,
                 email,
                 telefone,
-                senha_hash: gerarHashSenha(senha),
+                senha_hash: await gerarHashSenha(senha),
                 perfil: primeiroAcesso ? 'ADMINISTRADOR' : 'VISUALIZACAO',
                 ativo: true,
                 permissoes: primeiroAcesso ? PERMISSOES_ADMIN : PERMISSOES_PADRAO,

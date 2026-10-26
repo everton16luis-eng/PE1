@@ -1,7 +1,7 @@
 const Usuarios = require('../models/usuariosModel');
 const Pessoas = require('../models/pessoasModel');
 const { responderErro } = require('../config/erros');
-const { gerarHashSenha } = require('../config/seguranca');
+const { gerarHashSenha, validarSenha } = require('../config/seguranca');
 const { AREAS } = require('../config/acesso');
 
 // Perfis de contas de gestão. O perfil VOLUNTARIO (portal) não é criado nem
@@ -10,7 +10,7 @@ const PERFIS = ['ADMINISTRADOR', 'GESTOR', 'SECRETARIA', 'FINANCEIRO', 'VISUALIZ
 const MENSAGEM_PORTAL = 'Contas do portal do voluntário são gerenciadas na ficha do voluntário (página Voluntários).';
 
 // Lê e valida o corpo do formulário de usuário
-function dadosDoFormulario(body, senhaObrigatoria) {
+async function dadosDoFormulario(body, senhaObrigatoria) {
     const dados = {
         email: String(body.email || '').trim().toLowerCase(),
         telefone: String(body.telefone || '').trim() || null,
@@ -24,9 +24,13 @@ function dadosDoFormulario(body, senhaObrigatoria) {
     if (!/^\S+@\S+\.\S+$/.test(dados.email)) return { erro: 'Informe um e-mail válido.' };
     if (dados.perfil === 'VOLUNTARIO') return { erro: MENSAGEM_PORTAL };
     if (!PERFIS.includes(dados.perfil)) return { erro: 'Selecione um perfil de acesso válido.' };
-    if ((senhaObrigatoria || senha) && senha.length < 6) return { erro: 'A senha deve ter pelo menos 6 caracteres.' };
+    // Senha nova (criar usuário ou trocar a senha dele): precisa ser forte
+    if (senhaObrigatoria || senha) {
+        const senhaFraca = validarSenha(senha);
+        if (senhaFraca) return { erro: senhaFraca };
+    }
 
-    dados.senha_hash = senha ? gerarHashSenha(senha) : null;
+    dados.senha_hash = senha ? await gerarHashSenha(senha) : null;
     if (dados.perfil === 'ADMINISTRADOR') dados.permissoes = Object.fromEntries(AREAS.map(area => [area, true]));
     return { dados };
 }
@@ -64,7 +68,7 @@ exports.getUsuarios = async (req, res) => {
 
 exports.novoUsuario = async (req, res) => {
     try {
-        const { dados, erro } = dadosDoFormulario(req.body, true);
+        const { dados, erro } = await dadosDoFormulario(req.body, true);
         if (erro) return res.status(400).json({ erro });
 
         const bloqueio = bloqueioDePrivilegio(req.usuario, dados);
@@ -94,7 +98,7 @@ exports.atualizarUsuario = async (req, res) => {
         const id = Number(req.params.id);
         if (!Number.isInteger(id)) return res.status(400).json({ erro: 'Usuário inválido.' });
 
-        const { dados, erro } = dadosDoFormulario(req.body, false);
+        const { dados, erro } = await dadosDoFormulario(req.body, false);
         if (erro) return res.status(400).json({ erro });
 
         // Não deixa o sistema ficar sem nenhum administrador ativo

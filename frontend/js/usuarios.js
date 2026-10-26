@@ -143,7 +143,7 @@ async function formularioUsuario(usuario = null, idMembro = null) {
             <div class="form-section">
                 <div class="section-title"><span class="material-icons">lock</span><div><h3>Acesso ao sistema</h3><p>${editar ? 'Deixe a senha em branco para manter a atual.' : 'Defina a senha e o perfil de acesso.'}</p></div></div>
                 <div class="form-grid">
-                    <div class="form-group"><label for="uSenha">Senha</label><input type="password" id="uSenha" autocomplete="new-password" placeholder="Mínimo de 6 caracteres" minlength="6" ${editar ? '' : 'required'}></div>
+                    <div class="form-group"><label for="uSenha">Senha</label><input type="password" id="uSenha" autocomplete="new-password" placeholder="${editar ? 'Em branco = manter a atual' : 'Crie uma senha forte'}" minlength="8" maxlength="128" ${editar ? '' : 'required'}></div>
                     <div class="form-group"><label for="uConfirmar">Confirmar senha</label><input type="password" id="uConfirmar" autocomplete="new-password" placeholder="Digite a senha novamente"></div>
                     <div class="form-group">
                         <label for="uPerfil">Perfil de acesso</label>
@@ -257,10 +257,14 @@ async function formularioUsuario(usuario = null, idMembro = null) {
     $('uPerfil').addEventListener('change', travarPermissoesAdmin);
     $('cancelarUsuario').addEventListener('click', () => abrirSubstituindo(gerenciaUsuarios));
 
+    // Requisitos da senha forte (na edição, só valem se uma senha nova for digitada)
+    ligarRegrasSenha($('uSenha'));
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const senha = $('uSenha').value;
-        if ((!editar || senha) && senha.length < 6) return mensagemFormulario(form, 'A senha deve ter pelo menos 6 caracteres.');
+        const senhaFraca = (!editar || senha) ? erroSenhaFraca(senha) : null;
+        if (senhaFraca) return mensagemFormulario(form, senhaFraca);
         if (senha !== $('uConfirmar').value) return mensagemFormulario(form, 'As senhas não são iguais.');
         if (!$('uPerfil').value) return mensagemFormulario(form, 'Selecione o perfil de acesso.');
         if (!editar && !$('uPessoa').value) return mensagemFormulario(form, 'Escolha a pessoa que vai receber o acesso.');

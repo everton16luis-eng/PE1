@@ -39,7 +39,7 @@ const MOTIVOS_AUSENCIA = ['Férias', 'Viagem em família', 'Cirurgia e recupera�
             await cliente.query(
                 `INSERT INTO usuarios (nome, email, telefone, senha_hash, perfil, ativo, permissoes, observacoes, id_membro)
                  VALUES ($1, $2, $3, $4, 'VOLUNTARIO', TRUE, $5, 'Acesso ao portal do voluntário', $6)`,
-                [v.nome_completo, email, v.telefone, gerarHashSenha(SENHA_TESTE), PERMISSOES, v.id_membro]
+                [v.nome_completo, email, v.telefone, await gerarHashSenha(SENHA_TESTE), PERMISSOES, v.id_membro]
             );
             logins++;
         }

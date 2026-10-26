@@ -83,7 +83,7 @@ erDiagram
 
 | Tabela | Descrição | Colunas importantes |
 |---|---|---|
-| `usuarios` | Logins | `nome`, `email` (único), `telefone`, `senha_hash` (`scrypt$sal$hash`), `perfil`, `ativo`, `permissoes` (JSON por área), `ultimo_acesso`, `observacoes`, `id_membro` (único quando preenchido — liga ao portal) |
+| `usuarios` | Logins | `nome`, `email` (único), `telefone`, `senha_hash` (`scrypt$N=65536,r=8,p=2$sal$hash`; o formato antigo `scrypt$sal$hash` é refeito no próximo login), `perfil`, `ativo`, `permissoes` (JSON por área), `ultimo_acesso`, `observacoes`, `id_membro` (único quando preenchido — liga ao portal) |
 | `configuracoes_igreja` | Dados da igreja (1 linha) | `nome_igreja`, `cnpj`, `telefone`, `endereco`, `cidade`, `estado`, `horario_principal`, `fuso_horario`, `notificacoes`, `notificacoes_email`, `ultimo_backup`, `proximo_backup` |
 | `relatorios_gerados` | Histórico de relatórios | `tipo`, `data_inicial`, `data_final`, `formato` (`pdf`/`excel`/`csv`), `filtros` (JSON), `total_registros`, `id_usuario`, `gerado_em` |
 

@@ -4155,3 +4155,33 @@ button.secondary.perigo {
     cursor: not-allowed;
     opacity: .55;
 }
+
+/* Requisitos da senha forte (cadastro, Usuários, acesso ao portal, troca de senha) */
+.regras-senha {
+    display: grid;
+    gap: 3px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: left;
+}
+
+.regras-senha li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.regras-senha .material-icons {
+    /* fica na linha do texto (no login, os ícones dos campos são posicionados por cima) */
+    position: static;
+    transform: none;
+    color: inherit;
+    font-size: 15px;
+}
+
+.regras-senha li.cumprida {
+    color: #1f7a4d;
+}

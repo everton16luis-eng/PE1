@@ -7,7 +7,7 @@ A **Minha área** é o seu espaço como voluntário. Por ela você vê as suas e
 ## Primeiro acesso: criar a conta
 
 1. Abra o endereço do sistema que a igreja passou e toque na aba **Registro**.
-2. Preencha nome completo, telefone, e-mail e uma senha (mínimo de 6 caracteres), aceite os termos e toque em **Cadastrar**.
+2. Preencha nome completo, telefone, e-mail e uma senha forte (pelo menos 8 caracteres, com letra minúscula, letra maiúscula, número e símbolo — a tela mostra cada item conforme você digita), aceite os termos e toque em **Cadastrar**.
 3. Pronto: a conta já está ativa. Ainda não há escalas — a Minha área mostra a programação da igreja.
 4. Quem define quem serve como voluntário é a **liderança**. Quando ela definir você, as escalas aparecem **nesta mesma conta** (não crie outra).
 
@@ -95,7 +95,7 @@ Mostra as suas últimas escalas, com **Presente** quando você confirmou e **Aus
 
 ## Trocar senha
 
-Digite a **senha atual**, a **nova senha** (mínimo de 6 caracteres) e confirme.
+Digite a **senha atual**, a **nova senha** (pelo menos 8 caracteres, com letra minúscula, letra maiúscula, número e símbolo) e confirme.
 
 ## Dúvidas comuns
 

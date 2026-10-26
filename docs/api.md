@@ -46,7 +46,7 @@ O token vem do login, vale 12 horas e é recusado na hora se o usuário for desa
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | POST | `/auth/login` | público | `{ login, senha }` — `login` é e-mail ou telefone. Devolve `{ token, usuario }`. 401 login/senha errados (mesma mensagem para e-mail inexistente); 403 usuário pendente/inativo; 429 após 10 erros para o mesmo login ou 50 do mesmo IP em 15 min |
-| POST | `/auth/registro` | público | `{ nome, email, telefone?, senha }` (senha ≥ 6). Cria usuário `VISUALIZACAO` **ativo**, sem nenhuma área de gestão (usuário padrão: só a Minha área). Se não houver administrador ativo, o primeiro cadastro vira administrador ativo. Campos como `perfil`/`ativo`/`permissoes` enviados são ignorados |
+| POST | `/auth/registro` | público | `{ nome, email, telefone?, senha }` (senha forte: 8+ caracteres, minúscula, maiúscula, número e símbolo; 400 com o que falta). Cria usuário `VISUALIZACAO` **ativo**, sem nenhuma área de gestão (usuário padrão: só a Minha área). Se não houver administrador ativo, o primeiro cadastro vira administrador ativo. Campos como `perfil`/`ativo`/`permissoes` enviados são ignorados |
 | GET | `/auth/me` | login ou portal | Dados do usuário logado (`id_usuario`, `nome`, `perfil`, `permissoes`, `id_membro`…) e `voluntario` (a pessoa tem ficha de voluntário: dá direito à Minha área) — nunca inclui o hash da senha |
 
 ## Dashboard
@@ -128,7 +128,7 @@ A pessoa é identificada **pelo login** (`usuarios.id_membro`); nenhuma rota ace
 | PUT | `/portal/preferencias` | portal | `{ disponibilidade: [dia], telefone?, email? }` — ao menos um dia |
 | POST | `/portal/ausencias` | portal | `{ data_inicio, data_fim, motivo? }` — fim ≥ início e ≥ hoje; devolve `conflitos` |
 | DELETE | `/portal/ausencias/:idAusencia` | portal | Só as próprias |
-| PUT | `/portal/senha` | portal | `{ senha_atual, nova_senha }` (nova ≥ 6) |
+| PUT | `/portal/senha` | portal | `{ senha_atual, nova_senha }` (nova: senha forte: 8+ caracteres, minúscula, maiúscula, número e símbolo) |
 
 ## Funções
 
@@ -229,7 +229,7 @@ Filtros aceitos em `/relatorios/:tipo` (todos opcionais; `inicio`/`fim` em todos
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/usuarios` | `usuarios` | `{ usuarios, resumo, pessoas }` — pessoas com login de **gestão** (todos os perfis menos `VOLUNTARIO`, inclusive inativos e pendentes); o nome vem do cadastro da pessoa. `pessoas` = cadastros ainda sem login |
-| POST | `/usuarios` | `usuarios` | `{ id_membro, email, senha (≥ 6), perfil, ativo?, telefone?, observacoes?, permissoes? }` — o acesso é dado a uma **pessoa do cadastro** (400 sem `id_membro`, 404 inexistente, 409 se ela já tem login). `perfil` `VOLUNTARIO` é recusado (400): o acesso ao portal é criado na ficha do voluntário |
+| POST | `/usuarios` | `usuarios` | `{ id_membro, email, senha (forte, como no registro), perfil, ativo?, telefone?, observacoes?, permissoes? }` — o acesso é dado a uma **pessoa do cadastro** (400 sem `id_membro`, 404 inexistente, 409 se ela já tem login). `perfil` `VOLUNTARIO` é recusado (400): o acesso ao portal é criado na ficha do voluntário |
 | PUT | `/usuarios/:id` | `usuarios` | Mesmo corpo, sem `id_membro`; `senha` opcional (vazia mantém a atual). O nome não muda por aqui (é o da pessoa). Contas `VOLUNTARIO` não são editadas aqui (400) |
 
 Regras para quem **não** é administrador (403): não cria nem promove administradores, não edita contas de administrador, não altera o próprio perfil ou as próprias permissões e não concede permissões que não possui. O sistema não deixa ficar sem administrador ativo (400).

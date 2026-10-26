@@ -83,7 +83,7 @@ exports.alterarStatus = async (req, res) => {
 // Ficha do voluntário (gestão)
 // =========================================================
 const Usuarios = require('../models/usuariosModel');
-const { gerarHashSenha } = require('../config/seguranca');
+const { gerarHashSenha, validarSenha } = require('../config/seguranca');
 const Regras = require('../config/regrasVoluntario');
 
 const PERMISSOES_PORTAL = { participantes: false, voluntarios: false, escalas: false, criancas: false, relatorios: false, usuarios: false };
@@ -150,7 +150,7 @@ exports.responderEscala = async (req, res) => {
 
         const resposta = await Voluntarios.responderEscala(id, idEscala, dados);
         if (!resposta) {
-            const situacao = await Escalas.situacaoDaEscala(idEscala);
+            const situacao = await Escalas.situacaoDaEscala(idEscala, id);
             if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
             return res.status(404).json({ erro: 'Este voluntário não está nessa escala.' });
         }
@@ -171,7 +171,7 @@ exports.removerDaEscala = async (req, res) => {
         const info = await Notificacoes.escalaInfo(idEscala);
         const removido = await Voluntarios.removerDaEscala(id, idEscala);
         if (!removido) {
-            const situacao = await Escalas.situacaoDaEscala(idEscala);
+            const situacao = await Escalas.situacaoDaEscala(idEscala, id);
             if (situacao?.bloqueada) return res.status(409).json({ erro: Escalas.mensagemBloqueio(situacao) });
             return res.status(404).json({ erro: 'Este voluntário não está nessa escala.' });
         }
@@ -227,10 +227,11 @@ exports.criarAcesso = async (req, res) => {
         const email = Regras.texto(req.body.email, 150)?.toLowerCase();
         const senha = typeof req.body.senha === 'string' ? req.body.senha : '';
         if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ erro: 'Informe um e-mail válido para o login.' });
-        if (senha.length < 6) return res.status(400).json({ erro: 'A senha deve ter pelo menos 6 caracteres.' });
+        const senhaFraca = validarSenha(senha);
+        if (senhaFraca) return res.status(400).json({ erro: senhaFraca });
 
         const usuario = await Usuarios.criar({
-            nome: ficha.nome, email, telefone: ficha.telefone, senha_hash: gerarHashSenha(senha),
+            nome: ficha.nome, email, telefone: ficha.telefone, senha_hash: await gerarHashSenha(senha),
             perfil: 'VOLUNTARIO', ativo: true, permissoes: PERMISSOES_PORTAL,
             observacoes: 'Acesso ao portal do voluntário', id_membro: ficha.id_membro
         });

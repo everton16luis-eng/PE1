@@ -261,7 +261,7 @@ async function gerenciaMinhaArea() {
                 <form id="formSenha" novalidate>
                     <div class="form-grid">
                         <div class="form-group full"><label for="ptSenhaAtual">Senha atual</label><input type="password" id="ptSenhaAtual" autocomplete="current-password" required></div>
-                        <div class="form-group"><label for="ptNovaSenha">Nova senha</label><input type="password" id="ptNovaSenha" autocomplete="new-password" minlength="6" required></div>
+                        <div class="form-group"><label for="ptNovaSenha">Nova senha</label><input type="password" id="ptNovaSenha" autocomplete="new-password" minlength="8" maxlength="128" required></div>
                         <div class="form-group"><label for="ptConfirmar">Confirmar</label><input type="password" id="ptConfirmar" autocomplete="new-password" required></div>
                     </div>
                     <div class="form-actions-left"><button type="submit" class="primary">Trocar senha</button></div>
@@ -339,14 +339,17 @@ async function gerenciaMinhaArea() {
 
     // Troca de senha
     const formSenha = preferencias.querySelector('#formSenha');
+    const atualizarRegrasSenha = ligarRegrasSenha(formSenha.querySelector('#ptNovaSenha'));
     formSenha.addEventListener('submit', async event => {
         event.preventDefault();
         const nova = formSenha.querySelector('#ptNovaSenha').value;
-        if (nova.length < 6) return mensagemFormulario(formSenha, 'A nova senha deve ter pelo menos 6 caracteres.');
+        const senhaFraca = erroSenhaFraca(nova);
+        if (senhaFraca) return mensagemFormulario(formSenha, senhaFraca.replace('A senha', 'A nova senha'));
         if (nova !== formSenha.querySelector('#ptConfirmar').value) return mensagemFormulario(formSenha, 'As senhas não coincidem.');
         try {
             await enviarDados('portal/senha', 'PUT', { senha_atual: formSenha.querySelector('#ptSenhaAtual').value, nova_senha: nova });
             formSenha.reset();
+            atualizarRegrasSenha();
             mensagemFormulario(formSenha, 'Senha alterada.', false);
         } catch (erro) {
             mensagemFormulario(formSenha, erro.message);

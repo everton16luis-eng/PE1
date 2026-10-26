@@ -4,7 +4,8 @@
 
 ## Login e sessão
 
-- **Senhas** são guardadas como `scrypt$<sal>$<hash>` (sal aleatório por usuário; comparação em tempo constante). O hash nunca sai da API.
+- **Senhas** são guardadas com scrypt no formato `scrypt$N=65536,r=8,p=2$<sal>$<hash>` (custo recomendado pela OWASP, sal aleatório por usuário, comparação em tempo constante; cálculo assíncrono, sem travar o servidor). Hashes antigos (`scrypt$<sal>$<hash>`, custo menor) continuam valendo e são refeitos com o custo atual no próximo login certo. O hash nunca sai da API.
+- **Senha forte obrigatória** em toda senha nova (cadastro, Usuários, acesso ao portal e troca de senha): pelo menos 8 caracteres, letra minúscula, letra maiúscula, número e símbolo (máximo 128). A regra fica em `validarSenha` (backend, que recusa com 400) e é repetida na tela só para orientar quem digita. Senhas já existentes não são bloqueadas no login.
 - **Token** (`backend/src/config/seguranca.js`): `<dados em base64url>.<assinatura HMAC-SHA256>` com `id`, `perfil` e validade de **12 horas**, assinado com `AUTH_SECRET`. Qualquer alteração no conteúdo invalida a assinatura.
 - A cada requisição o usuário é **recarregado do banco**: desativar ou apagar um usuário derruba o acesso imediatamente, mesmo com token válido.
 - **No navegador** o token fica no `sessionStorage` (só a aba) ou no `localStorage` quando "Lembrar de mim" está marcado. "Sair" apaga os dois.

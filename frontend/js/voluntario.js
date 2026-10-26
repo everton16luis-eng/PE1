@@ -39,6 +39,21 @@ function avisoSomenteConsulta(realizada) {
         <span class="material-icons" aria-hidden="true">lock</span>${escapar(mensagemEscalaBloqueada(realizada))}</p>`;
 }
 
+// Senha inicial aleatória que cumpre as regras de senha forte (REGRAS_SENHA)
+function sugerirSenhaForte(tamanho = 10) {
+    const grupos = ['abcdefghjkmnpqrstuvwxyz', 'ACDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!@#$%&*?'];
+    const sorteio = limite => crypto.getRandomValues(new Uint32Array(1))[0] % limite;
+    const todos = grupos.join('');
+    const caracteres = [...grupos.map(g => g[sorteio(g.length)]),
+        ...Array.from({ length: tamanho - grupos.length }, () => todos[sorteio(todos.length)])];
+    // Embaralha (Fisher-Yates) para os obrigatórios não ficarem sempre no começo
+    for (let i = caracteres.length - 1; i > 0; i--) {
+        const j = sorteio(i + 1);
+        [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
+    }
+    return caracteres.join('');
+}
+
 // Pergunta o motivo da recusa; devolve o texto ou null se cancelar
 function pedirMotivoRecusa(descricao) {
     return new Promise(resolve => {
@@ -331,7 +346,7 @@ async function fichaVoluntario(id) {
                     <div class="form-group full"><label for="acEmail">E-mail de login</label><input type="email" id="acEmail" required></div>
                     <div class="form-group full">
                         <label for="acSenha">Senha inicial</label>
-                        <input type="text" id="acSenha" minlength="6" required autocomplete="off">
+                        <input type="text" id="acSenha" minlength="8" maxlength="128" required autocomplete="off">
                         <small>Passe a senha ao voluntário; ele pode trocá-la no portal.</small>
                     </div>
                 </div>
@@ -342,12 +357,15 @@ async function fichaVoluntario(id) {
             </form>`);
         const form = modal.querySelector('form');
         modal.querySelector('#acEmail').value = v.email || '';
-        // Sugere uma senha aleatória (8 caracteres sem ambiguidade)
-        const letras = 'abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789';
-        modal.querySelector('#acSenha').value = Array.from(crypto.getRandomValues(new Uint32Array(8)), n => letras[n % letras.length]).join('');
+        // Sugere uma senha aleatória forte (10 caracteres sem ambiguidade, com minúscula,
+        // maiúscula, número e símbolo garantidos e em posições sorteadas)
+        modal.querySelector('#acSenha').value = sugerirSenhaForte();
+        ligarRegrasSenha(modal.querySelector('#acSenha'));
         modal.querySelector('[data-cancelar]').addEventListener('click', fechar);
         form.addEventListener('submit', async event => {
             event.preventDefault();
+            const senhaFraca = erroSenhaFraca(modal.querySelector('#acSenha').value);
+            if (senhaFraca) return mensagemFormulario(form, senhaFraca);
             try {
                 await enviarDados(`voluntarios/${id}/acesso`, 'POST', {
                     email: modal.querySelector('#acEmail').value,
