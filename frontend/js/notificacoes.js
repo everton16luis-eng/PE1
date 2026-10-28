@@ -16,7 +16,8 @@ const instaladoNaTela = () => window.matchMedia?.('(display-mode: standalone)').
 async function registrarServiceWorker() {
     if (!('serviceWorker' in navigator) || !contextoSeguro()) return null;
     try {
-        registroServiceWorker = await navigator.serviceWorker.register('/sw.js');
+        // Caminho relativo: funciona na raiz e com o sistema publicado em uma pasta (ex.: /sistema/)
+        registroServiceWorker = await navigator.serviceWorker.register('sw.js');
         // Aviso chegou com o sistema aberto: atualiza o contador
         navigator.serviceWorker.addEventListener('message', evento => {
             if (evento.data?.tipo === 'notificacao') atualizarSino();
@@ -50,7 +51,7 @@ function chaveParaBytes(base64) {
 
 async function inscricaoAtual() {
     if (!pushSuportado() || !contextoSeguro()) return null;
-    const registro = registroServiceWorker || await navigator.serviceWorker.getRegistration('/');
+    const registro = registroServiceWorker || await navigator.serviceWorker.getRegistration();
     return registro ? registro.pushManager.getSubscription() : null;
 }
 

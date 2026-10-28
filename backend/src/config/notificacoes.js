@@ -38,7 +38,8 @@ async function enviarPush(idsUsuarios, aviso) {
     const conteudo = JSON.stringify({
         titulo: aviso.titulo,
         mensagem: aviso.mensagem,
-        url: aviso.rota ? `/#/${aviso.rota}` : '/',
+        // Relativo: o service worker completa com a pasta onde o sistema está publicado
+        url: aviso.rota ? `#/${aviso.rota}` : '',
         tag: aviso.tipo
     });
     await Promise.all(inscricoes.map(async i => {
